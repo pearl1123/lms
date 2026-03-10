@@ -33,19 +33,29 @@ class Auth extends CI_Controller {
     /* ================= LOGIN PROCESS ================= */
     public function login_process()
     {
+        $this->form_validation->set_rules('employee_id', 'Employee ID', 'required');
+        $this->form_validation->set_rules('password', 'Password', 'required');
+
+        if ($this->form_validation->run() == FALSE) {
+            $this->session->set_flashdata('error', validation_errors());
+            redirect('auth/login');
+            return;
+        }
+
         $employee_id = trim($this->input->post('employee_id'));
         $password    = $this->input->post('password');
 
         $result = $this->user_model->login($employee_id, $password);
 
         if ($result === 'locked') {
-            $this->session->set_flashdata('error', 'Account locked due to multiple failed attempts. Try again later.');
-            redirect('index.php/auth/login');
+            $this->session->set_flashdata('error', 
+                'Account locked due to multiple failed attempts. Try again after 15 minutes.');
+            redirect('auth/login');
+            return;
         }
 
         if ($result) {
 
-            // Regenerate session (security)
             $this->session->sess_regenerate(TRUE);
 
             $this->session->set_userdata([
@@ -55,7 +65,6 @@ class Auth extends CI_Controller {
                 'role'        => $result->role
             ]);
 
-            // Log activity
             $this->db->insert('activity_logs', [
                 'user_id'    => $result->id,
                 'action'     => 'Logged in',
@@ -64,10 +73,13 @@ class Auth extends CI_Controller {
             ]);
 
             redirect('dashboard');
+            return;
         }
 
-        $this->session->set_flashdata('error', 'Invalid Employee ID or Password');
-        redirect('index.php/auth/login');
+        // Generic message for security
+        $this->session->set_flashdata('error', 
+            'Invalid Employee ID or Password.');
+        redirect('auth/login');
     }
 
     /* ================= REGISTER PAGE ================= */
@@ -83,6 +95,8 @@ class Auth extends CI_Controller {
     /* ================= AJAX CHECK EMPLOYEE ================= */
     public function check_employee()
     {
+        header('Content-Type: application/json');
+
         $emp_id = trim($this->input->post('employee_id'));
 
         if (!$emp_id) {
@@ -130,12 +144,12 @@ class Auth extends CI_Controller {
 
         if (!$hr) {
             $this->session->set_flashdata('error', 'Employee ID not found or inactive in HRMIS.');
-            redirect('index.php/auth/register');
+            redirect('auth/register');
         }
 
         if ($this->user_model->is_registered($emp_id)) {
             $this->session->set_flashdata('error', 'This Employee ID is already registered.');
-            redirect('index.php/auth/register');
+            redirect('auth/register');
         }
 
         $data = [
@@ -150,13 +164,13 @@ class Auth extends CI_Controller {
         $this->user_model->register_user($data);
 
         $this->session->set_flashdata('success', 'Registration successful! You can now log in.');
-        redirect('index.php/auth/login');
+        redirect('auth/login');
     }
 
     /* ================= LOGOUT ================= */
     public function logout()
     {
         $this->session->sess_destroy();
-        redirect('index.php/auth/login');
+        redirect('auth/login');
     }
 }
