@@ -122,7 +122,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
       <?php endif; ?>
 
       <!-- LOGIN FORM -->
-      <form action="<?= base_url('index.php/auth/login_process'); ?>" method="post" autocomplete="off" novalidate class="w-100">
+      <form action="<?= site_url('auth/login_process'); ?>" method="post" autocomplete="off" novalidate class="w-100">
 
         <div class="mb-3 animate__animated animate__bounceIn" style="animation-delay: 0.2s;">
           <label class="form-label">Employee ID</label>

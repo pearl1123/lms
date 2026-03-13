@@ -1,7 +1,9 @@
 RewriteEngine On
 RewriteBase /lms/
 
-# Remove index.php from URLs
+# Don't rewrite existing files or directories
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
+
+# Redirect everything else to index.php
 RewriteRule ^(.*)$ index.php/$1 [L]

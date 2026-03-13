@@ -43,9 +43,9 @@ class Dashboard extends CI_Controller {
                 'user' => $user,
                 'page_title' => 'Admin Dashboard',
                 'analytics' => [
-                    'total_users' => $this->db->count_all('aauth_users'),
-                    'active_users' => $this->db->where('status','active')->count_all_results('aauth_users'),
-                    'inactive_users' => $this->db->where('status','inactive')->count_all_results('aauth_users'),
+                    'total_users' => $this->db->count_all('auth_users'),
+                    'active_users' => $this->db->where('status','active')->count_all_results('auth_users'),
+                    'inactive_users' => $this->db->where('status','inactive')->count_all_results('auth_users'),
                     'total_courses' => $this->db->count_all('courses'),
                 ]
             ];
