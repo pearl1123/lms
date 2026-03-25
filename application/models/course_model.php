@@ -37,7 +37,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * @property CI_DB_mysqli_driver $db
  */
-class course_model extends CI_Model {
+class Course_model extends CI_Model {
 
     public function __construct()
     {
@@ -618,6 +618,7 @@ class course_model extends CI_Model {
             ->select('
                 c.id, c.title, c.description, c.archived,
                 c.created_at, c.category_id, c.modality_id, c.access_type_id,
+                c.expiry_days,
                 cc.name              AS category_name,
                 lm.modality_desc     AS modality_name,
                 lat.access_type_desc AS access_type_name,
@@ -664,6 +665,7 @@ class course_model extends CI_Model {
             ->select('
                 c.id, c.title, c.description, c.archived,
                 c.created_at, c.category_id, c.modality_id, c.access_type_id,
+                c.expiry_days,
                 cc.name              AS category_name,
                 lm.modality_desc     AS modality_name,
                 lat.access_type_desc AS access_type_name
@@ -793,6 +795,242 @@ class course_model extends CI_Model {
             ->where('assessment_id', (int) $assessment_id)
             ->where('archived',      0)
             ->get('lib_assessment_questions');
+
+        return ($result && $result->num_rows() > 0)
+            ? $result->result()
+            : [];
+    }
+
+    // =========================================================
+    // COURSE CRUD  (create / update / delete / reassign)
+    // =========================================================
+
+    /**
+     * Create a new course.
+     * Returns the new course ID.
+     *
+     * @param  array $data
+     * @param  int   $user_id  encoded_by / created_by
+     * @return int
+     */
+    public function create_course($data, $user_id)
+    {
+        $now = date('Y-m-d H:i:s');
+        $this->db->insert('courses', [
+            'title'          => trim($data['title']),
+            'description'    => isset($data['description']) ? trim($data['description']) : null,
+            'created_by'     => (int) ($data['created_by'] ?? $user_id),
+            'category_id'    => ! empty($data['category_id'])    ? (int) $data['category_id']    : null,
+            'modality_id'    => ! empty($data['modality_id'])    ? (int) $data['modality_id']    : null,
+            'access_type_id' => ! empty($data['access_type_id']) ? (int) $data['access_type_id'] : null,
+            'expiry_days'    => ! empty($data['expiry_days'])    ? (int) $data['expiry_days']    : null,
+            'archived'       => 0,
+            'created_at'     => $now,
+            'date_encoded'   => $now,
+            'encoded_by'     => (int) $user_id,
+        ]);
+        return (int) $this->db->insert_id();
+    }
+
+    /**
+     * Update course details.
+     *
+     * @param  int   $course_id
+     * @param  array $data
+     * @param  int   $user_id   modified_by
+     * @return bool
+     */
+    public function update_course($course_id, $data, $user_id)
+    {
+        return (bool) $this->db
+            ->where('id', (int) $course_id)
+            ->update('courses', [
+                'title'              => trim($data['title']),
+                'description'        => isset($data['description']) ? trim($data['description']) : null,
+                'category_id'        => ! empty($data['category_id'])    ? (int) $data['category_id']    : null,
+                'modality_id'        => ! empty($data['modality_id'])    ? (int) $data['modality_id']    : null,
+                'access_type_id'     => ! empty($data['access_type_id']) ? (int) $data['access_type_id'] : null,
+                'expiry_days'        => ! empty($data['expiry_days'])    ? (int) $data['expiry_days']    : null,
+                'date_last_modified' => date('Y-m-d H:i:s'),
+                'modified_by'        => (int) $user_id,
+            ]);
+    }
+
+    /**
+     * Soft-delete (archive) a course and all its modules.
+     *
+     * @param  int $course_id
+     * @param  int $user_id
+     * @return bool
+     */
+    public function delete_course($course_id, $user_id)
+    {
+        // Archive all modules first
+        $this->db
+            ->where('course_id', (int) $course_id)
+            ->update('course_modules', [
+                'archived'           => 1,
+                'date_last_modified' => date('Y-m-d H:i:s'),
+                'modified_by'        => (int) $user_id,
+            ]);
+
+        return (bool) $this->db
+            ->where('id', (int) $course_id)
+            ->update('courses', [
+                'archived'           => 1,
+                'date_last_modified' => date('Y-m-d H:i:s'),
+                'modified_by'        => (int) $user_id,
+            ]);
+    }
+
+    /**
+     * Reassign a course to a different instructor (admin only).
+     *
+     * @param  int $course_id
+     * @param  int $new_owner_id   New created_by user
+     * @param  int $admin_id       modified_by
+     * @return bool
+     */
+    public function reassign_course($course_id, $new_owner_id, $admin_id)
+    {
+        return (bool) $this->db
+            ->where('id', (int) $course_id)
+            ->update('courses', [
+                'created_by'         => (int) $new_owner_id,
+                'date_last_modified' => date('Y-m-d H:i:s'),
+                'modified_by'        => (int) $admin_id,
+            ]);
+    }
+
+    /**
+     * Check whether a user owns a course (created_by = user_id).
+     * Admin role check is done at controller level.
+     *
+     * @param  int $course_id
+     * @param  int $user_id
+     * @return bool
+     */
+    public function owns_course($course_id, $user_id)
+    {
+        return (bool) $this->db
+            ->where('id',         (int) $course_id)
+            ->where('created_by', (int) $user_id)
+            ->where('archived',   0)
+            ->count_all_results('courses');
+    }
+
+    // =========================================================
+    // MODULE CRUD  (create / update / delete / reorder)
+    // =========================================================
+
+    /**
+     * Create a module inside a course.
+     * Returns new module ID.
+     *
+     * @param  array $data
+     * @param  int   $user_id
+     * @return int
+     */
+    public function create_module($data, $user_id)
+    {
+        // Auto-assign the next module_order
+        $max = $this->db
+            ->select_max('module_order')
+            ->where('course_id', (int) $data['course_id'])
+            ->where('archived',  0)
+            ->get('course_modules')
+            ->row();
+
+        $order = $max && $max->module_order ? (int) $max->module_order + 1 : 1;
+        $now   = date('Y-m-d H:i:s');
+
+        $this->db->insert('course_modules', [
+            'course_id'          => (int) $data['course_id'],
+            'title'              => trim($data['title']),
+            'description'        => isset($data['description']) ? trim($data['description']) : null,
+            'content_type'       => $data['content_type'],
+            'content_path'       => isset($data['content_path']) ? trim($data['content_path']) : null,
+            'weight_percentage'  => ! empty($data['weight_percentage']) ? (float) $data['weight_percentage'] : 0,
+            'module_order'       => $order,
+            'archived'           => 0,
+            'created_at'         => $now,
+            'date_encoded'       => $now,
+            'encoded_by'         => (int) $user_id,
+        ]);
+        return (int) $this->db->insert_id();
+    }
+
+    /**
+     * Update a module.
+     *
+     * @param  int   $module_id
+     * @param  array $data
+     * @param  int   $user_id
+     * @return bool
+     */
+    public function update_module($module_id, $data, $user_id)
+    {
+        return (bool) $this->db
+            ->where('id', (int) $module_id)
+            ->update('course_modules', [
+                'title'              => trim($data['title']),
+                'description'        => isset($data['description']) ? trim($data['description']) : null,
+                'content_type'       => $data['content_type'],
+                'content_path'       => isset($data['content_path']) ? trim($data['content_path']) : null,
+                'weight_percentage'  => ! empty($data['weight_percentage']) ? (float) $data['weight_percentage'] : 0,
+                'date_last_modified' => date('Y-m-d H:i:s'),
+                'modified_by'        => (int) $user_id,
+            ]);
+    }
+
+    /**
+     * Soft-delete a module.
+     *
+     * @param  int $module_id
+     * @param  int $user_id
+     * @return bool
+     */
+    public function delete_module($module_id, $user_id)
+    {
+        return (bool) $this->db
+            ->where('id', (int) $module_id)
+            ->update('course_modules', [
+                'archived'           => 1,
+                'date_last_modified' => date('Y-m-d H:i:s'),
+                'modified_by'        => (int) $user_id,
+            ]);
+    }
+
+    /**
+     * Reorder modules. Accepts an array of module IDs in the desired order.
+     *
+     * @param  int[] $ordered_ids
+     * @return void
+     */
+    public function reorder_modules($ordered_ids)
+    {
+        foreach ($ordered_ids as $position => $module_id) {
+            $this->db
+                ->where('id', (int) $module_id)
+                ->update('course_modules', ['module_order' => $position + 1]);
+        }
+    }
+
+    /**
+     * Get all teachers (role = teacher, not deleted, active).
+     * Used by admin reassign dropdown.
+     *
+     * @return object[]
+     */
+    public function get_teachers()
+    {
+        $result = $this->db
+            ->select('id, fullname, employee_id')
+            ->where('role',    'teacher')
+            ->where('status',  'active')
+            ->where('DELETED', 0)
+            ->order_by('fullname', 'ASC')
+            ->get('aauth_users');
 
         return ($result && $result->num_rows() > 0)
             ? $result->result()
