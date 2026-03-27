@@ -1,5 +1,5 @@
 <?php
-defined('BASEPATH') OR exit('No direct script access allowed');
+defined('BASEPATH') or exit('No direct script access allowed');
 
 /*
 | -------------------------------------------------------------------
@@ -76,8 +76,8 @@ $query_builder = TRUE;
 $db['default'] = array(
 	'dsn'	=> '',
 	'hostname' => '192.168.3.161',
-	'username' => 'injkbarrac',
-	'password' => '123321',
+	'username' => 'blcp',
+	'password' => 'Cdrking*963',
 	'database' => 'db_lms',
 	'dbdriver' => 'mysqli',
 	'dbprefix' => '',
@@ -94,3 +94,26 @@ $db['default'] = array(
 	'failover' => array(),
 	'save_queries' => TRUE
 );
+
+$db['hrmis'] = array(
+	'dsn'	=> '',
+	'hostname' => '192.168.30.233',
+	'username' => 'leobecido',
+	'password' => '12345678',
+	'database' => 'dbhrmis_staging',
+	'dbdriver' => 'mysqli',
+	'dbprefix' => '',
+	'pconnect' => FALSE,
+	'db_debug' => (ENVIRONMENT !== 'development'),
+	'cache_on' => FALSE,
+	'cachedir' => '',
+	'char_set' => 'utf8',
+	'dbcollat' => 'utf8_general_ci',
+	'swap_pre' => '',
+	'encrypt' => FALSE,
+	'compress' => FALSE,
+	'stricton' => FALSE,
+	'failover' => array(),
+	'save_queries' => TRUE
+);
+

@@ -123,12 +123,12 @@ $content_types = [
     </p>
   </div>
   <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-    <a href="<?= base_url('index.php/courses/view/'.$course->id) ?>" target="_blank"
+    <a href="<?= base_url('courses/view/'.$course->id) ?>" target="_blank"
        style="display:inline-flex;align-items:center;gap:5px;padding:.5rem .875rem;border-radius:8px;font-size:.8125rem;font-weight:600;text-decoration:none;border:1.5px solid var(--ka-border,#e2e8f0);background:#fff;color:var(--ka-text,#1e293b);">
       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
       Preview
     </a>
-    <a href="<?= base_url('index.php/manage_courses') ?>"
+    <a href="<?= base_url('manage_courses') ?>"
        style="display:inline-flex;align-items:center;gap:5px;padding:.5rem .875rem;border-radius:8px;font-size:.8125rem;font-weight:600;text-decoration:none;border:1.5px solid var(--ka-border,#e2e8f0);background:#fff;color:var(--ka-text,#1e293b);">
       ← Back
     </a>
@@ -144,7 +144,7 @@ $content_types = [
     <div class="edit-crs-panel">
       <div class="edit-crs-hdr"><h3 class="edit-crs-title">Course Details</h3></div>
       <div class="edit-crs-body">
-        <form method="post" action="<?= base_url('index.php/manage_courses/edit/'.$course->id) ?>">
+        <form method="post" action="<?= base_url('manage_courses/edit/'.$course->id) ?>">
           <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
 
           <div class="ef-group">
@@ -247,23 +247,23 @@ $content_types = [
                 <div class="mod-meta"><?= $ct['label'] ?><?= $mod->weight_percentage > 0 ? ' · ' . (float)$mod->weight_percentage . '% weight' : '' ?></div>
                 <div class="mod-asx-badges">
                   <?php if (($mod->pre_count ?? 0) > 0): ?>
-                    <a href="<?= base_url('index.php/assessments?module_id='.$mod->id.'&type=pre') ?>"
+                    <a href="<?= base_url('assessments?module_id='.$mod->id.'&type=pre') ?>"
                        class="mod-asx-badge pre" title="Pre-assessments">
                       ⏱ Pre (<?= $mod->pre_count ?>)
                     </a>
                   <?php else: ?>
-                    <a href="<?= base_url('index.php/assessments/create?module_id='.$mod->id.'&type=pre') ?>"
+                    <a href="<?= base_url('assessments/create?module_id='.$mod->id.'&type=pre') ?>"
                        class="mod-asx-badge add" title="Add pre-assessment">
                       + Pre-assessment
                     </a>
                   <?php endif; ?>
                   <?php if (($mod->post_count ?? 0) > 0): ?>
-                    <a href="<?= base_url('index.php/assessments?module_id='.$mod->id.'&type=post') ?>"
+                    <a href="<?= base_url('assessments?module_id='.$mod->id.'&type=post') ?>"
                        class="mod-asx-badge post" title="Post-assessments">
                       🏆 Post (<?= $mod->post_count ?>)
                     </a>
                   <?php else: ?>
-                    <a href="<?= base_url('index.php/assessments/create?module_id='.$mod->id.'&type=post') ?>"
+                    <a href="<?= base_url('assessments/create?module_id='.$mod->id.'&type=post') ?>"
                        class="mod-asx-badge add" title="Add post-assessment">
                       + Post-assessment
                     </a>
@@ -333,7 +333,7 @@ $content_types = [
     <div class="edit-crs-panel" style="margin-bottom:1rem;">
       <div class="edit-crs-hdr"><h3 class="edit-crs-title">Reassign Course</h3></div>
       <div class="edit-crs-body">
-        <form method="post" action="<?= base_url('index.php/manage_courses/reassign') ?>">
+        <form method="post" action="<?= base_url('manage_courses/reassign') ?>">
           <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
           <input type="hidden" name="course_id" value="<?= $course->id ?>">
           <div class="ef-group" style="margin-bottom:.875rem;">
@@ -359,7 +359,7 @@ $content_types = [
       <div class="edit-crs-hdr"><h3 class="edit-crs-title" style="color:#dc2626;">Danger Zone</h3></div>
       <div class="edit-crs-body">
         <p style="font-size:.75rem;color:var(--ka-text-muted,#64748b);margin:0 0 .875rem;">Archiving the course will hide it from the catalog and prevent new enrollments.</p>
-        <button onclick="KA.deleteConfirm('<?= base_url('index.php/manage_courses/delete/'.$course->id) ?>', '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')"
+        <button onclick="KA.deleteConfirm('<?= base_url('manage_courses/delete/'.$course->id) ?>', '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')"
                 style="width:100%;padding:.5rem;border-radius:8px;border:1.5px solid #fecaca;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:.8125rem;font-weight:700;transition:all .15s;">
           Archive Course
         </button>
@@ -501,7 +501,7 @@ function saveModule() {
     + '&content_path='      + encodeURIComponent(document.getElementById('modPath').value)
     + '&weight_percentage=' + (parseFloat(document.getElementById('modWeight').value) || 0);
 
-  fetch(BASE_URL + 'index.php/manage_courses/save_module', {
+  fetch(BASE_URL + 'manage_courses/save_module', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body,
@@ -550,8 +550,8 @@ function renderModule(m, isNew) {
     + '<div class="mod-title">' + escHtml(m.title) + '</div>'
     + '<div class="mod-meta">' + ct.label + (m.weight_percentage > 0 ? ' · ' + m.weight_percentage + '% weight' : '') + '</div>'
     + '<div class="mod-asx-badges">'
-    + '<a href="' + BASE_URL + 'index.php/assessments/create?module_id=' + m.id + '&type=pre" class="mod-asx-badge add">+ Pre-assessment</a>'
-    + '<a href="' + BASE_URL + 'index.php/assessments/create?module_id=' + m.id + '&type=post" class="mod-asx-badge add">+ Post-assessment</a>'
+    + '<a href="' + BASE_URL + 'assessments/create?module_id=' + m.id + '&type=pre" class="mod-asx-badge add">+ Pre-assessment</a>'
+    + '<a href="' + BASE_URL + 'assessments/create?module_id=' + m.id + '&type=post" class="mod-asx-badge add">+ Post-assessment</a>'
     + '</div>'
     + '</div>'
     + '<div class="mod-actions">'
@@ -577,7 +577,7 @@ function deleteModule(id) {
     confirmText: 'Yes, delete',
     type: 'danger',
     onConfirm: function() {
-      fetch(BASE_URL + 'index.php/manage_courses/delete_module', {
+      fetch(BASE_URL + 'manage_courses/delete_module', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: CSRF_NAME + '=' + CSRF_HASH + '&module_id=' + id,
@@ -652,7 +652,7 @@ document.querySelectorAll('.mod-item').forEach(initDrag);
 
 function saveOrder() {
   var ids = Array.from(document.querySelectorAll('.mod-item')).map(function(el) { return el.dataset.id; });
-  fetch(BASE_URL + 'index.php/manage_courses/reorder_modules', {
+  fetch(BASE_URL + 'manage_courses/reorder_modules', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: CSRF_NAME + '=' + CSRF_HASH + '&' + ids.map(function(id, i) { return 'ids[' + i + ']=' + id; }).join('&'),

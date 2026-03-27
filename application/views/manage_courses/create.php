@@ -41,10 +41,10 @@ $is_admin     = $user_role === 'admin';
     <h2 style="font-size:1.25rem;font-weight:800;color:var(--ka-text,#1e293b);margin:0 0 3px;letter-spacing:-.02em;">Create New Course</h2>
     <p style="font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0;">Fill in the course details. You'll add modules on the next screen.</p>
   </div>
-  <a href="<?= base_url('index.php/manage_courses') ?>" style="display:inline-flex;align-items:center;gap:6px;padding:.5rem 1rem;border-radius:8px;font-size:.8125rem;font-weight:600;text-decoration:none;border:1.5px solid var(--ka-border,#e2e8f0);background:#fff;color:var(--ka-text,#1e293b);">← Back</a>
+  <a href="<?= base_url('manage_courses') ?>" style="display:inline-flex;align-items:center;gap:6px;padding:.5rem 1rem;border-radius:8px;font-size:.8125rem;font-weight:600;text-decoration:none;border:1.5px solid var(--ka-border,#e2e8f0);background:#fff;color:var(--ka-text,#1e293b);">← Back</a>
 </div>
 
-<form method="post" action="<?= base_url('index.php/manage_courses/create') ?>">
+<form method="post" action="<?= base_url('manage_courses/create') ?>">
   <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
 
   <div class="crs-layout animate__animated animate__fadeInUp animate__fast">
@@ -142,7 +142,7 @@ $is_admin     = $user_role === 'admin';
             After creating the course you'll be taken to the module builder to add content.
           </p>
           <button type="submit" class="crs-submit-btn">Create &amp; Add Modules →</button>
-          <a href="<?= base_url('index.php/manage_courses') ?>"
+          <a href="<?= base_url('manage_courses') ?>"
              style="display:block;text-align:center;margin-top:.625rem;font-size:.75rem;color:var(--ka-text-muted,#64748b);text-decoration:none;">
             Cancel
           </a>

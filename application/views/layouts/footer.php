@@ -80,7 +80,7 @@ $year = date('Y');
   <div class="ka-footer-inner">
 
     <!-- Brand -->
-    <a href="<?= base_url('index.php/dashboard'); ?>" class="ka-footer-brand">
+    <a href="<?= base_url('dashboard'); ?>" class="ka-footer-brand">
       <div class="ka-footer-logo">
         <img src="<?= base_url('assets/tabler/img/logo.png'); ?>" alt="KABAGA Academy">
       </div>
@@ -92,11 +92,11 @@ $year = date('Y');
 
     <!-- Quick links -->
     <nav class="ka-footer-links">
-      <a href="<?= base_url('index.php/courses'); ?>">Courses</a>
-      <a href="<?= base_url('index.php/certificates'); ?>">Certificates</a>
-      <a href="<?= base_url('index.php/announcements'); ?>">Announcements</a>
-      <a href="<?= base_url('index.php/help'); ?>">Help Center</a>
-      <a href="<?= base_url('index.php/privacy'); ?>">Privacy Policy</a>
+      <a href="<?= base_url('courses'); ?>">Courses</a>
+      <a href="<?= base_url('certificates'); ?>">Certificates</a>
+      <a href="<?= base_url('announcements'); ?>">Announcements</a>
+      <a href="<?= base_url('help'); ?>">Help Center</a>
+      <a href="<?= base_url('privacy'); ?>">Privacy Policy</a>
     </nav>
 
     <!-- Copyright -->

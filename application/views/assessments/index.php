@@ -122,7 +122,7 @@ $type_colors = ['pre' => '#3b82f6', 'post' => '#22c55e'];
     <p><?= $is_manager ? 'Manage pre and post assessments for your course modules' : 'Your assigned assessments' ?></p>
   </div>
   <?php if ($is_manager): ?>
-  <a href="<?= base_url('index.php/assessments/create') ?>" class="asx-btn asx-btn-primary">
+  <a href="<?= base_url('assessments/create') ?>" class="asx-btn asx-btn-primary">
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     New Assessment
   </a>
@@ -190,15 +190,15 @@ $post_cnt = count(array_filter($assessments, fn($a) => $a->type === 'post'));
         </span>
         <?php if ($is_manager): ?>
         <div class="asx-card-actions">
-          <a href="<?= base_url('index.php/assessments/edit/'.$a->id) ?>"
+          <a href="<?= base_url('assessments/edit/'.$a->id) ?>"
              class="asx-card-action-btn" title="Edit">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </a>
-          <a href="<?= base_url('index.php/assessments/review/'.$a->id) ?>"
+          <a href="<?= base_url('assessments/review/'.$a->id) ?>"
              class="asx-card-action-btn" title="Review Submissions">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </a>
-          <button onclick="KA.deleteConfirm('<?= base_url('index.php/assessments/delete/'.$a->id) ?>', '<?= htmlspecialchars(addslashes($a->title ?? 'Assessment'), ENT_QUOTES) ?>')"
+          <button onclick="KA.deleteConfirm('<?= base_url('assessments/delete/'.$a->id) ?>', '<?= htmlspecialchars(addslashes($a->title ?? 'Assessment'), ENT_QUOTES) ?>')"
                   class="asx-card-action-btn danger" title="Delete">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
           </button>
@@ -246,16 +246,16 @@ $post_cnt = count(array_filter($assessments, fn($a) => $a->type === 'post'));
 
       <div class="asx-card-footer">
         <?php if ($is_manager): ?>
-          <a href="<?= base_url('index.php/assessments/edit/'.$a->id) ?>"
+          <a href="<?= base_url('assessments/edit/'.$a->id) ?>"
              class="asx-cta asx-cta-edit">Edit Questions</a>
-          <a href="<?= base_url('index.php/assessments/review/'.$a->id) ?>"
+          <a href="<?= base_url('assessments/review/'.$a->id) ?>"
              class="asx-cta asx-cta-review">Review</a>
         <?php else: ?>
           <?php if (isset($a->already_answered) && $a->already_answered): ?>
-            <a href="<?= base_url('index.php/assessments/result/'.$a->id) ?>"
+            <a href="<?= base_url('assessments/result/'.$a->id) ?>"
                class="asx-cta asx-cta-retake">View Result</a>
           <?php else: ?>
-            <a href="<?= base_url('index.php/assessments/take/'.$a->id) ?>"
+            <a href="<?= base_url('assessments/take/'.$a->id) ?>"
                class="asx-cta asx-cta-take">Take Assessment</a>
           <?php endif; ?>
         <?php endif; ?>
@@ -269,7 +269,7 @@ $post_cnt = count(array_filter($assessments, fn($a) => $a->type === 'post'));
       <h4>No assessments yet</h4>
       <p><?= $is_manager ? 'Create your first assessment to get started.' : 'No assessments have been assigned to you yet.' ?></p>
       <?php if ($is_manager): ?>
-        <a href="<?= base_url('index.php/assessments/create') ?>" class="asx-btn asx-btn-primary">Create Assessment</a>
+        <a href="<?= base_url('assessments/create') ?>" class="asx-btn asx-btn-primary">Create Assessment</a>
       <?php endif; ?>
     </div>
   <?php endif; ?>

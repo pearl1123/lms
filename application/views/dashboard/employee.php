@@ -214,11 +214,11 @@ $top_learners = $top_learners ?? [];
       <h2 class="emp-hero-title">Welcome back, <?= htmlspecialchars($first_name) ?> 👋</h2>
       <p class="emp-hero-sub">Keep the momentum going — you're doing great! <?= date('l, F j, Y') ?></p>
       <div class="emp-cta-row">
-        <a href="<?= base_url('index.php/my_courses') ?>" class="emp-cta emp-cta-primary">
+        <a href="<?= base_url('my_courses') ?>" class="emp-cta emp-cta-primary">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           Continue Learning
         </a>
-        <a href="<?= base_url('index.php/courses') ?>" class="emp-cta emp-cta-ghost">
+        <a href="<?= base_url('courses') ?>" class="emp-cta emp-cta-ghost">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
           Browse Courses
         </a>
@@ -301,7 +301,7 @@ $top_learners = $top_learners ?? [];
   <div class="emp-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.2s;">
     <div class="emp-panel-hdr">
       <h3 class="emp-panel-title">My Active Courses</h3>
-      <a href="<?= base_url('index.php/my_courses') ?>" class="emp-panel-link">
+      <a href="<?= base_url('my_courses') ?>" class="emp-panel-link">
         View all
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
       </a>
@@ -309,7 +309,7 @@ $top_learners = $top_learners ?? [];
     <div class="emp-panel-body">
       <div class="emp-course-grid">
 
-        <a href="<?= base_url('index.php/my_courses') ?>" class="emp-course-card">
+        <a href="<?= base_url('my_courses') ?>" class="emp-course-card">
           <div class="emp-course-thumb" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);">
             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.5"><path d="M9 12l2 2 4-4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             <span class="emp-course-thumb-badge">In Progress</span>
@@ -324,7 +324,7 @@ $top_learners = $top_learners ?? [];
           </div>
         </a>
 
-        <a href="<?= base_url('index.php/my_courses') ?>" class="emp-course-card">
+        <a href="<?= base_url('my_courses') ?>" class="emp-course-card">
           <div class="emp-course-thumb" style="background:linear-gradient(135deg,#22c55e,#15803d);">
             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             <span class="emp-course-thumb-badge">In Progress</span>
@@ -339,7 +339,7 @@ $top_learners = $top_learners ?? [];
           </div>
         </a>
 
-        <a href="<?= base_url('index.php/my_courses') ?>" class="emp-course-card">
+        <a href="<?= base_url('my_courses') ?>" class="emp-course-card">
           <div class="emp-course-thumb" style="background:linear-gradient(135deg,var(--ka-primary,#6dabcf),var(--ka-navy,#1a3a5c));">
             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
             <span class="emp-course-thumb-badge">Not Started</span>
@@ -354,7 +354,7 @@ $top_learners = $top_learners ?? [];
           </div>
         </a>
 
-        <a href="<?= base_url('index.php/my_courses') ?>" class="emp-course-card">
+        <a href="<?= base_url('my_courses') ?>" class="emp-course-card">
           <div class="emp-course-thumb" style="background:linear-gradient(135deg,#f59f00,#b45309);">
             <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             <span class="emp-course-thumb-badge">Completed ✓</span>
@@ -380,7 +380,7 @@ $top_learners = $top_learners ?? [];
     <div class="emp-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.25s;">
       <div class="emp-panel-hdr">
         <h3 class="emp-panel-title">🏆 Leaderboard</h3>
-        <a href="<?= base_url('index.php/leaderboard') ?>" class="emp-panel-link">Full board</a>
+        <a href="<?= base_url('leaderboard') ?>" class="emp-panel-link">Full board</a>
       </div>
       <div class="emp-panel-body" style="padding-top:.5rem;padding-bottom:.5rem;">
         <ul class="emp-leader-list">
@@ -413,7 +413,7 @@ $top_learners = $top_learners ?? [];
     <div class="emp-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.3s;">
       <div class="emp-panel-hdr">
         <h3 class="emp-panel-title">My Badges</h3>
-        <a href="<?= base_url('index.php/certificates') ?>" class="emp-panel-link">See all</a>
+        <a href="<?= base_url('certificates') ?>" class="emp-panel-link">See all</a>
       </div>
       <div class="emp-panel-body">
         <div class="emp-badge-shelf">
@@ -452,7 +452,7 @@ $top_learners = $top_learners ?? [];
   <div class="emp-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.35s;">
     <div class="emp-panel-hdr">
       <h3 class="emp-panel-title">Up Next — Infection Control</h3>
-      <a href="<?= base_url('index.php/my_courses') ?>" class="emp-panel-link">Open course</a>
+      <a href="<?= base_url('my_courses') ?>" class="emp-panel-link">Open course</a>
     </div>
     <div class="emp-panel-body" style="padding-top:.25rem;padding-bottom:.25rem;">
       <?php
@@ -485,7 +485,7 @@ $top_learners = $top_learners ?? [];
   <div class="emp-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.4s;">
     <div class="emp-panel-hdr">
       <h3 class="emp-panel-title">Announcements</h3>
-      <a href="<?= base_url('index.php/announcements') ?>" class="emp-panel-link">View all</a>
+      <a href="<?= base_url('announcements') ?>" class="emp-panel-link">View all</a>
     </div>
     <div class="emp-panel-body" style="padding-top:.25rem;padding-bottom:.25rem;">
       <ul class="emp-announce-list">

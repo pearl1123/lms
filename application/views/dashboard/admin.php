@@ -267,15 +267,15 @@ $total_courses=$analytics['total_courses'] ?? 0;
     <h2 class="ka-welcome-title">Good <?= (date('H') < 12 ? 'morning' : (date('H') < 17 ? 'afternoon' : 'evening')) ?>, <?= htmlspecialchars(explode(' ', trim($user->fullname ?? 'Admin'))[0]) ?> 👋</h2>
     <p class="ka-welcome-sub">Here's what's happening at KABAGA Academy today — <?= date('l, F j, Y') ?></p>
     <div class="ka-welcome-actions">
-      <a href="<?= base_url('index.php/manage_courses/create') ?>" class="ka-welcome-btn ka-welcome-btn-primary">
+      <a href="<?= base_url('manage_courses/create') ?>" class="ka-welcome-btn ka-welcome-btn-primary">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         New Course
       </a>
-      <a href="<?= base_url('index.php/users') ?>" class="ka-welcome-btn ka-welcome-btn-ghost">
+      <a href="<?= base_url('users') ?>" class="ka-welcome-btn ka-welcome-btn-ghost">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Manage Users
       </a>
-      <a href="<?= base_url('index.php/reports') ?>" class="ka-welcome-btn ka-welcome-btn-ghost">
+      <a href="<?= base_url('reports') ?>" class="ka-welcome-btn ka-welcome-btn-ghost">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         Reports
       </a>
@@ -391,7 +391,7 @@ $total_courses=$analytics['total_courses'] ?? 0;
           <button class="chart-period" data-period="30d" style="font-size:.6875rem;font-weight:600;padding:4px 10px;border-radius:6px;border:1px solid var(--ka-border);background:transparent;color:var(--ka-text-muted);cursor:pointer;transition:all .15s;">30D</button>
           <button class="chart-period" data-period="90d" style="font-size:.6875rem;font-weight:600;padding:4px 10px;border-radius:6px;border:1px solid var(--ka-border);background:transparent;color:var(--ka-text-muted);cursor:pointer;transition:all .15s;">90D</button>
         </div>
-        <a href="<?= base_url('index.php/reports') ?>" class="ka-panel-action">
+        <a href="<?= base_url('reports') ?>" class="ka-panel-action">
           Full Report
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         </a>
@@ -412,7 +412,7 @@ $total_courses=$analytics['total_courses'] ?? 0;
       </div>
       <div class="ka-panel-body">
         <div class="ka-quick-grid">
-          <a href="<?= base_url('index.php/manage_courses/create') ?>" class="ka-quick-btn">
+          <a href="<?= base_url('manage_courses/create') ?>" class="ka-quick-btn">
             <div class="ka-quick-icon" style="background:#eff6ff;color:#3b82f6;">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             </div>
@@ -421,7 +421,7 @@ $total_courses=$analytics['total_courses'] ?? 0;
               <div class="ka-quick-text-sub">Create new content</div>
             </div>
           </a>
-          <a href="<?= base_url('index.php/users') ?>" class="ka-quick-btn">
+          <a href="<?= base_url('users') ?>" class="ka-quick-btn">
             <div class="ka-quick-icon" style="background:#f0fdf4;color:#22c55e;">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
             </div>
@@ -430,7 +430,7 @@ $total_courses=$analytics['total_courses'] ?? 0;
               <div class="ka-quick-text-sub">Enroll learner</div>
             </div>
           </a>
-          <a href="<?= base_url('index.php/announcements') ?>" class="ka-quick-btn">
+          <a href="<?= base_url('announcements') ?>" class="ka-quick-btn">
             <div class="ka-quick-icon" style="background:#fffbeb;color:#f59f00;">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             </div>
@@ -439,7 +439,7 @@ $total_courses=$analytics['total_courses'] ?? 0;
               <div class="ka-quick-text-sub">Send notification</div>
             </div>
           </a>
-          <a href="<?= base_url('index.php/reports') ?>" class="ka-quick-btn">
+          <a href="<?= base_url('reports') ?>" class="ka-quick-btn">
             <div class="ka-quick-icon" style="background:var(--ka-accent,#e8f4fd);color:var(--ka-primary,#6dabcf);">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             </div>
@@ -494,7 +494,7 @@ $total_courses=$analytics['total_courses'] ?? 0;
   <div class="ka-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.35s;">
     <div class="ka-panel-header">
       <h3 class="ka-panel-title">Latest Enrollments</h3>
-      <a href="<?= base_url('index.php/users') ?>" class="ka-panel-action">
+      <a href="<?= base_url('users') ?>" class="ka-panel-action">
         View all
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
       </a>
@@ -592,7 +592,7 @@ $total_courses=$analytics['total_courses'] ?? 0;
     <div class="ka-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.4s;">
       <div class="ka-panel-header">
         <h3 class="ka-panel-title">Recent Activity</h3>
-        <a href="<?= base_url('index.php/reports') ?>" class="ka-panel-action">See all</a>
+        <a href="<?= base_url('reports') ?>" class="ka-panel-action">See all</a>
       </div>
       <div class="ka-panel-body" style="padding-top:.25rem;padding-bottom:.25rem;">
         <ul class="ka-activity-list">
@@ -649,7 +649,7 @@ $total_courses=$analytics['total_courses'] ?? 0;
     <div class="ka-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.45s;">
       <div class="ka-panel-header">
         <h3 class="ka-panel-title">Top Courses</h3>
-        <a href="<?= base_url('index.php/manage_courses') ?>" class="ka-panel-action">Manage</a>
+        <a href="<?= base_url('manage_courses') ?>" class="ka-panel-action">Manage</a>
       </div>
       <div class="ka-panel-body" style="padding-top:.25rem;padding-bottom:.25rem;">
         <ul class="ka-course-list">

@@ -43,7 +43,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
     <!-- Card -->
     <form class="card card-md"
-          action="<?= base_url('index.php/auth/forgot_password_process'); ?>"
+          action="<?= base_url('auth/forgot_password_process'); ?>"
           method="post"
           autocomplete="off"
           novalidate>
@@ -92,7 +92,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
     <div class="text-center text-secondary mt-3">
       Remember your password?
-      <a href="<?= base_url('index.php/auth/login'); ?>">Back to login</a>
+      <a href="<?= base_url('auth/login'); ?>">Back to login</a>
     </div>
 
   </div>

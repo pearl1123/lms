@@ -230,7 +230,7 @@ $thumb_gradients = [
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
     </div>
-    <a href="<?= base_url('index.php/manage_courses/create') ?>" class="ic-btn ic-btn-primary">
+    <a href="<?= base_url('manage_courses/create') ?>" class="ic-btn ic-btn-primary">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New Course
     </a>
@@ -318,20 +318,20 @@ $thumb_gradients = [
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" href="<?= base_url('index.php/manage_courses/edit/'.$course->id) ?>">
+            <li><a class="dropdown-item" href="<?= base_url('manage_courses/edit/'.$course->id) ?>">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               Edit Course
             </a></li>
-            <li><a class="dropdown-item" href="<?= base_url('index.php/manage_courses/modules/'.$course->id) ?>">
+            <li><a class="dropdown-item" href="<?= base_url('manage_courses/modules/'.$course->id) ?>">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
               Manage Modules
             </a></li>
-            <li><a class="dropdown-item" href="<?= base_url('index.php/manage_courses/students/'.$course->id) ?>">
+            <li><a class="dropdown-item" href="<?= base_url('manage_courses/students/'.$course->id) ?>">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
               View Students
             </a></li>
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item text-danger" href="<?= base_url('index.php/manage_courses/delete/'.$course->id) ?>" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">
+            <li><a class="dropdown-item text-danger" href="<?= base_url('manage_courses/delete/'.$course->id) ?>" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
               Delete
             </a></li>
@@ -359,9 +359,9 @@ $thumb_gradients = [
           <div class="ic-prog-bar"><div class="ic-prog-fill" style="width:<?= $avg_prog ?>%"></div></div>
         </div>
         <div class="ic-card-footer">
-          <a href="<?= base_url('index.php/manage_courses/edit/'.$course->id) ?>" class="ic-card-btn ic-btn-edit">Edit</a>
-          <a href="<?= base_url('index.php/manage_courses/modules/'.$course->id) ?>" class="ic-card-btn ic-btn-manage">Modules</a>
-          <a href="<?= base_url('index.php/manage_courses/delete/'.$course->id) ?>" class="ic-card-btn ic-btn-delete" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Del</a>
+          <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>" class="ic-card-btn ic-btn-edit">Edit</a>
+          <a href="<?= base_url('manage_courses/modules/'.$course->id) ?>" class="ic-card-btn ic-btn-manage">Modules</a>
+          <a href="<?= base_url('manage_courses/delete/'.$course->id) ?>" class="ic-card-btn ic-btn-delete" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Del</a>
         </div>
       </div>
     </div>
@@ -371,7 +371,7 @@ $thumb_gradients = [
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
       <h4>No courses yet</h4>
       <p>Start building your first course for your learners.</p>
-      <a href="<?= base_url('index.php/manage_courses/create') ?>" class="ic-btn ic-btn-primary">Create First Course</a>
+      <a href="<?= base_url('manage_courses/create') ?>" class="ic-btn ic-btn-primary">Create First Course</a>
     </div>
   <?php endif; ?>
 </div>
@@ -428,15 +428,15 @@ $thumb_gradients = [
             <td style="color:var(--ka-text-muted,#64748b);font-size:.75rem;white-space:nowrap;"><?= date('M j, Y', strtotime($course->created_at)) ?></td>
             <td>
               <div class="ic-action-row">
-                <a href="<?= base_url('index.php/manage_courses/edit/'.$course->id) ?>" class="ic-action-link ic-action-edit">Edit</a>
-                <a href="<?= base_url('index.php/manage_courses/modules/'.$course->id) ?>" class="ic-action-link ic-action-manage">Modules</a>
-                <a href="<?= base_url('index.php/manage_courses/delete/'.$course->id) ?>" class="ic-action-link ic-action-delete" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Delete</a>
+                <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>" class="ic-action-link ic-action-edit">Edit</a>
+                <a href="<?= base_url('manage_courses/modules/'.$course->id) ?>" class="ic-action-link ic-action-manage">Modules</a>
+                <a href="<?= base_url('manage_courses/delete/'.$course->id) ?>" class="ic-action-link ic-action-delete" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Delete</a>
               </div>
             </td>
           </tr>
           <?php endforeach; ?>
         <?php else: ?>
-          <tr><td colspan="8" style="text-align:center;padding:2.5rem;color:var(--ka-text-muted,#64748b);">No courses yet. <a href="<?= base_url('index.php/manage_courses/create') ?>">Create one now</a>.</td></tr>
+          <tr><td colspan="8" style="text-align:center;padding:2.5rem;color:var(--ka-text-muted,#64748b);">No courses yet. <a href="<?= base_url('manage_courses/create') ?>">Create one now</a>.</td></tr>
         <?php endif; ?>
       </tbody>
     </table>

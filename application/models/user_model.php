@@ -4,19 +4,21 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 class User_model extends CI_Model {
 
     protected $table = 'aauth_users';
+    protected $hrmis_db;
 
     public function __construct()
     {
         parent::__construct();
+        $this->hrmis_db = $this->load->database("hrmis", TRUE);
     }
 
     /* ===== GET HRMIS EMPLOYEE (ACTIVE ONLY) ===== */
     public function get_hrmis_employee($employee_id)
     {
-        return $this->db
-            ->where('employee_id', $employee_id)
-            ->where('status', 'active')
-            ->get('hrmis_employees')
+        return $this->hrmis_db
+            ->where('idno', $employee_id)
+            ->where('status', 'ACTIVE')
+            ->get('tblemployee')
             ->row();
     }
 
@@ -76,5 +78,19 @@ class User_model extends CI_Model {
     public function get_user($id)
     {
         return $this->db->get_where($this->table, ['id' => $id])->row();
+    }
+
+    /* ===== GET ALL USERS ===== */
+    public function get_all_users($include_deleted = false)
+    {
+        if (! $include_deleted) {
+            $this->db->where('DELETED', 0);
+        }
+
+        return $this->db
+            ->select('id, employee_id, fullname, role, office, status, last_login, created_at')
+            ->order_by('fullname', 'ASC')
+            ->get($this->table)
+            ->result();
     }
 }

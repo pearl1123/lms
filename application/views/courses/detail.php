@@ -249,7 +249,7 @@ $content_colors = [
         </div>
 
         <?php if ($progress_pct >= 100): ?>
-          <a href="<?= base_url('index.php/certificates') ?>" class="cd-enroll-btn cd-enroll-btn-cert">
+          <a href="<?= base_url('certificates') ?>" class="cd-enroll-btn cd-enroll-btn-cert">
             🏆 View Certificate
           </a>
         <?php else: ?>
@@ -260,13 +260,13 @@ $content_colors = [
             if ($m->my_status !== 'completed') { $next_module = $m; break; }
           }
           ?>
-          <a href="<?= $next_module ? base_url('index.php/courses/module/'.$next_module->id) : '#' ?>"
+          <a href="<?= $next_module ? base_url('courses/module/'.$next_module->id) : '#' ?>"
              class="cd-enroll-btn cd-enroll-btn-continue">
             <?= $completed_modules > 0 ? 'Continue Learning' : 'Start Course' ?>
           </a>
         <?php endif; ?>
 
-        <a href="<?= base_url('index.php/my_courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
+        <a href="<?= base_url('my_courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
           ← Back to My Courses
         </a>
 
@@ -282,12 +282,12 @@ $content_colors = [
             <div class="cd-enroll-stat-lbl">Enrolled</div>
           </div>
         </div>
-        <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
+        <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
            class="cd-enroll-btn cd-enroll-btn-primary"
            onclick="return confirm('Enroll in this course?')">
           Enroll Now — It\'s Free
         </a>
-        <a href="<?= base_url('index.php/courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
+        <a href="<?= base_url('courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
           ← Back to Catalog
         </a>
 
@@ -304,11 +304,11 @@ $content_colors = [
             <div class="cd-enroll-stat-lbl">Students</div>
           </div>
         </div>
-        <a href="<?= base_url('index.php/manage_courses/edit/'.$course->id) ?>"
+        <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>"
            class="cd-enroll-btn cd-enroll-btn-primary">
           Edit Course
         </a>
-        <a href="<?= base_url('index.php/courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
+        <a href="<?= base_url('courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
           ← Back to Catalog
         </a>
       <?php endif; ?>
@@ -375,7 +375,7 @@ $content_colors = [
               </div>
             </div>
             <?php if ($status !== 'locked'): ?>
-            <a href="<?= base_url('index.php/courses/module/'.$module->id) ?>"
+            <a href="<?= base_url('courses/module/'.$module->id) ?>"
                class="cd-module-action <?= $action_class ?>">
               <?= $action_text ?>
             </a>

@@ -65,5 +65,8 @@ $route['course/(:num)'] = 'Courses/view/$1';
 $route['admin'] = 'Dashboard/admin';
 $route['instructor'] = 'Dashboard/instructor';
 
+//Administrator routes
+$route['users'] = 'Users/index';
+
 $route['404_override'] = '';
 $route['translate_uri_dashes'] = FALSE;

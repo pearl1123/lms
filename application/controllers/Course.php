@@ -14,7 +14,7 @@ class Courses extends CI_Controller {
         parent::__construct();
         
         if (!$this->session->userdata('user_id')) {
-            redirect('index.php/auth/login');
+            redirect('auth/login');
         }
         
         $this->load->model('User_model', 'user_model');

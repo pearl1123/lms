@@ -470,25 +470,25 @@ $thumb_gradients = [
 
         <div class="cat-card-footer">
           <?php if ($user_role === 'employee' && ! $is_enr): ?>
-            <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
+            <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
                class="cat-cta <?= $cta_class ?>"
                onclick="event.preventDefault(); KA.enrollConfirm(this.href, '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')">
               <?= $cta_text ?>
             </a>
           <?php else: ?>
-            <a href="<?= base_url('index.php/courses/view/'.$course->id) ?>"
+            <a href="<?= base_url('courses/view/'.$course->id) ?>"
                class="cat-cta <?= $cta_class ?>">
               <?= $cta_text ?>
             </a>
           <?php endif; ?>
 
-          <a href="<?= base_url('index.php/courses/view/'.$course->id) ?>"
+          <a href="<?= base_url('courses/view/'.$course->id) ?>"
              class="cat-cta cat-cta-view" style="flex:none;padding:6px 12px;">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </a>
 
           <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
-          <a href="<?= base_url('index.php/manage_courses/edit/'.$course->id) ?>"
+          <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>"
              class="cat-cta cat-cta-manage" style="flex:none;padding:6px 10px;font-size:.6875rem;">
             Edit
           </a>
@@ -563,27 +563,27 @@ $thumb_gradients = [
 
       <div class="cat-list-actions">
         <?php if ($user_role === 'employee' && ! $is_enr): ?>
-          <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
+          <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
              class="cat-list-btn"
              style="background:var(--ka-navy,#1a3a5c);color:#fff;"
              onclick="event.preventDefault(); KA.enrollConfirm(this.href, '<?= htmlspecialchars(addslashes($course->title ?? 'this course'), ENT_QUOTES) ?>')">
             Enroll
           </a>
         <?php elseif ($is_enr): ?>
-          <a href="<?= base_url('index.php/courses/view/'.$course->id) ?>"
+          <a href="<?= base_url('courses/view/'.$course->id) ?>"
              class="cat-list-btn"
              style="background:var(--ka-accent,#e8f4fd);color:var(--ka-primary-deep,#4a8eb0);">
             <?= $my_pct >= 100 ? 'Review' : 'Continue' ?>
           </a>
         <?php else: ?>
-          <a href="<?= base_url('index.php/courses/view/'.$course->id) ?>"
+          <a href="<?= base_url('courses/view/'.$course->id) ?>"
              class="cat-list-btn"
              style="background:var(--ka-bg,#f8fafc);color:var(--ka-text-muted,#64748b);border:1px solid var(--ka-border,#e2e8f0);">
             View
           </a>
         <?php endif; ?>
         <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
-        <a href="<?= base_url('index.php/manage_courses/edit/'.$course->id) ?>"
+        <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>"
            class="cat-list-btn"
            style="background:#fffbeb;color:#b45309;">
           Edit

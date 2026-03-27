@@ -190,7 +190,7 @@ $thumb_gradients = [
     <h2>My Learning</h2>
     <p>Track progress across your enrolled courses, <?= htmlspecialchars($first_name) ?></p>
   </div>
-  <a href="<?= base_url('index.php/courses') ?>" class="ec-btn ec-btn-primary">
+  <a href="<?= base_url('courses') ?>" class="ec-btn ec-btn-primary">
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
     Browse Catalog
   </a>
@@ -315,11 +315,11 @@ $thumb_gradients = [
             </div>
           </div>
           <div class="ec-card-footer">
-            <a href="<?= base_url('index.php/my_courses/view/'.$course->course_id) ?>" class="ec-card-cta <?= $cta_class ?>">
+            <a href="<?= base_url('my_courses/view/'.$course->course_id) ?>" class="ec-card-cta <?= $cta_class ?>">
               <?= $cta_text ?>
             </a>
             <?php if ($pct >= 100): ?>
-            <a href="<?= base_url('index.php/certificates') ?>" style="padding:.5rem .75rem;border-radius:7px;background:#ecfdf5;color:#15803d;font-size:.6875rem;font-weight:700;text-decoration:none;white-space:nowrap;" title="View Certificate">
+            <a href="<?= base_url('certificates') ?>" style="padding:.5rem .75rem;border-radius:7px;background:#ecfdf5;color:#15803d;font-size:.6875rem;font-weight:700;text-decoration:none;white-space:nowrap;" title="View Certificate">
               🏆 Cert
             </a>
             <?php endif; ?>
@@ -332,7 +332,7 @@ $thumb_gradients = [
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         <h4>No enrolled courses</h4>
         <p>Browse the course catalog and start learning today.</p>
-        <a href="<?= base_url('index.php/courses') ?>" class="ec-btn ec-btn-primary">Browse Courses</a>
+        <a href="<?= base_url('courses') ?>" class="ec-btn ec-btn-primary">Browse Courses</a>
       </div>
     <?php endif; ?>
   </div>
@@ -370,8 +370,8 @@ $thumb_gradients = [
           </p>
           <?php endif; ?>
           <div class="ec-card-footer">
-            <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>" class="ec-card-cta ec-cta-start">Enroll Now</a>
-            <a href="<?= base_url('index.php/courses/view/'.$course->id) ?>" style="padding:.5rem .75rem;border-radius:7px;background:var(--ka-bg,#f8fafc);border:1px solid var(--ka-border,#e2e8f0);color:var(--ka-text-muted,#64748b);font-size:.75rem;font-weight:600;text-decoration:none;white-space:nowrap;transition:all .15s;">
+            <a href="<?= base_url('courses/enroll/'.$course->id) ?>" class="ec-card-cta ec-cta-start">Enroll Now</a>
+            <a href="<?= base_url('courses/view/'.$course->id) ?>" style="padding:.5rem .75rem;border-radius:7px;background:var(--ka-bg,#f8fafc);border:1px solid var(--ka-border,#e2e8f0);color:var(--ka-text-muted,#64748b);font-size:.75rem;font-weight:600;text-decoration:none;white-space:nowrap;transition:all .15s;">
               Details
             </a>
           </div>

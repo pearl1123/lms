@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1210 640" role="img" aria-labelledby="wmisLogoTitle wmisLogoDesc">
+  <title id="wmisLogoTitle">Lung Center of the Philippines WMIS Logo</title>
+  <desc id="wmisLogoDesc">Blue Lung Center of the Philippines inspired mark with institution name.</desc>
+
+  <g fill="#003da5">
+    <rect x="402" y="0" width="406" height="56" />
+    <rect x="588" y="56" width="34" height="376" />
+    <rect x="0" y="266" width="1210" height="92" />
+    <polygon points="415,520 605,408 795,520" />
+
+    <g>
+      <rect x="245" y="86" width="120" height="86" />
+      <path d="M55 266L245 148H365L568 266H655V442L365 614H245V552L55 444H0V266H55Z" />
+      <rect x="166" y="266" width="281" height="36" />
+      <rect x="284" y="359" width="42" height="82" />
+    </g>
+
+    <g transform="translate(1210 0) scale(-1 1)">
+      <rect x="245" y="86" width="120" height="86" />
+      <path d="M55 266L245 148H365L568 266H655V442L365 614H245V552L55 444H0V266H55Z" />
+      <rect x="166" y="266" width="281" height="36" />
+      <rect x="284" y="359" width="42" height="82" />
+    </g>
+
+    <text
+      x="605"
+      y="610"
+      text-anchor="middle"
+      font-family="Arial Black, Arial, sans-serif"
+      font-size="62"
+      letter-spacing="4"
+    >LUNG CENTER OF THE PHILIPPINES</text>
+  </g>
+</svg>

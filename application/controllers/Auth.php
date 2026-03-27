@@ -6,7 +6,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property CI_Session $session
  * @property CI_Input $input
  * @property CI_Form_validation $form_validation
- * @property User_model $user_model
+ * @property user_model $user_model
  */
 
 class Auth extends CI_Controller {
@@ -17,7 +17,7 @@ class Auth extends CI_Controller {
 
         $this->load->helper(['url', 'form']);
         $this->load->library(['session', 'form_validation']);
-        $this->load->model('User_model', 'user_model');
+        $this->load->model('user_model');
     }
 
     public function index()
@@ -32,7 +32,6 @@ class Auth extends CI_Controller {
         if ($this->session->userdata('user_id')) {
             redirect('dashboard');
         }
-
         $this->load->view('auth/login');
     }
 
@@ -80,7 +79,7 @@ class Auth extends CI_Controller {
             redirect('dashboard');
         }
 
-        $this->load->view('auth/register');
+        $this->load->view('auth/register_modal');
     }
 
     /* ================= AJAX CHECK EMPLOYEE ================= */
@@ -102,13 +101,16 @@ class Auth extends CI_Controller {
             echo json_encode([
                 'exists'     => true,
                 'registered' => $registered,
-                'name'       => $hr->name,
+                'name'       => $hr->lname . ', ' . $hr->fname . ' ' . $hr->mid,
+                'department' => $hr->Department,
+                'success'    => true,
             ]);
         } else {
             echo json_encode([
                 'exists'     => false,
                 'registered' => false,
                 'name'       => '',
+                 'success'    => false,
             ]);
         }
     }
@@ -123,7 +125,7 @@ class Auth extends CI_Controller {
 
         if ($this->form_validation->run() == FALSE) {
             $this->session->set_flashdata('error', validation_errors());
-            redirect('auth/login');
+            redirect('auth/register');
             return;
         }
 
@@ -132,23 +134,24 @@ class Auth extends CI_Controller {
 
         $hr = $this->user_model->get_hrmis_employee($emp_id);
 
-        if (!$hr) {
-            $this->session->set_flashdata('error', 'Employee ID not found or inactive in HRMIS.');
-            redirect('auth/login');
-            return;
-        }
+        // if (!$hr) {
+        //     $this->session->set_flashdata('error', 'Employee ID not found or inactive in HRMIS.');
+        //     redirect('auth/login');
+        //     return;
+        // }
 
-        if ($this->user_model->is_registered($emp_id)) {
-            $this->session->set_flashdata('error', 'This Employee ID is already registered.');
-            redirect('auth/login');
-            return;
-        }
+        // if ($this->user_model->is_registered($emp_id)) {
+        //     $this->session->set_flashdata('error', 'This Employee ID is already registered.');
+        //     redirect('auth/login');
+        //     return;
+        // }
 
         $this->user_model->register_user([
             'employee_id' => $emp_id,
-            'fullname'    => $hr->name,
+            'fullname'    => $hr->lname . ', ' . $hr->fname . ' ' . $hr->mid,
             'password'    => password_hash($password, PASSWORD_DEFAULT),
             'role'        => 'employee',
+            'office'      => $hr->Department,
             'status'      => 'active',
             'created_at'  => date('Y-m-d H:i:s'),
         ]);

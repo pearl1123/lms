@@ -298,7 +298,7 @@ $initials = substr($initials, 0, 2);
     <?php if (!empty($breadcrumbs)): ?>
       <ul class="ka-breadcrumb">
         <li>
-          <a href="<?= base_url('index.php/dashboard'); ?>">
+          <a href="<?= base_url('dashboard'); ?>">
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           </a>
         </li>
@@ -309,7 +309,7 @@ $initials = substr($initials, 0, 2);
           <?php if ($i === count($breadcrumbs) - 1): ?>
             <li class="active"><?= htmlspecialchars($crumb['label']) ?></li>
           <?php else: ?>
-            <li><a href="<?= base_url('index.php/' . $crumb['url']); ?>"><?= htmlspecialchars($crumb['label']) ?></a></li>
+            <li><a href="<?= base_url('' . $crumb['url']); ?>"><?= htmlspecialchars($crumb['label']) ?></a></li>
           <?php endif; ?>
         <?php endforeach; ?>
       </ul>
@@ -344,7 +344,7 @@ $initials = substr($initials, 0, 2);
       <div class="dropdown-menu dropdown-menu-end ka-notif-dropdown">
         <div class="ka-notif-header">
           <p class="ka-notif-header-title">Notifications</p>
-          <a href="<?= base_url('index.php/notifications'); ?>" style="font-size:.75rem;font-weight:600;color:var(--ka-primary);text-decoration:none;">Mark all read</a>
+          <a href="<?= base_url('notifications'); ?>" style="font-size:.75rem;font-weight:600;color:var(--ka-primary);text-decoration:none;">Mark all read</a>
         </div>
         <div class="ka-notif-list">
 
@@ -383,13 +383,13 @@ $initials = substr($initials, 0, 2);
 
         </div>
         <div class="ka-notif-footer">
-          <a href="<?= base_url('index.php/notifications'); ?>">View all notifications</a>
+          <a href="<?= base_url('notifications'); ?>">View all notifications</a>
         </div>
       </div>
     </div>
 
     <!-- Help -->
-    <a href="<?= base_url('index.php/help'); ?>" class="ka-nav-btn" title="Help & Support">
+    <a href="<?= base_url('help'); ?>" class="ka-nav-btn" title="Help & Support">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     </a>
 
@@ -411,25 +411,25 @@ $initials = substr($initials, 0, 2);
           </div>
         </li>
         <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="<?= base_url('index.php/profile'); ?>">
+        <li><a class="dropdown-item" href="<?= base_url('profile'); ?>">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2 text-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           My Profile
         </a></li>
-        <li><a class="dropdown-item" href="<?= base_url('index.php/my_courses'); ?>">
+        <li><a class="dropdown-item" href="<?= base_url('my_courses'); ?>">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2 text-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
           My Learning
         </a></li>
-        <li><a class="dropdown-item" href="<?= base_url('index.php/certificates'); ?>">
+        <li><a class="dropdown-item" href="<?= base_url('certificates'); ?>">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2 text-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
           My Certificates
         </a></li>
         <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="<?= base_url('index.php/settings'); ?>">
+        <li><a class="dropdown-item" href="<?= base_url('settings'); ?>">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2 text-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           Settings
         </a></li>
         <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item text-danger" href="<?= base_url('index.php/auth/logout'); ?>">
+        <li><a class="dropdown-item text-danger" href="<?= base_url('auth/logout'); ?>">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Sign Out
         </a></li>

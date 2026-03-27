@@ -229,15 +229,15 @@ $first_name = explode(' ', trim($full_name))[0];
       <h2 class="ins-hero-title">Hello, <?= htmlspecialchars($first_name) ?>! 🎓</h2>
       <p class="ins-hero-sub">Manage your classes, review learners, and track progress — <?= date('l, F j, Y') ?></p>
       <div class="ins-cta-row">
-        <a href="<?= base_url('index.php/manage_courses/create') ?>" class="ins-cta ins-cta-primary">
+        <a href="<?= base_url('manage_courses/create') ?>" class="ins-cta ins-cta-primary">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Create Course
         </a>
-        <a href="<?= base_url('index.php/my_classes') ?>" class="ins-cta ins-cta-ghost">
+        <a href="<?= base_url('my_classes') ?>" class="ins-cta ins-cta-ghost">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           My Classes
         </a>
-        <a href="<?= base_url('index.php/assessments') ?>" class="ins-cta ins-cta-ghost">
+        <a href="<?= base_url('assessments') ?>" class="ins-cta ins-cta-ghost">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           Assessments
         </a>
@@ -339,7 +339,7 @@ $first_name = explode(' ', trim($full_name))[0];
   <div class="ins-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.2s;">
     <div class="ins-panel-hdr">
       <h3 class="ins-panel-title">My Courses</h3>
-      <a href="<?= base_url('index.php/manage_courses') ?>" class="ins-panel-link">
+      <a href="<?= base_url('manage_courses') ?>" class="ins-panel-link">
         Manage all
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
       </a>
@@ -391,7 +391,7 @@ $first_name = explode(' ', trim($full_name))[0];
                   <span style="font-size:.75rem;font-weight:700;color:var(--ka-primary,#6dabcf);white-space:nowrap;"><?= $course->avg_progress ?? 0 ?>%</span>
                 </div>
               </td>
-              <td><a href="<?= base_url('index.php/manage_courses/edit/' . $course->id) ?>" style="font-size:.6875rem;font-weight:600;color:var(--ka-primary,#6dabcf);text-decoration:none;">Edit</a></td>
+              <td><a href="<?= base_url('manage_courses/edit/' . $course->id) ?>" style="font-size:.6875rem;font-weight:600;color:var(--ka-primary,#6dabcf);text-decoration:none;">Edit</a></td>
             </tr>
             <?php endforeach; ?>
           <?php else: ?>
@@ -416,7 +416,7 @@ $first_name = explode(' ', trim($full_name))[0];
                   <span style="font-size:.75rem;font-weight:600;color:var(--ka-text-muted,#64748b);">0%</span>
                 </div>
               </td>
-              <td><a href="<?= base_url('index.php/manage_courses/create') ?>" style="font-size:.6875rem;font-weight:600;color:var(--ka-primary,#6dabcf);text-decoration:none;">Create</a></td>
+              <td><a href="<?= base_url('manage_courses/create') ?>" style="font-size:.6875rem;font-weight:600;color:var(--ka-primary,#6dabcf);text-decoration:none;">Create</a></td>
             </tr>
           <?php endif; ?>
         </tbody>
@@ -434,7 +434,7 @@ $first_name = explode(' ', trim($full_name))[0];
       </div>
       <div class="ins-panel-body">
         <div class="ins-quick-grid">
-          <a href="<?= base_url('index.php/manage_courses/create') ?>" class="ins-quick-btn">
+          <a href="<?= base_url('manage_courses/create') ?>" class="ins-quick-btn">
             <div class="ins-quick-icon" style="background:#eff6ff;color:#3b82f6;">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             </div>
@@ -443,7 +443,7 @@ $first_name = explode(' ', trim($full_name))[0];
               <div class="ins-quick-sub">Start from scratch</div>
             </div>
           </a>
-          <a href="<?= base_url('index.php/assessments') ?>" class="ins-quick-btn">
+          <a href="<?= base_url('assessments') ?>" class="ins-quick-btn">
             <div class="ins-quick-icon" style="background:#f0fdf4;color:#22c55e;">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             </div>
@@ -452,7 +452,7 @@ $first_name = explode(' ', trim($full_name))[0];
               <div class="ins-quick-sub">Create quizzes</div>
             </div>
           </a>
-          <a href="<?= base_url('index.php/my_classes') ?>" class="ins-quick-btn">
+          <a href="<?= base_url('my_classes') ?>" class="ins-quick-btn">
             <div class="ins-quick-icon" style="background:#fffbeb;color:#f59f00;">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             </div>
@@ -461,7 +461,7 @@ $first_name = explode(' ', trim($full_name))[0];
               <div class="ins-quick-sub">Schedule sessions</div>
             </div>
           </a>
-          <a href="<?= base_url('index.php/reports') ?>" class="ins-quick-btn">
+          <a href="<?= base_url('reports') ?>" class="ins-quick-btn">
             <div class="ins-quick-icon" style="background:var(--ka-accent,#e8f4fd);color:var(--ka-primary,#6dabcf);">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
             </div>
@@ -490,7 +490,7 @@ $first_name = explode(' ', trim($full_name))[0];
               <div class="ins-review-title">Assessment — Juan Dela Cruz</div>
               <div class="ins-review-sub">Infection Control · Module 4</div>
             </div>
-            <a href="<?= base_url('index.php/assessments') ?>" class="ins-review-action">Review</a>
+            <a href="<?= base_url('assessments') ?>" class="ins-review-action">Review</a>
           </li>
           <li class="ins-review-item">
             <div class="ins-review-icon" style="background:#f0fdf4;color:#22c55e;">
@@ -500,7 +500,7 @@ $first_name = explode(' ', trim($full_name))[0];
               <div class="ins-review-title">Assignment — Maria Santos</div>
               <div class="ins-review-sub">Patient Safety · Module 3</div>
             </div>
-            <a href="<?= base_url('index.php/assessments') ?>" class="ins-review-action">Review</a>
+            <a href="<?= base_url('assessments') ?>" class="ins-review-action">Review</a>
           </li>
           <li class="ins-review-item">
             <div class="ins-review-icon" style="background:#fffbeb;color:#f59f00;">
@@ -510,7 +510,7 @@ $first_name = explode(' ', trim($full_name))[0];
               <div class="ins-review-title">Quiz Retake — Ana Lim</div>
               <div class="ins-review-sub">Respiratory Care · Quiz 2</div>
             </div>
-            <a href="<?= base_url('index.php/assessments') ?>" class="ins-review-action">Review</a>
+            <a href="<?= base_url('assessments') ?>" class="ins-review-action">Review</a>
           </li>
         </ul>
       </div>
@@ -527,7 +527,7 @@ $first_name = explode(' ', trim($full_name))[0];
   <div class="ins-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.35s;">
     <div class="ins-panel-hdr">
       <h3 class="ins-panel-title">Student Progress</h3>
-      <a href="<?= base_url('index.php/my_classes') ?>" class="ins-panel-link">View all</a>
+      <a href="<?= base_url('my_classes') ?>" class="ins-panel-link">View all</a>
     </div>
     <div class="ins-panel-body" style="padding-top:.25rem;padding-bottom:.25rem;">
       <ul class="ins-student-list">
@@ -580,7 +580,7 @@ $first_name = explode(' ', trim($full_name))[0];
     <div class="ins-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.45s;">
       <div class="ins-panel-hdr">
         <h3 class="ins-panel-title">Upcoming Schedule</h3>
-        <a href="<?= base_url('index.php/my_classes') ?>" class="ins-panel-link">Full calendar</a>
+        <a href="<?= base_url('my_classes') ?>" class="ins-panel-link">Full calendar</a>
       </div>
       <div class="ins-panel-body">
         <div class="ins-cal-strip">

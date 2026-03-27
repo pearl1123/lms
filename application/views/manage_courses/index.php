@@ -77,7 +77,7 @@ $archived = array_filter($courses, fn($c) =>  (int)$c->archived);
     <h2>Manage Courses</h2>
     <p><?= $is_admin ? 'All courses in the system' : 'Courses you have created' ?></p>
   </div>
-  <a href="<?= base_url('index.php/manage_courses/create') ?>" class="mc-btn mc-btn-primary">
+  <a href="<?= base_url('manage_courses/create') ?>" class="mc-btn mc-btn-primary">
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     New Course
   </a>
@@ -129,7 +129,7 @@ foreach ($courses as $c) {
 <div class="mc-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.1s;">
   <div class="mc-panel-hdr">
     <h3 class="mc-panel-title">All Courses</h3>
-    <a href="<?= base_url('index.php/manage_courses/create') ?>" class="mc-btn mc-btn-outline" style="padding:.375rem .875rem;font-size:.75rem;">
+    <a href="<?= base_url('manage_courses/create') ?>" class="mc-btn mc-btn-outline" style="padding:.375rem .875rem;font-size:.75rem;">
       + New Course
     </a>
   </div>
@@ -180,16 +180,16 @@ foreach ($courses as $c) {
         </td>
         <td>
           <div class="mc-actions">
-            <a href="<?= base_url('index.php/manage_courses/edit/'.$course->id) ?>"
+            <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>"
                class="mc-action-btn" title="Edit">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </a>
-            <a href="<?= base_url('index.php/courses/view/'.$course->id) ?>"
+            <a href="<?= base_url('courses/view/'.$course->id) ?>"
                class="mc-action-btn" title="Preview" target="_blank">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </a>
             <?php if ( ! $course->archived): ?>
-            <button onclick="KA.deleteConfirm('<?= base_url('index.php/manage_courses/delete/'.$course->id) ?>', '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')"
+            <button onclick="KA.deleteConfirm('<?= base_url('manage_courses/delete/'.$course->id) ?>', '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')"
                     class="mc-action-btn danger" title="Archive">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             </button>
@@ -204,7 +204,7 @@ foreach ($courses as $c) {
   <div class="mc-empty">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
     <p>No courses yet. Create your first course to get started.</p>
-    <a href="<?= base_url('index.php/manage_courses/create') ?>" class="mc-btn mc-btn-primary">Create Course</a>
+    <a href="<?= base_url('manage_courses/create') ?>" class="mc-btn mc-btn-primary">Create Course</a>
   </div>
   <?php endif; ?>
 </div>
