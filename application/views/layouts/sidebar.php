@@ -457,7 +457,17 @@ $initials = substr($initials, 0, 2);
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
           Announcements
-          <span class="ka-nav-badge new">New</span>
+          <?php
+          // Use CI get_instance() — the only safe way to load a model from a view
+          $_CI =& get_instance();
+          $_CI->load->model('Notification_model', 'notification_model');
+          $_notif_count = $_CI->notification_model->count_unread($user['id'] ?? 0);
+          if ($_notif_count > 0):
+          ?>
+          <span class="ka-nav-badge" style="background:#dc2626;color:#fff;">
+            <?= $_notif_count > 99 ? '99+' : $_notif_count ?>
+          </span>
+          <?php endif; ?>
         </a>
       </li>
 

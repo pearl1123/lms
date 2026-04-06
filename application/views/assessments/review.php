@@ -82,8 +82,8 @@ $total_q    = count($questions);
 <!-- ══ Stats ════════════════════════════════════════════════ -->
 <?php
 $total_attempts  = count($attempts);
-$total_passed    = count(array_filter($attempts, fn($a) => (float)($a->avg_score ?? 0) >= 75 && (int)($a->pending ?? 0) === 0));
-$total_pending   = count(array_filter($attempts, fn($a) => (int)($a->pending ?? 0) > 0));
+$total_passed    = count(array_filter($attempts, function($a) { return (float)($a->avg_score ?? 0) >= 75 && (int)($a->pending ?? 0) === 0; }));
+$total_pending   = count(array_filter($attempts, function($a) { return (int)($a->pending ?? 0) > 0; }));
 $avg_all         = $total_attempts > 0
   ? round(array_sum(array_column(array_map('get_object_vars', $attempts), 'avg_score')) / $total_attempts, 1)
   : 0;

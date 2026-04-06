@@ -51,7 +51,8 @@
             <div class="wmis-logo-subtext">KABAGA Academy</div>
             <div class="wmis-logo-hospital">LUNG CENTER OF THE PHILIPPINES</div>
           </div>
-          <h2 class="h2 text-center mb-1">Welcome Back</h2>
+          <h4 class="h4 text-center mb-1">Empowering learners with the skills of tomorrow.</h4>
+          </br>
           <?php if (!empty($error)): ?>
             <div class="alert alert-danger"><?= html_escape($error); ?></div>
           <?php endif; ?>

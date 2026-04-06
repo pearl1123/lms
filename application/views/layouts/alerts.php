@@ -12,7 +12,7 @@
 ?>
 
 <!-- SweetAlert2 (loaded once here so every view has it) -->
-<script src="/lms/assets/js/sweetalert2.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <style>
   /* ── KABAGA-branded SweetAlert2 overrides ── */
   .swal2-popup {
@@ -93,10 +93,11 @@
 <?php
 // ── Collect all flash messages ────────────────────────────────
 $flash_map = [
-    'success' => ['class' => 'ka-alert-success', 'title' => 'Success',     'icon' => '<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>'],
-    'error'   => ['class' => 'ka-alert-error',   'title' => 'Error',       'icon' => '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>'],
-    'warning' => ['class' => 'ka-alert-warning', 'title' => 'Warning',     'icon' => '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'],
-    'info'    => ['class' => 'ka-alert-info',    'title' => 'Information', 'icon' => '<circle cx="12" cy="12" r="10"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/>'],
+    'success'                => ['class' => 'ka-alert-success', 'title' => 'Success',             'icon' => '<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>'],
+    'error'                  => ['class' => 'ka-alert-error',   'title' => 'Error',               'icon' => '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>'],
+    'warning'                => ['class' => 'ka-alert-warning', 'title' => 'Warning',             'icon' => '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'],
+    'info'                   => ['class' => 'ka-alert-info',    'title' => 'Information',         'icon' => '<circle cx="12" cy="12" r="10"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/>'],
+    'enrollment_notification'=> ['class' => 'ka-alert-error',   'title' => 'Enrollment Update',   'icon' => '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'],
 ];
 
 foreach ($flash_map as $key => $cfg):

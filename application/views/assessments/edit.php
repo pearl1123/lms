@@ -166,7 +166,7 @@ $type_colors = ['multiple_choice'=>'#3b82f6','essay'=>'#f59f00','likert'=>'#22c5
       </div>
       <div class="edit-panel-body">
         <form method="post" action="<?= base_url('index.php/assessments/edit/'.$assessment->id) ?>">
-           <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
+          <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
           <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.875rem;align-items:end;">
             <div class="edit-form-group" style="margin-bottom:0;">
               <label class="edit-label">Title</label>
@@ -345,7 +345,7 @@ function render_q_item($num, $q, $tc, $q_types) {
      data-type="<?= $q->question_type ?>"
      data-required="<?= $q->is_required ? '1' : '0' ?>"
      data-minwords="<?= $q->min_words ?? '' ?>"
-     data-choices="<?= htmlspecialchars(json_encode(array_map(fn($c)=>['id'=>$c->id,'text'=>$c->choice_text,'is_correct'=>$c->is_correct], $q->choices ?? [])), ENT_QUOTES) ?>">
+     data-choices="<?= htmlspecialchars(json_encode(array_map(function($c) { return ['id' => $c->id, 'text' => $c->choice_text, 'is_correct' => $c->is_correct]; }, $q->choices ?? [])), ENT_QUOTES) ?>">
   <div class="q-item-hdr">
     <div class="q-item-num"><?= $num ?></div>
     <span class="q-item-type" style="background:<?= $tc ?>22;color:<?= $tc ?>"><?= $label ?></span>
