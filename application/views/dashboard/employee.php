@@ -6,12 +6,12 @@ $courses_enrolled = $analytics['courses_enrolled']  ?? 0;
 $courses_completed= $analytics['courses_completed'] ?? 0;
 $learning_hours   = $analytics['learning_hours']    ?? '0h';
 $badges           = $analytics['badges']            ?? 0;
-$full_name  = $user->fullname ?? 'Learner';
+$full_name  = is_object($user ?? null) ? ($user->fullname ?? 'Learner') : 'Learner';
 $first_name = explode(' ', trim($full_name))[0];
 $top_learners = $top_learners ?? [];
 ?>
 
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <!-- ============================================================
      KABAGA ACADEMY — Employee / Student Dashboard

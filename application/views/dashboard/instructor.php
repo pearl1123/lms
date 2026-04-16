@@ -12,7 +12,7 @@ $full_name  = isset($user) && is_object($user) ? ($user->fullname ?? 'Instructor
 $first_name = explode(' ', trim($full_name))[0];
 ?>
 
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <!-- ============================================================
      KABAGA ACADEMY — ETD / Instructor Dashboard

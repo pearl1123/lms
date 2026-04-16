@@ -110,18 +110,51 @@ class Assessments extends CI_Controller {
             }
         }
 
+        $is_manager = in_array($user->role, ['admin', 'teacher'], true);
+
+        $assessment_stats = [
+            'total'      => count($assessments),
+            'pre_count'  => 0,
+            'post_count' => 0,
+        ];
+        foreach ($assessments as $a) {
+            $t = $a->type ?? '';
+            if ($t === 'pre') {
+                $assessment_stats['pre_count']++;
+            } elseif ($t === 'post') {
+                $assessment_stats['post_count']++;
+            }
+        }
+
+        foreach ($assessments as $a) {
+            $a->created_at_display = ! empty($a->created_at)
+                ? date('M j, Y', strtotime($a->created_at))
+                : '';
+
+            if ( ! $is_manager && ! empty($a->already_answered) && ! empty($a->result)) {
+                $chip = ka_assessment_score_chip(
+                    (float) ($a->result['score'] ?? 0),
+                    (int) ($a->result['pending'] ?? 0)
+                );
+                $a->score_chip_class = $chip['class'];
+                $a->score_chip_text  = $chip['text'];
+            }
+        }
+
         $data = [
-            'user'        => $user,
-            'page_title'  => 'Assessments',
-            'assessments' => $assessments,
-            'breadcrumbs' => [
+            'user'               => $user,
+            'page_title'         => 'Assessments',
+            'assessments'        => $assessments,
+            'is_manager'         => $is_manager,
+            'assessment_stats'   => $assessment_stats,
+            'breadcrumbs'        => [
                 ['label' => 'Dashboard', 'url' => 'dashboard'],
                 ['label' => 'Assessments'],
             ],
-            'view' => 'assessments/index',
+            'view'               => 'assessments/index',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -138,12 +171,10 @@ class Assessments extends CI_Controller {
         $assessment = $this->assessment_model->get_assessment($id);
         if ( ! $assessment) show_404();
 
-        // Check employee is enrolled in the course
-        $enrollment = $this->course_model
-            ->get_enrollment($user->id, $assessment->course_id);
-        if ( ! $enrollment) {
+        // Check employee has approved enrollment in the course
+        if ( ! $this->course_model->has_approved_enrollment($user->id, (int) $assessment->course_id)) {
             $this->session->set_flashdata(
-                'error', 'You must be enrolled in this course to take the assessment.'
+                'error', 'You must be approved for this course before taking assessments.'
             );
             redirect('courses/view/' . $assessment->course_id);
         }
@@ -174,7 +205,7 @@ class Assessments extends CI_Controller {
             'view' => 'assessments/take',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -255,7 +286,7 @@ class Assessments extends CI_Controller {
             'view' => 'assessments/result',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -289,7 +320,7 @@ class Assessments extends CI_Controller {
             'view' => 'assessments/review',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -334,7 +365,7 @@ class Assessments extends CI_Controller {
             'view' => 'assessments/grade',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -408,7 +439,7 @@ class Assessments extends CI_Controller {
             'view' => 'assessments/create',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -458,7 +489,7 @@ class Assessments extends CI_Controller {
             'view' => 'assessments/edit',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================

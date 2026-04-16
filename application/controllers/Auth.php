@@ -20,6 +20,31 @@ class Auth extends CI_Controller {
         $this->load->model('user_model');
     }
 
+    /**
+     * CSRF token pair for auth forms (core Security; no load->library('security')).
+     *
+     * @return array{csrf_field_name:string, csrf_hash:string}
+     */
+    private function auth_csrf_fields()
+    {
+        $SEC =& load_class('Security', 'core');
+
+        return [
+            'csrf_field_name' => (string) $SEC->get_csrf_token_name(),
+            'csrf_hash'       => (string) $SEC->get_csrf_hash(),
+        ];
+    }
+
+    /**
+     * Persist posted Employee ID across failed login redirects.
+     */
+    private function flash_old_login_inputs()
+    {
+        $emp = trim((string) $this->input->post('employee_id'));
+        $this->session->set_flashdata('_old_employee_id', $emp);
+        $this->session->set_flashdata('_old_remember_me', $this->input->post('remember_me') ? '1' : '0');
+    }
+
     public function index()
     {
         $this->login();
@@ -32,7 +57,65 @@ class Auth extends CI_Controller {
         if ($this->session->userdata('user_id')) {
             redirect('dashboard');
         }
-        $this->load->view('auth/login');
+
+        $old_emp = $this->session->flashdata('_old_employee_id');
+        $employee_id_value = is_string($old_emp) ? $old_emp : (is_scalar($old_emp) ? (string) $old_emp : '');
+
+        $old_rm = $this->session->flashdata('_old_remember_me');
+        $remember_me_checked = ($old_rm === '1' || $old_rm === 1 || $old_rm === true);
+
+        $this->load->view('auth/login', array_merge($this->auth_csrf_fields(), [
+            'flash_messages'        => ka_collect_flash_messages($this, ['error', 'success']),
+            'login_form_action'     => site_url('auth/login_process'),
+            'employee_id_value'     => $employee_id_value,
+            'remember_me_checked'   => $remember_me_checked,
+            'forgot_password_url'   => site_url('auth/forgot-password'),
+            'register_url'          => site_url('auth/register'),
+            'alerts_partial_html'   => '',
+        ]));
+    }
+
+    /**
+     * Forgot password form (flash messages passed explicitly; no session reads in view).
+     */
+    public function forgot_password()
+    {
+        if ($this->session->userdata('user_id')) {
+            redirect('dashboard');
+        }
+
+        $old_emp = $this->session->flashdata('_old_forgot_employee_id');
+        $employee_id_value = is_string($old_emp) ? $old_emp : (is_scalar($old_emp) ? (string) $old_emp : '');
+
+        $this->load->view('auth/forgot_password', array_merge($this->auth_csrf_fields(), [
+            'flash_messages'      => ka_collect_flash_messages($this, ['error', 'success']),
+            'forgot_form_action'  => site_url('auth/forgot_password_process'),
+            'login_url'           => site_url('auth/login'),
+            'home_url'            => base_url(),
+            'employee_id_value'   => $employee_id_value,
+            'alerts_partial_html' => '',
+        ]));
+    }
+
+    /**
+     * Placeholder handler — replace with real reset workflow (email / token) when ready.
+     */
+    public function forgot_password_process()
+    {
+        $this->form_validation->set_rules('employee_id', 'Employee ID', 'required|trim');
+
+        if ($this->form_validation->run() === FALSE) {
+            $this->session->set_flashdata('error', validation_errors());
+            $this->session->set_flashdata('_old_forgot_employee_id', trim((string) $this->input->post('employee_id')));
+            redirect('auth/forgot_password');
+            return;
+        }
+
+        $this->session->set_flashdata(
+            'success',
+            'If this Employee ID is registered, your LMS administrator can help you reset your password.'
+        );
+        redirect('auth/forgot_password');
     }
 
     /* ================= LOGIN PROCESS ================= */
@@ -44,7 +127,9 @@ class Auth extends CI_Controller {
 
         if ($this->form_validation->run() === FALSE) {
             $this->session->set_flashdata('error', validation_errors());
+            $this->flash_old_login_inputs();
             redirect('auth/login');
+            return;
         }
 
         $employee_id = trim($this->input->post('employee_id'));
@@ -53,7 +138,9 @@ class Auth extends CI_Controller {
         $result = $this->user_model->login($employee_id, $password);
         if ($result === 'locked') {
             $this->session->set_flashdata('error', 'Account locked. Try again later.');
+            $this->flash_old_login_inputs();
             redirect('auth/login');
+            return;
         }
 
         if ($result) {
@@ -68,6 +155,7 @@ class Auth extends CI_Controller {
             redirect('dashboard');
         } else {
             $this->session->set_flashdata('error', 'Invalid Employee ID or Password.');
+            $this->flash_old_login_inputs();
             redirect('auth/login');
         }
     }

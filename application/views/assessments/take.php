@@ -5,7 +5,7 @@ $questions  = $questions  ?? [];
 if ( ! $assessment) return;
 $total = count($questions);
 ?>
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <style>
 .take-hero {
@@ -171,7 +171,7 @@ $total = count($questions);
 
 <!-- ══ Form ══════════════════════════════════════════════════ -->
 <form method="post" action="<?= base_url('index.php/assessments/submit/'.$assessment->id) ?>" id="takeForm">
-   <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
+   <input type="hidden" name="<?= $csrf_field_name ?>" value="<?= $csrf_hash ?>">
 
   <div class="take-layout">
 

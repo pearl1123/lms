@@ -1,13 +1,15 @@
 <?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
 <?php
-$assessments = $assessments ?? [];
-$user_role   = strtolower($user->role ?? 'employee');
-$is_manager  = in_array($user_role, ['admin', 'teacher']);
+$assessments    = $assessments ?? [];
+$stats_defaults = ['total' => 0, 'pre_count' => 0, 'post_count' => 0];
+$stats_raw      = $assessment_stats ?? [];
+$stats          = array_merge($stats_defaults, is_array($stats_raw) ? $stats_raw : []);
+$is_manager  = ! empty($is_manager);
 
 $type_labels = ['pre' => 'Pre-Assessment', 'post' => 'Post-Assessment'];
 $type_colors = ['pre' => '#3b82f6', 'post' => '#22c55e'];
 ?>
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <style>
 .asx-topbar { display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem; }
@@ -130,29 +132,24 @@ $type_colors = ['pre' => '#3b82f6', 'post' => '#22c55e'];
 </div>
 
 <!-- ══ Stats ════════════════════════════════════════════════ -->
-<?php
-$total    = count($assessments);
-$pre_cnt  = count(array_filter($assessments, function($a) { return $a->type === 'pre'; }));
-$post_cnt = count(array_filter($assessments, function($a) { return $a->type === 'post'; }));
-?>
 <div class="asx-stats animate__animated animate__fadeInUp animate__fast">
   <div class="asx-stat">
     <div class="asx-stat-icon" style="background:#eff6ff;color:#3b82f6;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
     </div>
-    <div><div class="asx-stat-val"><?= $total ?></div><div class="asx-stat-lbl">Total Assessments</div></div>
+    <div><div class="asx-stat-val"><?= (int) $stats['total'] ?></div><div class="asx-stat-lbl">Total Assessments</div></div>
   </div>
   <div class="asx-stat">
     <div class="asx-stat-icon" style="background:#eff6ff;color:#3b82f6;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
     </div>
-    <div><div class="asx-stat-val"><?= $pre_cnt ?></div><div class="asx-stat-lbl">Pre-Assessments</div></div>
+    <div><div class="asx-stat-val"><?= (int) $stats['pre_count'] ?></div><div class="asx-stat-lbl">Pre-Assessments</div></div>
   </div>
   <div class="asx-stat">
     <div class="asx-stat-icon" style="background:#ecfdf5;color:#22c55e;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
     </div>
-    <div><div class="asx-stat-val"><?= $post_cnt ?></div><div class="asx-stat-lbl">Post-Assessments</div></div>
+    <div><div class="asx-stat-val"><?= (int) $stats['post_count'] ?></div><div class="asx-stat-lbl">Post-Assessments</div></div>
   </div>
 </div>
 
@@ -167,7 +164,7 @@ $post_cnt = count(array_filter($assessments, function($a) { return $a->type === 
     <option value="pre">Pre-Assessment</option>
     <option value="post">Post-Assessment</option>
   </select>
-  <span style="font-size:.8125rem;font-weight:600;color:var(--ka-text-muted,#64748b);" id="asxCount"><?= $total ?> assessment<?= $total !== 1 ? 's' : '' ?></span>
+  <span style="font-size:.8125rem;font-weight:600;color:var(--ka-text-muted,#64748b);" id="asxCount"><?= (int) $stats['total'] ?> assessment<?= (int) $stats['total'] !== 1 ? 's' : '' ?></span>
 </div>
 
 <!-- ══ Assessment Grid ══════════════════════════════════════ -->
@@ -220,27 +217,16 @@ $post_cnt = count(array_filter($assessments, function($a) { return $a->type === 
           </div>
           <div class="asx-card-meta-item">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <?= date('M j, Y', strtotime($a->created_at)) ?>
+            <?= htmlspecialchars($a->created_at_display ?? '') ?>
           </div>
         </div>
 
-        <?php if ( ! $is_manager && isset($a->already_answered)): ?>
-          <?php if ($a->already_answered && $a->result): ?>
-            <?php
-            $score   = $a->result['score'];
-            $pending = $a->result['pending'];
-            $chip_class = $pending > 0 ? 'asx-score-pending'
-                        : ($score >= 75  ? 'asx-score-pass' : 'asx-score-fail');
-            $chip_text  = $pending > 0
-                        ? $pending . ' answer(s) pending review'
-                        : number_format($score, 1) . '% score';
-            ?>
+        <?php if ( ! $is_manager && ! empty($a->score_chip_class) && ! empty($a->score_chip_text)): ?>
             <div style="margin-top:.75rem;">
-              <span class="asx-score-chip <?= $chip_class ?>">
-                <?= $chip_text ?>
+              <span class="asx-score-chip <?= htmlspecialchars($a->score_chip_class) ?>">
+                <?= htmlspecialchars($a->score_chip_text) ?>
               </span>
             </div>
-          <?php endif; ?>
         <?php endif; ?>
       </div>
 

@@ -6,7 +6,7 @@ $attempts   = $attempts   ?? [];
 if ( ! $assessment) return;
 $total_q    = count($questions);
 ?>
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <style>
 .rev-topbar { display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem; }

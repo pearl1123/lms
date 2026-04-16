@@ -18,7 +18,7 @@ $content_types = [
     'zoom_recording' => ['label' => 'Zoom Recording',  'icon' => '🎥', 'color' => '#06b6d4'],
 ];
 ?>
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 <style>
 /* Layout */
 .edit-crs-layout { display:grid;grid-template-columns:1fr 300px;gap:1.5rem;align-items:start; }
@@ -145,7 +145,7 @@ $content_types = [
       <div class="edit-crs-hdr"><h3 class="edit-crs-title">Course Details</h3></div>
       <div class="edit-crs-body">
         <form method="post" action="<?= base_url('manage_courses/edit/'.$course->id) ?>">
-          <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
+          <input type="hidden" name="<?= $csrf_field_name ?>" value="<?= $csrf_hash ?>">
 
           <div class="ef-group">
             <label class="ef-label" for="title">Title <span>*</span></label>
@@ -334,7 +334,7 @@ $content_types = [
       <div class="edit-crs-hdr"><h3 class="edit-crs-title">Reassign Course</h3></div>
       <div class="edit-crs-body">
         <form method="post" action="<?= base_url('manage_courses/reassign') ?>">
-          <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
+          <input type="hidden" name="<?= $csrf_field_name ?>" value="<?= $csrf_hash ?>">
           <input type="hidden" name="course_id" value="<?= $course->id ?>">
           <div class="ef-group" style="margin-bottom:.875rem;">
             <label class="ef-label">Assign to</label>
@@ -434,8 +434,8 @@ $content_types = [
 <script>
 var COURSE_ID  = <?= $course->id ?>;
 var BASE_URL   = '<?= base_url() ?>';
-var CSRF_NAME  = '<?= $this->security->get_csrf_token_name() ?>';
-var CSRF_HASH  = '<?= $this->security->get_csrf_hash() ?>';
+var CSRF_NAME  = '<?= $csrf_field_name ?>';
+var CSRF_HASH  = '<?= $csrf_hash ?>';
 var CT_DATA    = <?= json_encode($content_types) ?>;
 
 // ── Content type picker ─────────────────────────────────────

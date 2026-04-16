@@ -88,7 +88,7 @@ class Manage_courses extends CI_Controller {
             'view' => 'manage_courses/index',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -142,7 +142,7 @@ class Manage_courses extends CI_Controller {
             'view' => 'manage_courses/create',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -207,7 +207,7 @@ class Manage_courses extends CI_Controller {
             'view' => 'manage_courses/edit',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================

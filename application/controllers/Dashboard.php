@@ -121,6 +121,7 @@ class Dashboard extends CI_Controller {
             ->from('enrollments e')
             ->join('aauth_users u', 'u.id = e.user_id',  'left')
             ->join('courses c',     'c.id = e.course_id', 'left')
+            ->where('e.status', 'approved')
             ->where('u.DELETED', 0)
             ->order_by('e.enrolled_at', 'DESC')
             ->limit(10)
@@ -136,7 +137,7 @@ class Dashboard extends CI_Controller {
             'view'               => 'dashboard/admin',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -174,6 +175,7 @@ class Dashboard extends CI_Controller {
         if ( ! empty($course_ids)) {
             $analytics['enrolled_students'] = $this->db
                 ->where_in('course_id', $course_ids)
+                ->where('status', 'approved')
                 ->count_all_results('enrollments');
 
             $comp_result = $this->db
@@ -207,6 +209,7 @@ class Dashboard extends CI_Controller {
 
                     $course->enrolled_count = $this->db
                         ->where('course_id', $course->id)
+                        ->where('status', 'approved')
                         ->count_all_results('enrollments');
 
                     $course->module_count = $this->db
@@ -246,6 +249,7 @@ class Dashboard extends CI_Controller {
                 ->join('aauth_users u', 'u.id = e.user_id',  'left')
                 ->join('courses c',     'c.id = e.course_id', 'left')
                 ->where_in('e.course_id', $course_ids)
+                ->where('e.status', 'approved')
                 ->where('u.DELETED', 0)
                 ->order_by('e.enrolled_at', 'DESC')
                 ->limit(10)
@@ -289,7 +293,7 @@ class Dashboard extends CI_Controller {
             'view'            => 'dashboard/instructor',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -311,6 +315,7 @@ class Dashboard extends CI_Controller {
             ->from('enrollments e')
             ->join('courses c', 'c.id = e.course_id', 'left')
             ->where('e.user_id', $user->id)
+            ->where('e.status', 'approved')
             ->where('c.archived', 0)
             ->order_by('e.enrolled_at', 'DESC')
             ->get();
@@ -436,6 +441,6 @@ class Dashboard extends CI_Controller {
             'view'             => 'dashboard/employee',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 }

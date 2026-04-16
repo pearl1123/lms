@@ -1,19 +1,14 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-$segment = $this->uri->segment(1);
-$user      = $this->session->userdata('user');
-$full_name = $user['full_name'] ?? 'User';
-$user_role = ucfirst(strtolower($user['role'] ?? 'Employee'));
+// Prepared by ka_merge_layout_vars()
+$nc             = $nav_context ?? [];
+$full_name      = $nc['full_name'] ?? 'User';
+$user_role_label = $nc['user_role_label'] ?? 'Employee';
+$initials       = $nc['initials'] ?? '';
+$streak    = $nc['streak'] ?? null;
 
-// Avatar initials
-$initials = '';
-foreach (explode(' ', $full_name) as $word) {
-  $initials .= strtoupper(substr($word, 0, 1));
-}
-$initials = substr($initials, 0, 2);
-
-// Breadcrumb — override $breadcrumbs array in each view controller
+// Breadcrumb — set $breadcrumbs in controller (passed through layouts/main)
 // e.g. $data['breadcrumbs'] = [['label'=>'Courses','url'=>'courses'],['label'=>'Module 1']];
 ?>
 
@@ -326,10 +321,10 @@ $initials = substr($initials, 0, 2);
   <div class="ka-nav-actions">
 
     <!-- Streak chip -->
-    <?php if (!empty($user['streak'])): ?>
+    <?php if ($streak !== null && $streak !== ''): ?>
     <div class="ka-streak-chip">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17.657 6.343a8 8 0 1 1-11.314 11.314 8 8 0 0 1 11.314-11.314zm-3.071 2.122a6 6 0 0 1-6.97 9.293 6 6 0 0 1 6.97-9.293z"/></svg>
-      <?= $user['streak'] ?> day streak
+      <?= htmlspecialchars((string) $streak) ?> day streak
     </div>
     <?php endif; ?>
 
@@ -407,7 +402,7 @@ $initials = substr($initials, 0, 2);
         <li>
           <div class="px-3 py-2">
             <div style="font-weight:600;font-size:.8125rem;color:var(--ka-text)"><?= htmlspecialchars($full_name) ?></div>
-            <div style="font-size:.75rem;color:var(--ka-text-muted)"><?= htmlspecialchars($user_role) ?></div>
+            <div style="font-size:.75rem;color:var(--ka-text-muted)"><?= htmlspecialchars($user_role_label) ?></div>
           </div>
         </li>
         <li><hr class="dropdown-divider"></li>

@@ -7,7 +7,7 @@ $is_admin  = $user_role === 'admin';
 $active   = array_filter($courses, fn($c) => ! (int)$c->archived);
 $archived = array_filter($courses, fn($c) =>  (int)$c->archived);
 ?>
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 <style>
 .mc-topbar { display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem; }
 .mc-topbar h2 { font-size:1.25rem;font-weight:800;color:var(--ka-text,#1e293b);margin:0 0 2px;letter-spacing:-.02em; }

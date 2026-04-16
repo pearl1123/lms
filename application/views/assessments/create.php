@@ -3,7 +3,7 @@
 $modules   = $modules ?? [];
 $user_role = strtolower($user->role ?? 'admin');
 ?>
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <style>
 .crt-layout { display:grid;grid-template-columns:1fr 300px;gap:1.5rem;align-items:start; }
@@ -68,7 +68,7 @@ $user_role = strtolower($user->role ?? 'admin');
 </div>
 
 <form method="post" action="<?= base_url('index.php/assessments/create') ?>" id="createForm">
-  <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
+  <input type="hidden" name="<?= $csrf_field_name ?>" value="<?= $csrf_hash ?>">
 
   <div class="crt-layout animate__animated animate__fadeInUp animate__fast">
 

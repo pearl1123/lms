@@ -11,6 +11,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property CI_Session           $session
  * @property CI_Input             $input
  * @property User_model           $user_model
+ * @property Course_model         $course_model
  */
 class My_courses extends CI_Controller {
 
@@ -21,7 +22,8 @@ class My_courses extends CI_Controller {
     {
         parent::__construct();
         $this->load->library('session');
-        $this->load->model('User_model', 'user_model');
+        $this->load->model('User_model',   'user_model');
+        $this->load->model('Course_model', 'course_model');
         $this->load->helper('url');
 
         // ── Auth guard ────────────────────────────────────────
@@ -97,6 +99,7 @@ class My_courses extends CI_Controller {
 
                 $course->enrolled_count = $this->db
                     ->where('course_id', $course->id)
+                    ->where('status', 'approved')
                     ->count_all_results('enrollments');
 
                 $total_possible = $course->enrolled_count * $course->module_count;
@@ -138,7 +141,7 @@ class My_courses extends CI_Controller {
             'view'          => 'my_courses/admin',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -169,6 +172,7 @@ class My_courses extends CI_Controller {
 
                 $course->enrolled_count = $this->db
                     ->where('course_id', $course->id)
+                    ->where('status', 'approved')
                     ->count_all_results('enrollments');
 
                 $total_possible = $course->enrolled_count * $course->module_count;
@@ -209,7 +213,7 @@ class My_courses extends CI_Controller {
             'view'            => 'my_courses/instructor',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -219,7 +223,53 @@ class My_courses extends CI_Controller {
     {
         $user = $this->user;
 
-        // ── Enrolled courses ──────────────────────────────────
+        $pending_enrollments  = [];
+        $pending_result       = $this->db
+            ->select('e.course_id, e.enrolled_at,
+                      c.title, c.description, c.category_id,
+                      cc.name AS category_name')
+            ->from('enrollments e')
+            ->join('courses c',           'c.id = e.course_id',     'left')
+            ->join('course_categories cc', 'cc.id = c.category_id', 'left')
+            ->where('e.user_id',  $user->id)
+            ->where('e.status',   'pending')
+            ->where('c.archived', 0)
+            ->order_by('e.enrolled_at', 'DESC')
+            ->get();
+        if ($pending_result && $pending_result->num_rows() > 0) {
+            foreach ($pending_result->result() as $row) {
+                $row->module_count = (int) $this->db
+                    ->where('course_id', $row->course_id)
+                    ->where('archived', 0)
+                    ->count_all_results('course_modules');
+                $pending_enrollments[] = $row;
+            }
+        }
+
+        $rejected_enrollments = [];
+        $rejected_result    = $this->db
+            ->select('e.course_id, e.enrolled_at,
+                      c.title, c.description, c.category_id,
+                      cc.name AS category_name')
+            ->from('enrollments e')
+            ->join('courses c',           'c.id = e.course_id',     'left')
+            ->join('course_categories cc', 'cc.id = c.category_id', 'left')
+            ->where('e.user_id',  $user->id)
+            ->where('e.status',   'rejected')
+            ->where('c.archived', 0)
+            ->order_by('e.enrolled_at', 'DESC')
+            ->get();
+        if ($rejected_result && $rejected_result->num_rows() > 0) {
+            foreach ($rejected_result->result() as $row) {
+                $row->module_count = (int) $this->db
+                    ->where('course_id', $row->course_id)
+                    ->where('archived', 0)
+                    ->count_all_results('course_modules');
+                $rejected_enrollments[] = $row;
+            }
+        }
+
+        // ── Approved enrollments only (progress + catalog access) ──
         $enrolled_result = $this->db
             ->select('e.course_id, e.enrolled_at,
                       c.title, c.description, c.category_id,
@@ -228,6 +278,7 @@ class My_courses extends CI_Controller {
             ->join('courses c',           'c.id = e.course_id',     'left')
             ->join('course_categories cc', 'cc.id = c.category_id', 'left')
             ->where('e.user_id',  $user->id)
+            ->where('e.status',   'approved')
             ->where('c.archived', 0)
             ->order_by('e.enrolled_at', 'DESC')
             ->get();
@@ -266,8 +317,18 @@ class My_courses extends CI_Controller {
             }
         }
 
-        // ── Available (not yet enrolled) courses ──────────────
-        $enrolled_ids = array_map(fn($c) => $c->course_id, $enrolled_courses);
+        // ── Available: exclude courses with pending or approved request ──
+        $blocked = $this->db
+            ->select('course_id')
+            ->where('user_id', $user->id)
+            ->where_in('status', ['pending', 'approved'])
+            ->get('enrollments');
+        $blocked_ids = [];
+        if ($blocked && $blocked->num_rows() > 0) {
+            foreach ($blocked->result() as $b) {
+                $blocked_ids[] = (int) $b->course_id;
+            }
+        }
 
         $avail_query = $this->db
             ->select('c.id, c.title, c.description, c.category_id,
@@ -276,11 +337,11 @@ class My_courses extends CI_Controller {
             ->join('course_categories cc', 'cc.id = c.category_id', 'left')
             ->where('c.archived', 0);
 
-        if ( ! empty($enrolled_ids)) {
-            $avail_query->where_not_in('c.id', $enrolled_ids);
+        if ( ! empty($blocked_ids)) {
+            $avail_query->where_not_in('c.id', $blocked_ids);
         }
 
-        $avail_result     = $avail_query->order_by('c.created_at', 'DESC')->get();
+        $avail_result      = $avail_query->order_by('c.created_at', 'DESC')->get();
         $available_courses = [];
         if ($avail_result && $avail_result->num_rows() > 0) {
             foreach ($avail_result->result() as $ac) {
@@ -292,7 +353,6 @@ class My_courses extends CI_Controller {
             }
         }
 
-        // ── Categories for filter dropdown ────────────────────
         $categories = $this->db
             ->where('archived', 0)
             ->order_by('name', 'ASC')
@@ -300,18 +360,20 @@ class My_courses extends CI_Controller {
             ->result();
 
         $data = [
-            'user'              => $user,
-            'page_title'        => 'My Learning',
-            'enrolled_courses'  => $enrolled_courses,
-            'available_courses' => $available_courses,
-            'categories'        => $categories,
-            'breadcrumbs'       => [
+            'user'                 => $user,
+            'page_title'           => 'My Learning',
+            'enrolled_courses'     => $enrolled_courses,
+            'pending_enrollments'  => $pending_enrollments,
+            'rejected_enrollments' => $rejected_enrollments,
+            'available_courses'    => $available_courses,
+            'categories'         => $categories,
+            'breadcrumbs'        => [
                 ['label' => 'Dashboard', 'url' => 'dashboard'],
                 ['label' => 'My Learning'],
             ],
-            'view'              => 'my_courses/employee',
+            'view'               => 'my_courses/employee',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 }

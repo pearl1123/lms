@@ -4,10 +4,10 @@ $categories   = $categories   ?? [];
 $modalities   = $modalities   ?? [];
 $access_types = $access_types ?? [];
 $teachers     = $teachers     ?? [];
-$user_role    = strtolower($user->role ?? 'teacher');
+$user_role    = strtolower(is_object($user ?? null) ? ($user->role ?? 'teacher') : 'teacher');
 $is_admin     = $user_role === 'admin';
 ?>
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 <style>
 .crs-layout { display:grid;grid-template-columns:1fr 300px;gap:1.5rem;align-items:start; }
 @media(max-width:991.98px){ .crs-layout{grid-template-columns:1fr;} }
@@ -45,7 +45,7 @@ $is_admin     = $user_role === 'admin';
 </div>
 
 <form method="post" action="<?= base_url('manage_courses/create') ?>">
-  <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
+  <input type="hidden" name="<?= html_escape($csrf_field_name ?? '') ?>" value="<?= html_escape($csrf_hash ?? '') ?>">
 
   <div class="crs-layout animate__animated animate__fadeInUp animate__fast">
     <div>

@@ -36,19 +36,22 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
     <!-- Logo -->
     <div class="text-center mb-4">
-      <a href="<?= base_url(); ?>" class="navbar-brand navbar-brand-autodark">
+      <a href="<?= html_escape($home_url ?? ''); ?>" class="navbar-brand navbar-brand-autodark">
         <img src="<?= base_url('assets/tabler/img/logo.svg'); ?>" width="110" height="32" alt="LMS Logo">
       </a>
     </div>
 
     <!-- Card -->
     <form class="card card-md"
-          action="<?= base_url('auth/forgot_password_process'); ?>"
+          action="<?= html_escape($forgot_form_action ?? ''); ?>"
           method="post"
           autocomplete="off"
           novalidate>
 
       <div class="card-body">
+        <?php if (($csrf_field_name ?? '') !== '' && ($csrf_hash ?? '') !== ''): ?>
+        <input type="hidden" name="<?= html_escape($csrf_field_name) ?>" value="<?= html_escape($csrf_hash) ?>">
+        <?php endif; ?>
 
         <h2 class="card-title text-center mb-4">
           Forgot your password?
@@ -58,16 +61,17 @@ defined('BASEPATH') OR exit('No direct script access allowed');
           Enter your Employee ID and we will help you reset your password.
         </p>
 
-        <!-- Flash Messages -->
-        <?php if($this->session->flashdata('error')): ?>
+        <!-- Flash Messages (passed from Auth controller) -->
+        <?php $flash_messages = $flash_messages ?? []; ?>
+        <?php if ( ! empty($flash_messages['error'])): ?>
           <div class="alert alert-danger">
-            <?= $this->session->flashdata('error'); ?>
+            <?= $flash_messages['error']; ?>
           </div>
         <?php endif; ?>
 
-        <?php if($this->session->flashdata('success')): ?>
+        <?php if ( ! empty($flash_messages['success'])): ?>
           <div class="alert alert-success">
-            <?= $this->session->flashdata('success'); ?>
+            <?= $flash_messages['success']; ?>
           </div>
         <?php endif; ?>
 
@@ -77,6 +81,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
           <input type="text"
                  name="employee_id"
                  class="form-control"
+                 value="<?= html_escape($employee_id_value ?? ''); ?>"
                  placeholder="Enter your Employee ID"
                  required>
         </div>
@@ -92,7 +97,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
     <div class="text-center text-secondary mt-3">
       Remember your password?
-      <a href="<?= base_url('auth/login'); ?>">Back to login</a>
+      <a href="<?= html_escape($login_url ?? ''); ?>">Back to login</a>
     </div>
 
   </div>

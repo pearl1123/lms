@@ -27,7 +27,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   status ENUM: 'not_started' | 'in_progress' | 'completed'
  *
  * enrollments
- *   id, user_id, course_id, enrolled_at
+ *   id, user_id, course_id, status (pending|approved|rejected), enrolled_at
  *
  * lib_course_modality
  *   modality_id, modality_desc, archived
@@ -96,6 +96,7 @@ class Course_model extends CI_Model {
             ->join(
                 '(SELECT course_id, COUNT(*) AS total_enrolled
                   FROM enrollments
+                  WHERE status = \'approved\'
                   GROUP BY course_id) en_cnt',
                 'en_cnt.course_id = c.id', 'left'
             )
@@ -132,6 +133,7 @@ class Course_model extends CI_Model {
         $result = $this->db
             ->select('course_id')
             ->where('user_id', (int) $user_id)
+            ->where('status', 'approved')
             ->get('enrollments');
 
         if ( ! $result || $result->num_rows() === 0) return [];
@@ -139,6 +141,50 @@ class Course_model extends CI_Model {
         return array_map('intval',
             array_column($result->result_array(), 'course_id')
         );
+    }
+
+    /**
+     * course_id => status for the given user (pending / approved / rejected).
+     *
+     * @param  int $user_id
+     * @return array<int,string>
+     */
+    public function get_user_enrollment_status_map($user_id)
+    {
+        $result = $this->db
+            ->select('course_id, status')
+            ->where('user_id', (int) $user_id)
+            ->get('enrollments');
+
+        if ( ! $result || $result->num_rows() === 0) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($result->result() as $row) {
+            $map[(int) $row->course_id] = (string) $row->status;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Whether the user has an approved enrollment for the course.
+     *
+     * @param  int $user_id
+     * @param  int $course_id
+     * @return bool
+     */
+    public function has_approved_enrollment($user_id, $course_id)
+    {
+        $row = $this->get_enrollment($user_id, $course_id);
+        if ( ! $row) {
+            return false;
+        }
+
+        $st = isset($row->status) ? (string) $row->status : 'approved';
+
+        return $st === 'approved';
     }
 
     // =========================================================
@@ -332,24 +378,45 @@ class Course_model extends CI_Model {
     }
 
     /**
-     * Enroll a user in a course.
-     * Returns false if already enrolled, true on success.
+     * Request enrollment (employee): pending row, or resubmit from rejected.
+     * Returns true if a new pending row was created or a rejected row was reset to pending.
      *
      * @param  int  $user_id
      * @param  int  $course_id
      * @return bool
      */
-    public function enroll($user_id, $course_id)
+    public function request_enrollment($user_id, $course_id)
     {
-        if ($this->get_enrollment($user_id, $course_id)) {
-            return false; // already enrolled
+        $row = $this->get_enrollment($user_id, $course_id);
+        if ($row) {
+            $st = isset($row->status) ? (string) $row->status : 'approved';
+            if ($st === 'approved' || $st === 'pending') {
+                return false;
+            }
+            if ($st === 'rejected') {
+                return (bool) $this->db
+                    ->where('id', (int) $row->id)
+                    ->update('enrollments', [
+                        'status'       => 'pending',
+                        'enrolled_at'  => date('Y-m-d H:i:s'),
+                    ]);
+            }
         }
 
         return (bool) $this->db->insert('enrollments', [
             'user_id'     => (int) $user_id,
             'course_id'   => (int) $course_id,
+            'status'      => 'pending',
             'enrolled_at' => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    /**
+     * @deprecated Use request_enrollment(); kept for callers that expect enroll().
+     */
+    public function enroll($user_id, $course_id)
+    {
+        return $this->request_enrollment($user_id, $course_id);
     }
 
     /**
@@ -362,6 +429,7 @@ class Course_model extends CI_Model {
     {
         return (int) $this->db
             ->where('course_id', (int) $course_id)
+            ->where('status', 'approved')
             ->count_all_results('enrollments');
     }
 
@@ -379,6 +447,7 @@ class Course_model extends CI_Model {
             ->from('enrollments e')
             ->join('aauth_users u', 'u.id = e.user_id', 'left')
             ->where('e.course_id', (int) $course_id)
+            ->where('e.status',    'approved')
             ->where('u.DELETED',   0)
             ->order_by('e.enrolled_at', 'DESC');
 
@@ -398,6 +467,98 @@ class Course_model extends CI_Model {
         }
 
         return $students;
+    }
+
+    /**
+     * @param  int $enrollment_id
+     * @return object|null  includes course_id, user_id, status
+     */
+    public function get_enrollment_by_id($enrollment_id)
+    {
+        $result = $this->db
+            ->where('id', (int) $enrollment_id)
+            ->get('enrollments');
+
+        return ($result && $result->num_rows() > 0) ? $result->row() : null;
+    }
+
+    /**
+     * @param  int    $enrollment_id
+     * @param  string $status pending|approved|rejected
+     * @return bool
+     */
+    public function set_enrollment_status($enrollment_id, $status)
+    {
+        if ( ! in_array($status, ['pending', 'approved', 'rejected'], true)) {
+            return false;
+        }
+
+        return (bool) $this->db
+            ->where('id', (int) $enrollment_id)
+            ->update('enrollments', ['status' => $status]);
+    }
+
+    /**
+     * Pending requests for courses owned by the instructor.
+     *
+     * @param  int $instructor_user_id
+     * @return object[]
+     */
+    public function get_pending_enrollments_for_instructor($instructor_user_id)
+    {
+        $result = $this->db
+            ->select('
+                e.id AS enrollment_id,
+                e.user_id,
+                e.course_id,
+                e.enrolled_at,
+                e.status,
+                u.fullname AS student_name,
+                u.employee_id,
+                c.title AS course_title
+            ', false)
+            ->from('enrollments e')
+            ->join('courses c', 'c.id = e.course_id', 'inner')
+            ->join('aauth_users u', 'u.id = e.user_id', 'left')
+            ->where('c.created_by', (int) $instructor_user_id)
+            ->where('c.archived', 0)
+            ->where('e.status', 'pending')
+            ->where('u.DELETED', 0)
+            ->order_by('e.enrolled_at', 'ASC')
+            ->get();
+
+        return ($result && $result->num_rows() > 0) ? $result->result() : [];
+    }
+
+    /**
+     * All pending enrollment requests (admin).
+     *
+     * @return object[]
+     */
+    public function get_all_pending_enrollments()
+    {
+        $result = $this->db
+            ->select('
+                e.id AS enrollment_id,
+                e.user_id,
+                e.course_id,
+                e.enrolled_at,
+                e.status,
+                u.fullname AS student_name,
+                u.employee_id,
+                c.title AS course_title,
+                c.created_by AS course_owner_id
+            ', false)
+            ->from('enrollments e')
+            ->join('courses c', 'c.id = e.course_id', 'inner')
+            ->join('aauth_users u', 'u.id = e.user_id', 'left')
+            ->where('c.archived', 0)
+            ->where('e.status', 'pending')
+            ->where('u.DELETED', 0)
+            ->order_by('e.enrolled_at', 'ASC')
+            ->get();
+
+        return ($result && $result->num_rows() > 0) ? $result->result() : [];
     }
 
     // =========================================================

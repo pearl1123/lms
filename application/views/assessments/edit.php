@@ -7,7 +7,7 @@ if ( ! $assessment) return;
 $q_types = ['multiple_choice'=>'Multiple Choice','essay'=>'Essay','likert'=>'Likert Scale','fill_blank'=>'Fill in the Blank'];
 $type_colors = ['multiple_choice'=>'#3b82f6','essay'=>'#f59f00','likert'=>'#22c55e','fill_blank'=>'#6dabcf'];
 ?>
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <style>
 /* Layout */
@@ -166,7 +166,7 @@ $type_colors = ['multiple_choice'=>'#3b82f6','essay'=>'#f59f00','likert'=>'#22c5
       </div>
       <div class="edit-panel-body">
         <form method="post" action="<?= base_url('index.php/assessments/edit/'.$assessment->id) ?>">
-          <input type="hidden" name="<?= $this->security->get_csrf_token_name() ?>" value="<?= $this->security->get_csrf_hash() ?>">
+          <input type="hidden" name="<?= $csrf_field_name ?>" value="<?= $csrf_hash ?>">
           <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.875rem;align-items:end;">
             <div class="edit-form-group" style="margin-bottom:0;">
               <label class="edit-label">Title</label>
@@ -385,8 +385,8 @@ function render_q_item($num, $q, $tc, $q_types) {
 <script>
 var ASSESSMENT_ID = <?= $assessment->id ?>;
 var BASE_URL      = '<?= base_url() ?>';
-var CSRF_NAME     = '<?= $this->security->get_csrf_token_name() ?>';
-var CSRF_HASH     = '<?= $this->security->get_csrf_hash() ?>';
+var CSRF_NAME     = '<?= $csrf_field_name ?>';
+var CSRF_HASH     = '<?= $csrf_hash ?>';
 
 // Question type colours for JS rendering
 var TYPE_COLORS = <?= json_encode($type_colors) ?>;

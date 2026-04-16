@@ -280,7 +280,7 @@ $thumb_gradients = [
 
 </style>
 
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 
 <!-- ══ Hero ═════════════════════════════════════════════════ -->
@@ -380,18 +380,23 @@ $thumb_gradients = [
       $enrolled  = (int)($course->total_enrolled ?? 0);
       $is_enr    = (bool)$course->is_enrolled;
       $my_pct    = (int)($course->my_progress ?? 0);
+      $est       = $course->enrollment_status ?? null;
 
       // Status tag for filtering
       if ($is_enr && $my_pct >= 100) $status_tag = 'completed';
       elseif ($is_enr && $my_pct > 0) $status_tag = 'inprogress';
       elseif ($is_enr) $status_tag = 'enrolled';
+      elseif ($est === 'pending') $status_tag = 'pending';
+      elseif ($est === 'rejected') $status_tag = 'rejected';
       else $status_tag = 'available';
 
       // CTA
       if ($user_role === 'employee') {
         if ($my_pct >= 100)  { $cta_text = 'Review';   $cta_class = 'cat-cta-review'; }
         elseif ($is_enr)     { $cta_text = 'Continue'; $cta_class = 'cat-cta-continue'; }
-        else                 { $cta_text = 'Enroll Now'; $cta_class = 'cat-cta-enroll'; }
+        elseif ($est === 'pending') { $cta_text = 'Waiting for approval'; $cta_class = 'cat-cta-view'; }
+        elseif ($est === 'rejected') { $cta_text = 'Request again'; $cta_class = 'cat-cta-enroll'; }
+        else                 { $cta_text = 'Request enrollment'; $cta_class = 'cat-cta-enroll'; }
       } else {
         $cta_text  = 'View Details';
         $cta_class = 'cat-cta-view';
@@ -417,6 +422,10 @@ $thumb_gradients = [
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4"/></svg>
           <?= $my_pct >= 100 ? 'Completed' : 'Enrolled' ?>
         </span>
+        <?php elseif ($est === 'pending'): ?>
+        <span class="cat-enrolled-ribbon" style="background:rgba(234,179,8,.92);color:#422006;">Pending</span>
+        <?php elseif ($est === 'rejected'): ?>
+        <span class="cat-enrolled-ribbon" style="background:rgba(248,113,113,.92);color:#fff;">Rejected</span>
         <?php else: ?>
         <span class="cat-enrolled-ribbon available">Available</span>
         <?php endif; ?>
@@ -469,11 +478,16 @@ $thumb_gradients = [
         <?php endif; ?>
 
         <div class="cat-card-footer">
-          <?php if ($user_role === 'employee' && ! $is_enr): ?>
+          <?php if ($user_role === 'employee' && ! $is_enr && $est === 'pending'): ?>
+            <a href="<?= base_url('courses/view/'.$course->id) ?>"
+               class="cat-cta <?= $cta_class ?>">
+              <?= htmlspecialchars($cta_text) ?>
+            </a>
+          <?php elseif ($user_role === 'employee' && ! $is_enr): ?>
             <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
                class="cat-cta <?= $cta_class ?>"
                onclick="event.preventDefault(); KA.enrollConfirm(this.href, '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')">
-              <?= $cta_text ?>
+              <?= htmlspecialchars($cta_text) ?>
             </a>
           <?php else: ?>
             <a href="<?= base_url('courses/view/'.$course->id) ?>"
@@ -517,10 +531,13 @@ $thumb_gradients = [
       $enrolled = (int)($course->total_enrolled ?? 0);
       $is_enr   = (bool)$course->is_enrolled;
       $my_pct   = (int)($course->my_progress ?? 0);
+      $est      = $course->enrollment_status ?? null;
 
       if ($is_enr && $my_pct >= 100) $status_tag = 'completed';
       elseif ($is_enr && $my_pct > 0) $status_tag = 'inprogress';
       elseif ($is_enr) $status_tag = 'enrolled';
+      elseif ($est === 'pending') $status_tag = 'pending';
+      elseif ($est === 'rejected') $status_tag = 'rejected';
       else $status_tag = 'available';
     ?>
     <div class="cat-list-item"
@@ -562,12 +579,18 @@ $thumb_gradients = [
       <?php endif; ?>
 
       <div class="cat-list-actions">
-        <?php if ($user_role === 'employee' && ! $is_enr): ?>
+        <?php if ($user_role === 'employee' && ! $is_enr && $est === 'pending'): ?>
+          <a href="<?= base_url('courses/view/'.$course->id) ?>"
+             class="cat-list-btn"
+             style="background:var(--ka-bg,#f8fafc);color:var(--ka-text,#1e293b);border:1px solid var(--ka-border,#e2e8f0);">
+            Waiting for approval
+          </a>
+        <?php elseif ($user_role === 'employee' && ! $is_enr): ?>
           <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
              class="cat-list-btn"
              style="background:var(--ka-navy,#1a3a5c);color:#fff;"
              onclick="event.preventDefault(); KA.enrollConfirm(this.href, '<?= htmlspecialchars(addslashes($course->title ?? 'this course'), ENT_QUOTES) ?>')">
-            Enroll
+            <?= $est === 'rejected' ? 'Request again' : 'Request enrollment' ?>
           </a>
         <?php elseif ($is_enr): ?>
           <a href="<?= base_url('courses/view/'.$course->id) ?>"

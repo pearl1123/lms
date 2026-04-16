@@ -2,7 +2,7 @@
 <?php
 $users = $users ?? [];
 ?>
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 <style>
 .uu-table { width:100%; border-collapse:collapse; margin-top:.75rem; }
 .uu-table th,

@@ -14,6 +14,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property CI_Input             $input
  * @property User_model           $user_model
  * @property Course_model         $course_model
+ * @property assessment_model     $assessment_model
  */
 class Courses extends CI_Controller {
 
@@ -25,7 +26,8 @@ class Courses extends CI_Controller {
         parent::__construct();
         $this->load->library('session');
         $this->load->model('User_model',   'user_model');
-        $this->load->model('Course_model', 'course_model');
+        $this->load->model('Course_model',     'course_model');
+        $this->load->model('assessment_model', 'assessment_model');
         $this->load->helper('url');
 
         // ── Auth guard ────────────────────────────────────────
@@ -79,14 +81,17 @@ class Courses extends CI_Controller {
         //   creator_name, total_modules, total_enrolled
         $courses = $this->course_model->get_catalog($keyword, $filter_cat);
 
-        // ── Get this user's enrolled course IDs in one query ──
-        $enrolled_ids = $this->course_model->get_enrolled_ids($user->id);
+        // ── Approved enrollments only (IDs) + full status map for employee CTAs ──
+        $enrolled_ids  = $this->course_model->get_enrolled_ids($user->id);
+        $status_map    = $this->course_model->get_user_enrollment_status_map($user->id);
 
         // ── Attach per-user enrollment & progress to each course ──
         foreach ($courses as $course) {
             $course->total_modules  = (int) ($course->total_modules  ?? 0);
             $course->total_enrolled = (int) ($course->total_enrolled ?? 0);
-            $course->is_enrolled    = in_array((int) $course->id, $enrolled_ids);
+            $cid                    = (int) $course->id;
+            $course->enrollment_status = $status_map[$cid] ?? null;
+            $course->is_enrolled    = in_array($cid, $enrolled_ids, true);
 
             // Only calculate progress for enrolled users with modules
             if ($course->is_enrolled && $course->total_modules > 0) {
@@ -122,7 +127,7 @@ class Courses extends CI_Controller {
             'view' => 'courses/catalog',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -150,8 +155,11 @@ class Courses extends CI_Controller {
         $modules = $this->course_model->get_modules($id, $user->id);
 
         // ── Enrollment row (or null) ──────────────────────────
-        $enrollment  = $this->course_model->get_enrollment($user->id, $id);
-        $is_enrolled = (bool) $enrollment;
+        $enrollment         = $this->course_model->get_enrollment($user->id, $id);
+        $enrollment_status  = $enrollment && isset($enrollment->status)
+            ? (string) $enrollment->status
+            : ($enrollment ? 'approved' : null);
+        $is_enrolled        = $this->course_model->has_approved_enrollment($user->id, $id);
 
         // ── Progress stats ────────────────────────────────────
         $total_modules     = count($modules);
@@ -171,8 +179,9 @@ class Courses extends CI_Controller {
             'page_title'        => $course->title,
             'course'            => $course,
             'modules'           => $modules,
-            'is_enrolled'       => $is_enrolled,
-            'enrollment'        => $enrollment,
+            'is_enrolled'        => $is_enrolled,
+            'enrollment'         => $enrollment,
+            'enrollment_status'  => $enrollment_status,
             'total_modules'     => $total_modules,
             'completed_modules' => $completed_modules,
             'progress_pct'      => $progress_pct,
@@ -185,7 +194,7 @@ class Courses extends CI_Controller {
             'view' => 'courses/detail',
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
     // =========================================================
@@ -208,22 +217,230 @@ class Courses extends CI_Controller {
         $course = $this->course_model->get_course($id);
         if ( ! $course) show_404();
 
-        // enroll() returns false if already enrolled, true on insert
-        $enrolled = $this->course_model->enroll($user->id, $id);
+        $ok = $this->course_model->request_enrollment($user->id, $id);
 
-        if ($enrolled) {
+        if ($ok) {
             $this->session->set_flashdata(
                 'success',
-                'You have successfully enrolled in <strong>'
-                . htmlspecialchars($course->title) . '</strong>!'
+                'Enrollment request submitted for <strong>'
+                . htmlspecialchars($course->title) . '</strong>. '
+                . 'Your instructor will review it shortly.'
             );
         } else {
-            $this->session->set_flashdata(
-                'info',
-                'You are already enrolled in this course.'
-            );
+            $row = $this->course_model->get_enrollment($user->id, $id);
+            $st  = $row && isset($row->status) ? (string) $row->status : '';
+            if ($st === 'pending') {
+                $this->session->set_flashdata(
+                    'info',
+                    'You already have a pending enrollment request for this course.'
+                );
+            } elseif ($st === 'approved') {
+                $this->session->set_flashdata(
+                    'info',
+                    'You are already enrolled in this course.'
+                );
+            } else {
+                $this->session->set_flashdata(
+                    'error',
+                    'Unable to submit an enrollment request. Please try again.'
+                );
+            }
         }
 
         redirect('courses/view/' . $id);
+    }
+
+    /**
+     * Employee: explain that course access requires approval.
+     * URL: index.php/courses/enrollment_pending/{course_id}
+     */
+    public function enrollment_pending($course_id = null)
+    {
+        $user = $this->user;
+        $cid  = (int) $course_id;
+        if ($cid < 1) {
+            redirect('courses');
+        }
+
+        if ($user->role !== 'employee') {
+            redirect('courses/view/' . $cid);
+        }
+
+        $course = $this->course_model->get_course($cid);
+        if ( ! $course) {
+            show_404();
+        }
+
+        if ($this->course_model->has_approved_enrollment($user->id, $cid)) {
+            redirect('courses/view/' . $cid);
+        }
+
+        $data = [
+            'user'         => $user,
+            'page_title'   => 'Pending approval',
+            'course'       => $course,
+            'breadcrumbs'  => [
+                ['label' => 'Dashboard',      'url' => 'dashboard'],
+                ['label' => 'Course Catalog', 'url' => 'courses'],
+                ['label' => $course->title,   'url' => 'courses/view/' . $cid],
+                ['label' => 'Pending approval'],
+            ],
+            'view' => 'courses/enrollment_pending',
+        ];
+
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
+    }
+
+    /**
+     * Module player — employees need approved enrollment.
+     * URL: index.php/courses/module/{module_id}
+     */
+    public function module($module_id = null)
+    {
+        if ( ! $module_id) {
+            redirect('courses');
+        }
+
+        $user = $this->user;
+        $mid  = (int) $module_id;
+
+        $module = $this->course_model->get_module($mid);
+        if ( ! $module) {
+            show_404();
+        }
+
+        $course = $this->course_model->get_course((int) $module->course_id);
+        if ( ! $course) {
+            show_404();
+        }
+
+        if ($user->role === 'employee') {
+            if ( ! $this->course_model->has_approved_enrollment($user->id, (int) $module->course_id)) {
+                redirect('courses/enrollment_pending/' . (int) $module->course_id);
+            }
+        }
+
+        $all_modules = $this->course_model->get_modules((int) $module->course_id, $user->id);
+
+        $prev_module = null;
+        $next_module = null;
+        $found       = false;
+        foreach ($all_modules as $idx => $m) {
+            if ((int) $m->id === $mid) {
+                $found = true;
+                if ($idx > 0) {
+                    $prev_module = $all_modules[$idx - 1];
+                }
+                if (isset($all_modules[$idx + 1])) {
+                    $next_module = $all_modules[$idx + 1];
+                }
+                break;
+            }
+        }
+        if ( ! $found) {
+            show_404();
+        }
+
+        $my_progress = $this->course_model->get_module_progress($user->id, $mid);
+
+        $pre_list = $this->course_model->get_assessments($mid, 'pre');
+        $pre_assessment = ! empty($pre_list) ? $pre_list[0] : null;
+        $pre_blocked    = false;
+        if ($pre_assessment && $user->role === 'employee') {
+            $pre_blocked = ! $this->assessment_model->has_answered($user->id, (int) $pre_assessment->id);
+        }
+
+        $post_raw = $this->course_model->get_assessments($mid, 'post');
+        $post_assessments = [];
+        foreach ($post_raw as $pa) {
+            $has_done = $this->assessment_model->has_answered($user->id, (int) $pa->id);
+            $result   = $has_done
+                ? $this->assessment_model->get_result($user->id, (int) $pa->id)
+                : ['score' => 0, 'scored' => 0, 'total' => 0, 'pending' => 0];
+            $pa->has_done = $has_done;
+            $pa->result   = $result;
+            $pa->passed   = $has_done && (float) ($result['score'] ?? 0) >= 75.0 && (int) ($result['pending'] ?? 0) === 0;
+            $post_assessments[] = $pa;
+        }
+
+        $data = [
+            'user'              => $user,
+            'page_title'        => $module->title,
+            'module'            => $module,
+            'course'            => $course,
+            'all_modules'       => $all_modules,
+            'prev_module'       => $prev_module,
+            'next_module'       => $next_module,
+            'my_progress'       => $my_progress,
+            'pre_blocked'       => $pre_blocked,
+            'pre_assessment'    => $pre_assessment,
+            'post_assessments'  => $post_assessments,
+            'breadcrumbs'       => [
+                ['label' => 'Dashboard',      'url' => 'dashboard'],
+                ['label' => 'Course Catalog', 'url' => 'courses'],
+                ['label' => $course->title,   'url' => 'courses/view/' . $course->id],
+                ['label' => $module->title],
+            ],
+            'view' => 'courses/module',
+        ];
+
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
+    }
+
+    /**
+     * POST JSON — mark module complete (employee with approved enrollment).
+     * URL: index.php/courses/complete_module/{module_id}
+     */
+    public function complete_module($module_id = null)
+    {
+        if ($this->input->method(true) !== 'post') {
+            show_404();
+        }
+
+        $user = $this->user;
+        $mid  = (int) $module_id;
+        if ($mid < 1) {
+            return $this->_complete_module_json(['success' => false, 'message' => 'Invalid module.']);
+        }
+
+        $module = $this->course_model->get_module($mid);
+        if ( ! $module) {
+            return $this->_complete_module_json(['success' => false, 'message' => 'Module not found.']);
+        }
+
+        if ($user->role === 'employee') {
+            if ( ! $this->course_model->has_approved_enrollment($user->id, (int) $module->course_id)) {
+                return $this->_complete_module_json(['success' => false, 'message' => 'Not approved for this course.']);
+            }
+        }
+
+        $this->course_model->complete_module($user->id, $mid, null);
+
+        $course_id    = (int) $module->course_id;
+        $total_mods   = $this->course_model->count_modules($course_id);
+        $done_mods    = $this->course_model->count_completed_modules($user->id, $course_id);
+        $progress_pct = $total_mods > 0
+            ? (int) round(($done_mods / $total_mods) * 100)
+            : 0;
+        $course_done = ($total_mods > 0 && $done_mods >= $total_mods);
+
+        return $this->_complete_module_json([
+            'success'       => true,
+            'message'       => 'Already completed.',
+            'progress_pct'  => $progress_pct,
+            'course_done'   => $course_done,
+        ]);
+    }
+
+    /**
+     * @param array $payload
+     */
+    private function _complete_module_json(array $payload)
+    {
+        $this->output
+            ->set_status_header(200)
+            ->set_content_type('application/json', 'utf-8')
+            ->set_output(json_encode($payload));
+        exit;
     }
 }

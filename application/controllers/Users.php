@@ -70,7 +70,7 @@ class Users extends CI_Controller {
             'users'       => $users,
         ];
 
-        $this->load->view('layouts/main', $data);
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 }
 

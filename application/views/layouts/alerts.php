@@ -1,14 +1,14 @@
 <?php
 /**
  * KABAGA Academy — Flash Alert Partial
- * Include this at the top of every page view with:
- *   $this->load->view('layouts/alerts');
+ * Rendered by ka_merge_layout_vars() as $alerts_partial_html; content views echo that string.
  *
- * Reads CI flash data keys: success | error | warning | info
+ * Expects $flash_messages (array key => message) from ka_merge_layout_vars().
  * Renders Tabler-style alerts (matching the KABAGA design system).
- * Also injects SweetAlert2 CDN once and exposes window.ka_flash
- * for JS-triggered toasts (used by inline actions).
+ * Also injects SweetAlert2 CDN once and exposes window.KA helpers for JS.
  */
+defined('BASEPATH') OR exit('No direct script access allowed');
+$flash_messages = $flash_messages ?? [];
 ?>
 
 <!-- SweetAlert2 (loaded once here so every view has it) -->
@@ -101,8 +101,10 @@ $flash_map = [
 ];
 
 foreach ($flash_map as $key => $cfg):
-    $msg = $this->session->flashdata($key);
-    if ( ! $msg) continue;
+    $msg = $flash_messages[$key] ?? null;
+    if ( ! $msg) {
+        continue;
+    }
 ?>
 <div class="ka-alert <?= $cfg['class'] ?>" role="alert" id="kaAlert-<?= $key ?>">
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

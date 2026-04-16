@@ -20,7 +20,7 @@ $thumb_gradients = [
 ];
 ?>
 
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <!-- ============================================================
      KABAGA ACADEMY — My Courses (Admin)

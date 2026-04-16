@@ -154,17 +154,9 @@ document.querySelectorAll('.alert-dismissible').forEach(function(alert) {
   }, 5000);
 });
 
-// ── Active nav highlight (fallback for PHP logic) ────────────
-(function() {
-  const path    = window.location.pathname;
-  const links   = document.querySelectorAll('.ka-nav-link');
-  links.forEach(function(link) {
-    const href = link.getAttribute('href') || '';
-    if (href && href !== '#' && path.includes(href.split('/').pop())) {
-      link.classList.add('active');
-    }
-  });
-})();
+// Active nav: set only in sidebar.php from nav_context.segment_1 (strict ===).
+// Do not add .active here — substring checks (e.g. path.includes('courses')) match
+// both /courses and /my_courses.
 
 // ── Smooth page transitions ──────────────────────────────────
 document.querySelectorAll('a[href]:not([href="#"]):not([data-bs-toggle]):not([target="_blank"])').forEach(function(link) {

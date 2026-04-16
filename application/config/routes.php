@@ -56,6 +56,9 @@ $route['dashboard'] = 'Dashboard/index';
 $route['auth/login'] = 'Auth/login';
 $route['auth/login_process'] = 'Auth/login_process';
 $route['auth/logout'] = 'Auth/logout';
+$route['auth/forgot-password'] = 'Auth/forgot_password';
+$route['auth/forgot_password'] = 'Auth/forgot_password';
+$route['auth/forgot_password_process'] = 'Auth/forgot_password_process';
 
 // Course routes
 $route['courses'] = 'Courses/index';

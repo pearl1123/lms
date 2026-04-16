@@ -19,7 +19,7 @@ foreach (explode(' ', trim($student->fullname ?? '')) as $w) {
 }
 $initials = substr($initials, 0, 2);
 ?>
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <style>
 .grd-topbar { display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem; }
@@ -246,7 +246,7 @@ function saveScore(answerId) {
   fetch('<?= base_url('index.php/assessments/save_grade') ?>', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: '<?= $this->security->get_csrf_token_name() ?>=<?= $this->security->get_csrf_hash() ?>'
+    body: '<?= $csrf_field_name ?>=<?= $csrf_hash ?>'
         + '&answer_id=' + answerId
         + '&score='     + score,
   })

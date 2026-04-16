@@ -7,7 +7,8 @@ $total_modules     = $total_modules     ?? 0;
 $completed_modules = $completed_modules ?? 0;
 $progress_pct      = $progress_pct      ?? 0;
 $total_enrolled    = $total_enrolled    ?? 0;
-$user_role         = strtolower($user->role ?? 'employee');
+$user_role          = strtolower($user->role ?? 'employee');
+$enrollment_status  = $enrollment_status ?? null;
 
 if ( ! $course) return;
 
@@ -270,6 +271,29 @@ $content_colors = [
           ← Back to My Courses
         </a>
 
+      <?php elseif ($user_role === 'employee' && $enrollment_status === 'pending'): ?>
+        <p class="cd-enroll-title">Waiting for approval</p>
+        <p style="font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0 0 1rem;line-height:1.5;">
+          Your enrollment request is pending. You will be able to start modules after an instructor approves it.
+        </p>
+        <a href="<?= base_url('courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
+          ← Back to Catalog
+        </a>
+
+      <?php elseif ($user_role === 'employee' && $enrollment_status === 'rejected'): ?>
+        <p class="cd-enroll-title">Request rejected</p>
+        <p style="font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0 0 1rem;line-height:1.5;">
+          Your enrollment request was not approved. You may submit a new request if you still wish to join this course.
+        </p>
+        <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
+           class="cd-enroll-btn cd-enroll-btn-primary"
+           onclick="return confirm('Submit a new enrollment request?')">
+          Request enrollment again
+        </a>
+        <a href="<?= base_url('courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
+          ← Back to Catalog
+        </a>
+
       <?php elseif ($user_role === 'employee'): ?>
         <p class="cd-enroll-title">Ready to get started?</p>
         <div class="cd-enroll-stats">
@@ -284,8 +308,8 @@ $content_colors = [
         </div>
         <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
            class="cd-enroll-btn cd-enroll-btn-primary"
-           onclick="return confirm('Enroll in this course?')">
-          Enroll Now — It\'s Free
+           onclick="return confirm('Request enrollment in this course?')">
+          Request enrollment
         </a>
         <a href="<?= base_url('courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
           ← Back to Catalog

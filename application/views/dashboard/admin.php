@@ -9,7 +9,7 @@ $inactive    = $analytics['inactive_users']?? 0;
 $total_courses=$analytics['total_courses'] ?? 0;
 ?>
 
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <!-- ============================================================
      KABAGA ACADEMY — Admin Dashboard View
@@ -264,7 +264,7 @@ $total_courses=$analytics['total_courses'] ?? 0;
 <div class="ka-welcome animate__animated animate__fadeIn animate__fast">
   <div class="ka-welcome-body">
     <p class="ka-welcome-eyebrow">Admin Control Panel</p>
-    <h2 class="ka-welcome-title">Good <?= (date('H') < 12 ? 'morning' : (date('H') < 17 ? 'afternoon' : 'evening')) ?>, <?= htmlspecialchars(explode(' ', trim($user->fullname ?? 'Admin'))[0]) ?> 👋</h2>
+    <h2 class="ka-welcome-title">Good <?= (date('H') < 12 ? 'morning' : (date('H') < 17 ? 'afternoon' : 'evening')) ?>, <?= htmlspecialchars(explode(' ', trim(is_object($user ?? null) ? ($user->fullname ?? 'Admin') : 'Admin'))[0]) ?> 👋</h2>
     <p class="ka-welcome-sub">Here's what's happening at KABAGA Academy today — <?= date('l, F j, Y') ?></p>
     <div class="ka-welcome-actions">
       <a href="<?= base_url('manage_courses/create') ?>" class="ka-welcome-btn ka-welcome-btn-primary">

@@ -53,23 +53,29 @@
           </div>
           <h4 class="h4 text-center mb-1">Empowering learners with the skills of tomorrow.</h4>
           </br>
-          <?php if (!empty($error)): ?>
+          <?php
+          $flash_messages = $flash_messages ?? [];
+          ?>
+          <?php if (($error ?? '') !== ''): ?>
             <div class="alert alert-danger"><?= html_escape($error); ?></div>
           <?php endif; ?>
-          <?php if ($this->session->flashdata('error')): ?>
-            <div class="alert alert-danger"><?= $this->session->flashdata('error'); ?></div>
+          <?php if ( ! empty($flash_messages['error'])): ?>
+            <div class="alert alert-danger"><?= $flash_messages['error']; ?></div>
           <?php endif; ?>
-          <?php if ($this->session->flashdata('success')): ?>
-            <div class="alert alert-success"><?= $this->session->flashdata('success'); ?></div>
+          <?php if ( ! empty($flash_messages['success'])): ?>
+            <div class="alert alert-success"><?= $flash_messages['success']; ?></div>
           <?php endif; ?>
-          <?= form_open('auth/login_process'); ?>
+          <form method="post" action="<?= html_escape($login_form_action ?? '') ?>" autocomplete="off">
+          <?php if (($csrf_field_name ?? '') !== '' && ($csrf_hash ?? '') !== ''): ?>
+          <input type="hidden" name="<?= html_escape($csrf_field_name) ?>" value="<?= html_escape($csrf_hash) ?>">
+          <?php endif; ?>
           <div class="mb-3">
             <label class="form-label">Employee ID</label>
             <input
               type="text"
               name="employee_id"
               class="form-control"
-              value="<?= html_escape(set_value('employee_id', !empty($remembered_employee_id) ? $remembered_employee_id : '')); ?>"
+              value="<?= html_escape($employee_id_value ?? ''); ?>"
               placeholder="Your employee ID"
               required
               autofocus
@@ -81,16 +87,16 @@
           </div>
           <div class="login-utility-row">
             <label class="form-check m-0">
-              <input class="form-check-input" type="checkbox" name="remember_me" value="1" <?= !empty($remember_me) ? 'checked' : ''; ?>>
+              <input class="form-check-input" type="checkbox" name="remember_me" value="1" <?= ! empty($remember_me_checked ?? false) ? 'checked' : ''; ?>>
               <span class="form-check-label">Remember me</span>
             </label>
-            <a href="<?= site_url('auth/forgot-password'); ?>" class="login-forgot-link">Forgot password?</a>
+            <a href="<?= html_escape($forgot_password_url ?? ''); ?>" class="login-forgot-link">Forgot password?</a>
           </div>
           <div class="form-footer d-flex gap-2">
             <button type="submit" class="btn btn-primary w-100">Sign in</button>
-            <a href="<?= site_url('auth/register'); ?>" class="btn btn-outline-primary w-100">Create Account</a>
+            <a href="<?= html_escape($register_url ?? ''); ?>" class="btn btn-outline-primary w-100">Create Account</a>
           </div>
-          <?= form_close(); ?>
+          </form>
         </div>
       </div>
     </div>
