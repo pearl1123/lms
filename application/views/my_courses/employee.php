@@ -315,9 +315,13 @@ $thumb_gradients = [
             </div>
           </div>
           <div class="ec-card-footer">
-            <a href="<?= base_url('my_courses/view/'.$course->course_id) ?>" class="ec-card-cta <?= $cta_class ?>">
+            <?php if ( ! empty($course->course_id)): ?>
+            <a href="<?= base_url('courses/view/'.(int) $course->course_id) ?>" class="ec-card-cta <?= $cta_class ?>">
               <?= $cta_text ?>
             </a>
+            <?php else: ?>
+            <span class="ec-card-cta <?= $cta_class ?>" style="opacity:.5;cursor:not-allowed;" title="Course unavailable"><?= $cta_text ?></span>
+            <?php endif; ?>
             <?php if ($pct >= 100): ?>
             <a href="<?= base_url('certificates') ?>" style="padding:.5rem .75rem;border-radius:7px;background:#ecfdf5;color:#15803d;font-size:.6875rem;font-weight:700;text-decoration:none;white-space:nowrap;" title="View Certificate">
               🏆 Cert

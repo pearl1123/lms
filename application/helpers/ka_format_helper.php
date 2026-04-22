@@ -33,17 +33,33 @@ if ( ! function_exists('ka_format_month_year')) {
     }
 }
 
+if ( ! function_exists('ka_assessment_pass_threshold')) {
+    /**
+     * Single pass/fail threshold (%) for assessments — use everywhere (posts, certificates, UI).
+     *
+     * @return float
+     */
+    function ka_assessment_pass_threshold()
+    {
+        return 75.0;
+    }
+}
+
 if ( ! function_exists('ka_assessment_score_chip')) {
     /**
      * Build score chip class + label for assessment UIs (controller use).
      *
      * @param float $score
      * @param int   $pending
-     * @param float $pass_threshold default 75
+     * @param float $pass_threshold defaults to ka_assessment_pass_threshold()
      * @return array{class:string,text:string}
      */
-    function ka_assessment_score_chip($score, $pending, $pass_threshold = 75.0)
+    function ka_assessment_score_chip($score, $pending, $pass_threshold = null)
     {
+        if ($pass_threshold === null) {
+            $pass_threshold = ka_assessment_pass_threshold();
+        }
+
         $pending = (int) $pending;
         if ($pending > 0) {
             return [

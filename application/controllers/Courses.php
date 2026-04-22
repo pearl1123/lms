@@ -14,7 +14,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property CI_Input             $input
  * @property User_model           $user_model
  * @property Course_model         $course_model
- * @property assessment_model     $assessment_model
+ * @property Assessment_service $assessment_service
+ * @property CI_Output               $output   Loaded by CI_Controller (JSON helpers use $this->output)
  */
 class Courses extends CI_Controller {
 
@@ -26,8 +27,8 @@ class Courses extends CI_Controller {
         parent::__construct();
         $this->load->library('session');
         $this->load->model('User_model',   'user_model');
-        $this->load->model('Course_model',     'course_model');
-        $this->load->model('assessment_model', 'assessment_model');
+        $this->load->model('Course_model',             'course_model');
+        $this->load->library('assessment_service');
         $this->load->helper('url');
 
         // ── Auth guard ────────────────────────────────────────
@@ -343,25 +344,12 @@ class Courses extends CI_Controller {
 
         $my_progress = $this->course_model->get_module_progress($user->id, $mid);
 
-        $pre_list = $this->course_model->get_assessments($mid, 'pre');
-        $pre_assessment = ! empty($pre_list) ? $pre_list[0] : null;
-        $pre_blocked    = false;
-        if ($pre_assessment && $user->role === 'employee') {
-            $pre_blocked = ! $this->assessment_model->has_answered($user->id, (int) $pre_assessment->id);
-        }
-
-        $post_raw = $this->course_model->get_assessments($mid, 'post');
-        $post_assessments = [];
-        foreach ($post_raw as $pa) {
-            $has_done = $this->assessment_model->has_answered($user->id, (int) $pa->id);
-            $result   = $has_done
-                ? $this->assessment_model->get_result($user->id, (int) $pa->id)
-                : ['score' => 0, 'scored' => 0, 'total' => 0, 'pending' => 0];
-            $pa->has_done = $has_done;
-            $pa->result   = $result;
-            $pa->passed   = $has_done && (float) ($result['score'] ?? 0) >= 75.0 && (int) ($result['pending'] ?? 0) === 0;
-            $post_assessments[] = $pa;
-        }
+        $player = $this->assessment_service->course_module_play_context(
+            (int) $user->id,
+            (string) ($user->role ?? ''),
+            $mid,
+            $module
+        );
 
         $data = [
             'user'              => $user,
@@ -372,9 +360,17 @@ class Courses extends CI_Controller {
             'prev_module'       => $prev_module,
             'next_module'       => $next_module,
             'my_progress'       => $my_progress,
-            'pre_blocked'       => $pre_blocked,
-            'pre_assessment'    => $pre_assessment,
-            'post_assessments'  => $post_assessments,
+            'pre_blocked'       => $player['pre_blocked'],
+            'pre_assessment'    => $player['pre_assessment'],
+            'post_assessments'  => $player['post_assessments'],
+            'assessment_pass_threshold' => $player['assessment_pass_threshold'],
+            'youtube_video_id'                => $player['youtube_video_id'],
+            'video_checkpoint_payload'        => $player['video_checkpoint_payload'],
+            'video_checkpoint_passed_ids'     => $player['video_checkpoint_passed_ids'],
+            'video_checkpoint_required_cnt'   => $player['video_checkpoint_required_cnt'],
+            'video_checkpoint_gate'           => $player['video_checkpoint_gate'],
+            'video_checkpoint_submit_url'     => $player['video_checkpoint_submit_url'],
+            'video_checkpoint_json_url'       => $player['video_checkpoint_json_url'],
             'breadcrumbs'       => [
                 ['label' => 'Dashboard',      'url' => 'dashboard'],
                 ['label' => 'Course Catalog', 'url' => 'courses'],
@@ -414,6 +410,16 @@ class Courses extends CI_Controller {
             }
         }
 
+        if ( ! $this->assessment_service->employee_may_complete_module_with_video_checkpoints(
+            (int) $user->id,
+            $module
+        )) {
+            return $this->_complete_module_json([
+                'success' => false,
+                'message' => 'You must complete all video checkpoints before finishing this module.',
+            ]);
+        }
+
         $this->course_model->complete_module($user->id, $mid, null);
 
         $course_id    = (int) $module->course_id;
@@ -433,14 +439,28 @@ class Courses extends CI_Controller {
     }
 
     /**
+     * JSON response for module completion (AJAX).
+     *
      * @param array $payload
      */
     private function _complete_module_json(array $payload)
     {
+        $flags = JSON_UNESCAPED_UNICODE;
+        if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+            $flags |= JSON_INVALID_UTF8_SUBSTITUTE;
+        }
+
+        $payload_json = json_encode($payload, $flags);
+        if ($payload_json === false) {
+            log_message('error', 'complete_module_json: json_encode failed — ' . json_last_error_msg());
+            $payload_json = '{"success":false,"message":"Server error."}';
+        }
+
+        $this->output->enable_profiler(false);
+
         $this->output
             ->set_status_header(200)
-            ->set_content_type('application/json', 'utf-8')
-            ->set_output(json_encode($payload));
-        exit;
+            ->set_content_type('application/json')
+            ->set_output($payload_json);
     }
 }

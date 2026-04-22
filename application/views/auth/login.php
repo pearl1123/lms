@@ -47,7 +47,7 @@
       <div class="card card-md login-card-future">
         <div class="card-body">
           <div class="login-brand">
-            <img src="<?= base_url('assets/img/WMIS%20LOGO.png'); ?>" alt="WMIS logo" class="wmis-logo-login" />
+            <img src="<?= base_url('assets/img/LMS-LOGO.png'); ?>" alt="WMIS logo" class="wmis-logo-login" />
             <div class="wmis-logo-subtext">KABAGA Academy</div>
             <div class="wmis-logo-hospital">LUNG CENTER OF THE PHILIPPINES</div>
           </div>

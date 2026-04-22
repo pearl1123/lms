@@ -63,6 +63,14 @@ $route['auth/forgot_password_process'] = 'Auth/forgot_password_process';
 // Course routes
 $route['courses'] = 'Courses/index';
 $route['course/(:num)'] = 'Courses/view/$1';
+// Legacy / mistaken URL from older My Learning cards → same as courses/view
+$route['my_courses/view/(:num)'] = 'courses/view/$1';
+
+// Video checkpoints — Assessments controller (canonical URLs: assessments/video_checkpoints, …/video_checkpoint_submit)
+// Legacy course player URLs → same controller (backward compatible)
+$route['courses/youtube_quizzes/(:num)']   = 'assessments/video_checkpoints/$1';
+$route['courses/youtube_quiz_submit']      = 'assessments/video_checkpoint_submit';
+$route['assessments/migrate_youtube_checkpoints'] = 'assessments/migrate_video_checkpoints';
 
 // Dashboard role shortcuts
 $route['admin'] = 'Dashboard/admin';
@@ -70,6 +78,11 @@ $route['instructor'] = 'Dashboard/instructor';
 
 //Administrator routes
 $route['users'] = 'Users/index';
+
+// Enrollment approvals (explicit routes for approve/reject POST targets)
+$route['enrollments/requests']         = 'Enrollments/requests';
+$route['enrollments/approve/(:num)'] = 'Enrollments/approve/$1';
+$route['enrollments/reject/(:num)']  = 'Enrollments/reject/$1';
 
 $route['404_override'] = '';
 $route['translate_uri_dashes'] = FALSE;

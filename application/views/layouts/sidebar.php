@@ -225,7 +225,7 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
         </a>
       </li>
 
-      <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
+      <?php if ($user_role === 'admin'): ?>
       <!-- Libraries menu -->
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/libraries') ?>"
@@ -256,6 +256,8 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
         </a>
       </li>
 
+      <?php if (false): ?>
+      <!-- Leaderboard menu (temporarily hidden) -->
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/leaderboard') ?>"
            class="ka-nav-link <?= $segment === 'leaderboard' ? 'active' : '' ?>">
@@ -266,6 +268,7 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
           Leaderboard
         </a>
       </li>
+      <?php endif; ?>
 
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/announcements') ?>"

@@ -449,7 +449,7 @@ $first_name = explode(' ', trim($full_name))[0];
             </div>
             <div>
               <div class="ins-quick-title">Assessments</div>
-              <div class="ins-quick-sub">Create quizzes</div>
+              <div class="ins-quick-sub">Create assessments</div>
             </div>
           </a>
           <a href="<?= base_url('my_classes') ?>" class="ins-quick-btn">
@@ -507,8 +507,8 @@ $first_name = explode(' ', trim($full_name))[0];
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             </div>
             <div class="ins-review-body">
-              <div class="ins-review-title">Quiz Retake — Ana Lim</div>
-              <div class="ins-review-sub">Respiratory Care · Quiz 2</div>
+              <div class="ins-review-title">Assessment retake — Ana Lim</div>
+              <div class="ins-review-sub">Respiratory Care · Post-assessment 2</div>
             </div>
             <a href="<?= base_url('assessments') ?>" class="ins-review-action">Review</a>
           </li>

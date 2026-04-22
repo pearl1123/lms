@@ -5,7 +5,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * Tables used (exact schema):
  * ─────────────────────────────────────────────────────────────
- * lib_assessments        id, module_id, type (pre|post), title, created_at, archived
+ * lib_assessments        id, module_id, type (pre|post|checkpoint), context, trigger_*,
+ *                        title, created_at, archived (+ legacy_youtube_quiz_id after migration)
  * lib_assessment_questions  id, assessment_id, question_text, question_type, is_required, min_words, archived
  * lib_assessment_choices    id, question_id, choice_text, is_correct, choice_order, archived  ← NEW
  * assessment_answers     id, question_id, user_id, answer_text, score, checked_by, checked_at, archived
@@ -66,8 +67,15 @@ class assessment_model extends CI_Model {
             ->where('la.archived', 0)
             ->group_by('la.id');
 
-        if ((int) $module_id > 0) $this->db->where('la.module_id', (int) $module_id);
-        if ($type !== '')         $this->db->where('la.type',       $type);
+        if ((int) $module_id > 0) {
+            $this->db->where('la.module_id', (int) $module_id);
+        }
+        if ($type !== '') {
+            $this->db->where('la.type', $type);
+        } else {
+            // Video checkpoints are taken inside the course player, not the Assessments UI
+            $this->db->where('la.type !=', 'checkpoint');
+        }
 
         $r = $this->db->order_by('la.created_at', 'DESC')->get();
         return ($r && $r->num_rows() > 0) ? $r->result() : [];
@@ -95,6 +103,7 @@ class assessment_model extends CI_Model {
                    'laq.assessment_id = la.id AND laq.archived = 0', 'left')
             ->where('c.created_by', (int) $user_id)
             ->where('la.archived',  0)
+            ->where('la.type !=', 'checkpoint')
             ->group_by('la.id')
             ->order_by('la.created_at', 'DESC')
             ->get();
@@ -103,13 +112,34 @@ class assessment_model extends CI_Model {
     }
 
     /**
+     * True after lib_assessments.context (and related) columns exist — unified video checkpoints.
+     */
+    public function assessments_checkpoint_schema_ready()
+    {
+        static $ready = null;
+        if ($ready === null) {
+            $ready = (bool) $this->db->field_exists('context', 'lib_assessments');
+        }
+
+        return $ready;
+    }
+
+    /**
      * Get a single assessment row with module + course info.
      */
     public function get_assessment($assessment_id)
     {
+        $extra_cols = '';
+        if ($this->assessments_checkpoint_schema_ready()) {
+            $extra_cols = ',
+                la.context, la.trigger_type, la.trigger_value, la.is_required, la.sort_order,
+                la.legacy_youtube_quiz_id';
+        }
+
         $r = $this->db
             ->select('
-                la.id, la.module_id, la.type, la.title, la.created_at,
+                la.id, la.module_id, la.type, la.title, la.created_at
+                '.$extra_cols.',
                 cm.title    AS module_title,
                 cm.course_id,
                 c.title     AS course_title,
@@ -546,6 +576,328 @@ class assessment_model extends CI_Model {
             $a->choices = $this->get_choices($a->question_id);
         }
         return $answers;
+    }
+
+    // =========================================================
+    // VIDEO CHECKPOINTS (type=checkpoint, context=video)
+    // =========================================================
+
+    /**
+     * Single-question MCQ pass during YouTube playback. Stores a row in assessment_answers
+     * only when the selected choice is correct (same behaviour as legacy user_youtube_quiz_passes).
+     *
+     * @param int $user_id
+     * @param int $assessment_id lib_assessments.id (POST: assessment_id; legacy alias still accepted)
+     * @param int $choice_index  0-based index matching ordered choices
+     * @param int $expected_module_id
+     * @return array{ok:bool,message:string}
+     */
+    public function save_checkpoint_pass($user_id, $assessment_id, $choice_index, $expected_module_id)
+    {
+        if ( ! $this->assessments_checkpoint_schema_ready()) {
+            return ['ok' => false, 'message' => 'Checkpoints are not available.'];
+        }
+
+        $aid = (int) $assessment_id;
+        $mid = (int) $expected_module_id;
+        $uid = (int) $user_id;
+        $idx = (int) $choice_index;
+
+        $a = $this->db
+            ->where('id', $aid)
+            ->where('archived', 0)
+            ->get('lib_assessments', 1)
+            ->row();
+
+        if ( ! $a
+            || ($a->type ?? '') !== 'checkpoint'
+            || ($a->context ?? '') !== 'video'
+            || (int) $a->module_id !== $mid
+        ) {
+            return ['ok' => false, 'message' => 'Checkpoint not found.'];
+        }
+
+        $questions = $this->get_questions($aid);
+        if (count($questions) !== 1) {
+            return ['ok' => false, 'message' => 'Invalid checkpoint configuration.'];
+        }
+
+        $q = $questions[0];
+        if (($q->question_type ?? '') !== 'multiple_choice') {
+            return ['ok' => false, 'message' => 'Invalid checkpoint configuration.'];
+        }
+
+        $choices = $q->choices;
+        if (empty($choices) || $idx < 0 || $idx >= count($choices)) {
+            return ['ok' => false, 'message' => 'Invalid answer.'];
+        }
+
+        $selected = $choices[$idx];
+        if ((int) $selected->is_correct !== 1) {
+            return ['ok' => false, 'message' => 'Incorrect. Review the material and try again.'];
+        }
+
+        $now         = date('Y-m-d H:i:s');
+        $answer_text = (string) $selected->id;
+
+        $existing = $this->db
+            ->where('question_id', (int) $q->id)
+            ->where('user_id',     $uid)
+            ->where('archived',    0)
+            ->get('assessment_answers', 1)
+            ->row();
+
+        if ($existing) {
+            $ok = (bool) $this->db
+                ->where('id', (int) $existing->id)
+                ->update('assessment_answers', [
+                    'answer_text'        => $answer_text,
+                    'score'              => 100.00,
+                    'checked_by'         => null,
+                    'checked_at'         => null,
+                    'date_last_modified' => $now,
+                    'modified_by'        => $uid,
+                ]);
+        } else {
+            $ok = (bool) $this->db->insert('assessment_answers', [
+                'question_id'  => (int) $q->id,
+                'user_id'      => $uid,
+                'answer_text'  => $answer_text,
+                'score'        => 100.00,
+                'date_encoded' => $now,
+                'encoded_by'   => $uid,
+            ]);
+        }
+
+        if ( ! $ok) {
+            log_message('error', 'save_checkpoint_pass: DB error ' . json_encode($this->db->error()));
+
+            return ['ok' => false, 'message' => 'Could not save your answer. Please try again.'];
+        }
+
+        return ['ok' => true, 'message' => 'Correct!'];
+    }
+
+    /**
+     * One-time: copy course_module_youtube_quizzes (+ passes) into lib_assessments / questions /
+     * choices / assessment_answers. Safe to re-run (skips rows already linked via legacy_youtube_quiz_id).
+     *
+     * @return array{ok:bool,message?:string,migrated_checkpoints?:int,migrated_passes?:int}
+     */
+    public function migrate_legacy_video_checkpoints()
+    {
+        if ( ! $this->assessments_checkpoint_schema_ready()) {
+            return [
+                'ok'      => false,
+                'message' => 'Run application/sql/alter_lib_assessments_unified_checkpoints.sql first.',
+            ];
+        }
+
+        if ( ! $this->db->field_exists('legacy_youtube_quiz_id', 'lib_assessments')) {
+            return [
+                'ok'      => false,
+                'message' => 'Column legacy_youtube_quiz_id is missing. Run application/sql/patch_lib_assessments_columns_incremental.sql (or alter_lib_assessments_unified_checkpoints.sql).',
+            ];
+        }
+
+        if ( ! $this->db->table_exists('course_module_youtube_quizzes')) {
+            return [
+                'ok'               => true,
+                'message'          => 'No legacy checkpoint table.',
+                'migrated_checkpoints' => 0,
+                'migrated_passes'      => 0,
+            ];
+        }
+
+        $this->load->model('Module_video_checkpoint_model', 'video_checkpoint_codec');
+
+        $migrated_checkpoints = 0;
+        $migrated_passes  = 0;
+
+        $old_rows = $this->db
+            ->where('archived', 0)
+            ->order_by('module_id', 'ASC')
+            ->order_by('sort_order', 'ASC')
+            ->order_by('id', 'ASC')
+            ->get('course_module_youtube_quizzes')
+            ->result();
+
+        foreach ($old_rows as $row) {
+            $legacy_id = (int) $row->id;
+            $dup       = (int) $this->db
+                ->where('legacy_youtube_quiz_id', $legacy_id)
+                ->where('archived', 0)
+                ->count_all_results('lib_assessments');
+
+            if ($dup > 0) {
+                continue;
+            }
+
+            $choices = $this->video_checkpoint_codec->decode_choices($row->choices ?? '');
+            if (empty($choices)) {
+                log_message('error', 'migrate_legacy_video_checkpoints: empty choices for legacy id ' . $legacy_id);
+
+                continue;
+            }
+
+            $qtext = trim((string) ($row->question ?? ''));
+            $title = ($qtext !== '') ? $qtext : 'Video checkpoint';
+            if (function_exists('mb_strlen') && mb_strlen($title) > 255) {
+                $title = mb_substr($title, 0, 252) . '...';
+            } elseif (strlen($title) > 255) {
+                $title = substr($title, 0, 252) . '...';
+            }
+
+            $ts = (int) ($row->trigger_seconds ?? 0);
+            if ($ts > 0) {
+                $trigger_type  = 'seconds';
+                $trigger_value = (float) $ts;
+            } else {
+                $trigger_type  = 'percent';
+                $trigger_value = $row->trigger_percent !== null && $row->trigger_percent !== ''
+                    ? (float) $row->trigger_percent
+                    : 0.0;
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $enc = ! empty($row->date_encoded) ? $row->date_encoded : $now;
+
+            $this->db->insert('lib_assessments', [
+                'module_id'              => (int) $row->module_id,
+                'type'                   => 'checkpoint',
+                'title'                  => $title,
+                'context'                => 'video',
+                'trigger_type'           => $trigger_type,
+                'trigger_value'          => $trigger_value,
+                'is_required'            => (int) ($row->is_required ?? 1) === 1 ? 1 : 0,
+                'sort_order'             => (int) ($row->sort_order ?? 0),
+                'legacy_youtube_quiz_id' => $legacy_id,
+                'created_at'             => $enc,
+                'date_encoded'           => $enc,
+                'encoded_by'             => (int) ($row->encoded_by ?? 1),
+                'archived'               => 0,
+            ]);
+
+            $assessment_id = (int) $this->db->insert_id();
+            if ($assessment_id < 1) {
+                continue;
+            }
+
+            $this->db->insert('lib_assessment_questions', [
+                'assessment_id'  => $assessment_id,
+                'question_text'  => $qtext !== '' ? $qtext : $title,
+                'question_type'  => 'multiple_choice',
+                'is_required'    => 1,
+                'min_words'      => null,
+                'date_encoded'   => $now,
+                'encoded_by'     => (int) ($row->encoded_by ?? 1),
+                'archived'       => 0,
+            ]);
+
+            $question_id = (int) $this->db->insert_id();
+            $correct_idx = (int) $row->correct_choice_index;
+
+            $order = 1;
+            foreach ($choices as $i => $label) {
+                $this->db->insert('lib_assessment_choices', [
+                    'question_id'  => $question_id,
+                    'choice_text'  => trim((string) $label),
+                    'is_correct'   => ((int) $i === $correct_idx) ? 1 : 0,
+                    'choice_order' => $order++,
+                    'archived'     => 0,
+                ]);
+            }
+
+            $migrated_checkpoints++;
+        }
+
+        if ($this->db->table_exists('user_youtube_quiz_passes')) {
+            $passes = $this->db
+                ->where('archived', 0)
+                ->get('user_youtube_quiz_passes')
+                ->result();
+
+            foreach ($passes as $p) {
+                $legacy_qid = (int) $p->quiz_id;
+                $la         = $this->db
+                    ->where('legacy_youtube_quiz_id', $legacy_qid)
+                    ->where('archived', 0)
+                    ->get('lib_assessments', 1)
+                    ->row();
+
+                if ( ! $la) {
+                    continue;
+                }
+
+                $q = $this->db
+                    ->where('assessment_id', (int) $la->id)
+                    ->where('archived', 0)
+                    ->order_by('id', 'ASC')
+                    ->get('lib_assessment_questions', 1)
+                    ->row();
+
+                if ( ! $q) {
+                    continue;
+                }
+
+                $correct = $this->db
+                    ->where('question_id', (int) $q->id)
+                    ->where('is_correct', 1)
+                    ->where('archived', 0)
+                    ->order_by('choice_order', 'ASC')
+                    ->get('lib_assessment_choices', 1)
+                    ->row();
+
+                if ( ! $correct) {
+                    continue;
+                }
+
+                $exists = (int) $this->db
+                    ->where('question_id', (int) $q->id)
+                    ->where('user_id', (int) $p->user_id)
+                    ->where('archived', 0)
+                    ->count_all_results('assessment_answers');
+
+                if ($exists > 0) {
+                    continue;
+                }
+
+                $ts = ! empty($p->passed_at) ? $p->passed_at : date('Y-m-d H:i:s');
+
+                $this->db->insert('assessment_answers', [
+                    'question_id'  => (int) $q->id,
+                    'user_id'      => (int) $p->user_id,
+                    'answer_text'  => (string) $correct->id,
+                    'score'        => 100.00,
+                    'date_encoded' => $ts,
+                    'encoded_by'   => (int) $p->user_id,
+                ]);
+                $migrated_passes++;
+            }
+        }
+
+        return [
+            'ok'                   => true,
+            'message'              => 'Migration finished.',
+            'migrated_checkpoints' => $migrated_checkpoints,
+            'migrated_passes'      => $migrated_passes,
+        ];
+    }
+
+    /**
+     * @deprecated Use migrate_legacy_video_checkpoints()
+     */
+    public function migrate_legacy_youtube_quizzes()
+    {
+        return $this->migrate_legacy_video_checkpoints();
+    }
+
+    /**
+     * @deprecated Use migrate_legacy_video_checkpoints()
+     */
+    public function migrate_legacy_youtube_checkpoints()
+    {
+        return $this->migrate_legacy_video_checkpoints();
     }
 
     // =========================================================

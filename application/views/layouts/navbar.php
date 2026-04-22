@@ -7,6 +7,10 @@ $full_name      = $nc['full_name'] ?? 'User';
 $user_role_label = $nc['user_role_label'] ?? 'Employee';
 $initials       = $nc['initials'] ?? '';
 $streak    = $nc['streak'] ?? null;
+$notifications = $navbar_notifications ?? [];
+if ( ! is_array($notifications)) {
+    $notifications = [];
+}
 
 // Breadcrumb — set $breadcrumbs in controller (passed through layouts/main)
 // e.g. $data['breadcrumbs'] = [['label'=>'Courses','url'=>'courses'],['label'=>'Module 1']];
@@ -339,46 +343,63 @@ $streak    = $nc['streak'] ?? null;
       <div class="dropdown-menu dropdown-menu-end ka-notif-dropdown">
         <div class="ka-notif-header">
           <p class="ka-notif-header-title">Notifications</p>
-          <a href="<?= base_url('notifications'); ?>" style="font-size:.75rem;font-weight:600;color:var(--ka-primary);text-decoration:none;">Mark all read</a>
+          <?php if ( ! empty($notif_count) && $notif_count > 0): ?>
+          <a href="<?= base_url('index.php/announcements/mark_all_read'); ?>" style="font-size:.75rem;font-weight:600;color:var(--ka-primary);text-decoration:none;">Mark all read</a>
+          <?php endif; ?>
         </div>
         <div class="ka-notif-list">
-
-          <!-- Sample notifications — replace with dynamic PHP loop -->
-          <a href="#" class="ka-notif-item">
-            <div class="ka-notif-icon course">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
-            </div>
-            <div class="ka-notif-body">
-              <p class="ka-notif-text"><strong>New module available:</strong> Basic Infection Control</p>
-              <div class="ka-notif-time">2 hours ago</div>
-            </div>
-            <div class="ka-notif-dot"></div>
-          </a>
-
-          <a href="#" class="ka-notif-item">
-            <div class="ka-notif-icon cert">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
-            </div>
-            <div class="ka-notif-body">
-              <p class="ka-notif-text"><strong>Certificate earned!</strong> Patient Safety Module</p>
-              <div class="ka-notif-time">Yesterday</div>
-            </div>
-          </a>
-
-          <a href="#" class="ka-notif-item">
+          <?php if (empty($notifications)): ?>
+          <div class="ka-notif-item" style="cursor:default;pointer-events:none;">
             <div class="ka-notif-icon info">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
             <div class="ka-notif-body">
-              <p class="ka-notif-text">Mandatory training due in <strong>3 days</strong></p>
-              <div class="ka-notif-time">2 days ago</div>
+              <p class="ka-notif-text">No announcements yet.</p>
             </div>
-            <div class="ka-notif-dot"></div>
+          </div>
+          <?php else: ?>
+          <?php foreach ($notifications as $n):
+            $is_read   = (int) ($n->is_read ?? 0) === 1;
+            $type_id   = (int) ($n->type_id ?? 0);
+            $type_name = strtolower((string) ($n->type_name ?? ''));
+            $notif_icon = 'info';
+            if ($type_id === 1 || strpos($type_name, 'system') !== false) {
+                $notif_icon = 'info';
+            } elseif ($type_id === 2 || strpos($type_name, 'course') !== false) {
+                $notif_icon = 'course';
+            } elseif ($type_id === 3 || strpos($type_name, 'reminder') !== false) {
+                $notif_icon = 'alert';
+            }
+            $preview = strip_tags((string) ($n->message ?? ''));
+            if (function_exists('mb_substr')) {
+                $preview = mb_strlen($preview) > 140 ? mb_substr($preview, 0, 140) . '…' : $preview;
+            } else {
+                $preview = strlen($preview) > 140 ? substr($preview, 0, 140) . '…' : $preview;
+            }
+            $created = ! empty($n->date_encoded) ? date('M j, g:i A', strtotime($n->date_encoded)) : '';
+            $link    = base_url('index.php/announcements/mark_read/' . (int) ($n->user_notification_id ?? 0));
+          ?>
+          <a href="<?= $link ?>" class="ka-notif-item">
+            <div class="ka-notif-icon <?= $notif_icon === 'course' ? 'course' : ($notif_icon === 'alert' ? 'alert' : 'info') ?>">
+              <?php if ($notif_icon === 'course'): ?>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+              <?php elseif ($notif_icon === 'alert'): ?>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <?php else: ?>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <?php endif; ?>
+            </div>
+            <div class="ka-notif-body">
+              <p class="ka-notif-text"><strong><?= htmlspecialchars($n->title ?? '(No title)') ?></strong><?= $preview !== '' ? ' — ' . htmlspecialchars($preview) : '' ?></p>
+              <?php if ($created !== ''): ?><div class="ka-notif-time"><?= htmlspecialchars($created) ?></div><?php endif; ?>
+            </div>
+            <?php if ( ! $is_read): ?><div class="ka-notif-dot"></div><?php endif; ?>
           </a>
-
+          <?php endforeach; ?>
+          <?php endif; ?>
         </div>
         <div class="ka-notif-footer">
-          <a href="<?= base_url('notifications'); ?>">View all notifications</a>
+          <a href="<?= base_url('index.php/announcements'); ?>">View all notifications</a>
         </div>
       </div>
     </div>

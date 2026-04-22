@@ -174,7 +174,7 @@
           <section id="completion">
             <h6 class="fw-bold">8. Course Completion & Certifications</h6>
             <p>
-              Certificates are issued based on completion of lessons, quizzes, and instructor validations.
+              Certificates are issued based on completion of lessons, assessments, and instructor validations.
               Any attempts to falsify completion may result in account suspension or revocation of certification.
             </p>
           </section>

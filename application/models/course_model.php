@@ -962,6 +962,22 @@ class Course_model extends CI_Model {
             : [];
     }
 
+    /**
+     * Whether the user may use the module player (video, checkpoints, etc.).
+     * Employees need approved enrollment; other roles may preview.
+     *
+     * @param object $user   aauth_users row
+     * @param object $module course_modules row
+     */
+    public function user_can_access_module_player($user, $module)
+    {
+        if (($user->role ?? '') === 'employee') {
+            return $this->has_approved_enrollment((int) $user->id, (int) $module->course_id);
+        }
+
+        return true;
+    }
+
     // =========================================================
     // COURSE CRUD  (create / update / delete / reassign)
     // =========================================================

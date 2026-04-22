@@ -9,6 +9,7 @@ if ( ! $assessment || ! $student) return;
 $score   = (float)($result['score']   ?? 0);
 $pending = (int)($result['pending']   ?? 0);
 $total_q = (int)($result['total']     ?? 0);
+$pass_thr = (float) ka_assessment_pass_threshold();
 
 $type_colors = ['multiple_choice'=>'#3b82f6','essay'=>'#f59f00','likert'=>'#22c55e','fill_blank'=>'#6dabcf'];
 
@@ -117,10 +118,10 @@ $initials = substr($initials, 0, 2);
       <div class="grd-score-val" style="color:#d97706;font-size:1.25rem;">Pending</div>
       <div class="grd-score-lbl"><?= $pending ?> answer<?= $pending !== 1 ? 's' : '' ?> to review</div>
     <?php else: ?>
-      <div class="grd-score-val" style="color:<?= $score >= 75 ? '#059669' : '#dc2626' ?>">
+      <div class="grd-score-val" style="color:<?= $score >= $pass_thr ? '#059669' : '#dc2626' ?>">
         <?= number_format($score, 1) ?>%
       </div>
-      <div class="grd-score-lbl"><?= $score >= 75 ? '✓ Passed' : '✗ Failed' ?></div>
+      <div class="grd-score-lbl"><?= $score >= $pass_thr ? '✓ Passed' : '✗ Failed' ?></div>
     <?php endif; ?>
   </div>
 </div>
@@ -152,7 +153,7 @@ $initials = substr($initials, 0, 2);
         <span class="grd-scored-badge pending">⏳ Needs grading</span>
       <?php endif; ?>
       <?php if ($is_graded): ?>
-        <span style="font-size:.875rem;font-weight:700;color:<?= (float)$ans_score >= 75 ? '#059669' : '#dc2626' ?>">
+        <span style="font-size:.875rem;font-weight:700;color:<?= (float)$ans_score >= $pass_thr ? '#059669' : '#dc2626' ?>">
           <?= number_format((float)$ans_score, 0) ?>%
         </span>
       <?php endif; ?>

@@ -12,6 +12,15 @@ $post_assessments = $post_assessments ?? [];
 $user_role        = strtolower($user->role ?? 'employee');
 $is_completed     = ($my_progress && $my_progress->status === 'completed');
 
+$youtube_video_id                = $youtube_video_id ?? null;
+$video_checkpoint_payload        = $video_checkpoint_payload ?? [];
+$video_checkpoint_passed_ids     = $video_checkpoint_passed_ids ?? [];
+$video_checkpoint_required_cnt   = (int) ($video_checkpoint_required_cnt ?? 0);
+$video_checkpoint_gate           = ! empty($video_checkpoint_gate);
+$video_checkpoint_submit_url     = $video_checkpoint_submit_url ?? '';
+$video_checkpoint_json_url       = $video_checkpoint_json_url ?? '';
+$assessment_pass_threshold       = isset($assessment_pass_threshold) ? (float) $assessment_pass_threshold : (float) ka_assessment_pass_threshold();
+
 if ( ! $module) return;
 
 $MARK_COMPLETE_URL = base_url('index.php/courses/complete_module/' . $module->id);
@@ -190,7 +199,57 @@ $content_url  = $is_external ? $content_path : base_url($content_path);
 }
 .mv-toast.show { transform:translateY(0);opacity:1; }
 .mv-toast svg { width:18px;height:18px;flex-shrink:0; }
+
+/* ── YouTube checkpoint modal ── */
+.mv-yt-modal-overlay {
+  position:fixed;inset:0;background:rgba(15,23,42,.72);z-index:10050;
+  display:none;align-items:center;justify-content:center;padding:1.25rem;
+}
+.mv-yt-modal-overlay.is-open { display:flex; }
+.mv-yt-modal {
+  width:100%;max-width:440px;background:#fff;border:1px solid var(--ka-border,#e2e8f0);
+  border-radius:14px;box-shadow:0 24px 48px rgba(0,0,0,.25);overflow:hidden;
+}
+.mv-yt-modal-hdr {
+  padding:1rem 1.25rem;border-bottom:1px solid var(--ka-border,#e2e8f0);
+  background:linear-gradient(135deg,var(--ka-navy,#1a3a5c),#254d75);
+  color:#fff;font-size:.9375rem;font-weight:800;
+}
+.mv-yt-modal-body { padding:1.25rem; }
+.mv-yt-modal-q { font-size:.875rem;font-weight:600;color:var(--ka-text,#1e293b);margin:0 0 1rem;line-height:1.45; }
+.mv-yt-choice {
+  display:block;width:100%;text-align:left;padding:.65rem .875rem;margin-bottom:.5rem;
+  border-radius:8px;border:1.5px solid var(--ka-border,#e2e8f0);
+  background:#fff;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);
+  cursor:pointer;transition:all .15s;
+}
+.mv-yt-choice:hover { border-color:var(--ka-primary,#6dabcf);background:var(--ka-accent,#e8f4fd); }
+.mv-yt-choice.selected { border-color:var(--ka-navy,#1a3a5c);background:var(--ka-accent,#e8f4fd); }
+.mv-yt-submit {
+  width:100%;margin-top:.75rem;padding:.7rem 1rem;border-radius:8px;border:none;
+  background:var(--ka-navy,#1a3a5c);color:#fff;font-size:.875rem;font-weight:700;cursor:pointer;
+}
+.mv-yt-submit:disabled { opacity:.55;cursor:not-allowed; }
+.mv-yt-err {
+  display:none;margin-top:.75rem;padding:.625rem .75rem;border-radius:8px;
+  background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:.8125rem;font-weight:600;
+}
+.mv-yt-err.is-visible { display:block; }
+.mv-yt-ytframe { width:100%;aspect-ratio:16/9;background:#000;min-height:240px; }
 </style>
+
+<!-- YouTube checkpoint modal (non-dismissible until correct) -->
+<div class="mv-yt-modal-overlay" id="mvVcCheckpointOverlay" aria-hidden="true">
+  <div class="mv-yt-modal" role="dialog" aria-modal="true" aria-labelledby="mvVcCheckpointTitle" onclick="event.stopPropagation();">
+    <div class="mv-yt-modal-hdr" id="mvVcCheckpointTitle">Learning checkpoint</div>
+    <div class="mv-yt-modal-body">
+      <p class="mv-yt-modal-q" id="mvVcCheckpointQuestion"></p>
+      <div id="mvVcCheckpointChoices"></div>
+      <button type="button" class="mv-yt-submit" id="mvVcCheckpointSubmit" disabled>Submit answer</button>
+      <div class="mv-yt-err" id="mvVcCheckpointErr"></div>
+    </div>
+  </div>
+</div>
 
 <!-- Toast -->
 <div class="mv-toast" id="mvToast">
@@ -264,7 +323,12 @@ $content_url  = $is_external ? $content_path : base_url($content_path);
       </iframe>
 
       <?php elseif ($module->content_type === 'video'): ?>
-      <!-- ── VIDEO PLAYER ── -->
+      <!-- ── VIDEO: YouTube (IFrame API + checkpoints) OR HTML5 ── -->
+      <?php if ($youtube_video_id): ?>
+      <div class="mv-video-wrap">
+        <div class="mv-yt-ytframe" id="mvYouTubePlayer"></div>
+      </div>
+      <?php else: ?>
       <div class="mv-video-wrap">
         <video class="mv-video" id="mvVideo" controls controlsList="nodownload" preload="metadata"
                oncontextmenu="return false;">
@@ -272,6 +336,7 @@ $content_url  = $is_external ? $content_path : base_url($content_path);
           Your browser does not support the video tag.
         </video>
       </div>
+      <?php endif; ?>
 
       <?php elseif ($module->content_type === 'slides'): ?>
       <!-- ── SLIDES VIEWER ── -->
@@ -351,6 +416,8 @@ $content_url  = $is_external ? $content_path : base_url($content_path);
             <span id="mvCompleteHint">
               <?php if ($module->content_type === 'pdf' || $module->content_type === 'slides'): ?>
                 Scroll to the end to complete
+              <?php elseif ($module->content_type === 'video' && $youtube_video_id && $video_checkpoint_gate): ?>
+                Answer all video checkpoints, then watch to the end to mark complete
               <?php elseif ($module->content_type === 'video' || $module->content_type === 'audio'): ?>
                 Watch to the end to complete
               <?php else: ?>
@@ -409,7 +476,6 @@ $content_url  = $is_external ? $content_path : base_url($content_path);
       <p>You've completed this module. Take the post-assessment to test your understanding.</p>
       <?php foreach ($post_assessments as $pa): ?>
         <?php
-        // Prepared by Courses::_get_post_assessments_with_results()
         $has_done = $pa->has_done ?? false;
         $result   = $pa->result   ?? ['score' => 0, 'pending' => 0, 'scored' => 0, 'total' => 0];
         $passed   = $pa->passed   ?? false;
@@ -424,7 +490,7 @@ $content_url  = $is_external ? $content_path : base_url($content_path);
           </div>
         <?php elseif ($has_done): ?>
           <div style="background:#fef2f2;border-radius:7px;padding:.5rem .875rem;font-size:.8125rem;color:#7f1d1d;margin-bottom:.5rem;">
-            Score: <?= number_format($result['score'], 1) ?>% — need 75% to pass
+            Score: <?= number_format($result['score'], 1) ?>% — need <?= number_format($assessment_pass_threshold, 0) ?>% to pass
           </div>
           <a href="<?= base_url('index.php/assessments/take/'.$pa->id) ?>"
              class="mv-post-asx-btn">Retake Assessment</a>
@@ -486,6 +552,21 @@ var HAS_NEXT      = <?= $next_module ? 'true' : 'false' ?>;
 var NEXT_URL      = '<?= $next_module ? base_url('index.php/courses/module/'.$next_module->id) : '' ?>';
 var PRE_BLOCKED   = <?= $pre_blocked ? 'true' : 'false' ?>;
 
+var IS_YOUTUBE_IFRAME = <?= $youtube_video_id ? 'true' : 'false' ?>;
+var MODULE_ID = <?= (int) ($module->id ?? 0) ?>;
+var VIDEO_CHECKPOINTS = <?= json_encode($video_checkpoint_payload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+var VIDEO_CHECKPOINT_GATE = <?= $video_checkpoint_gate ? 'true' : 'false' ?>;
+var VIDEO_CHECKPOINT_SUBMIT_URL = <?= json_encode((string) $video_checkpoint_submit_url) ?>;
+var ytPlayer = null;
+var vcPassed = {};
+var ytCheckTimer = null;
+var vcActiveCheckpoint = null;
+var ytPlaybackActive = false;
+var ytPlayerReady = false;
+<?php foreach ($video_checkpoint_passed_ids as $_pid): ?>
+vcPassed[<?= (int) $_pid ?>] = true;
+<?php endforeach; ?>
+
 function showToast(msg) {
   var t = document.getElementById('mvToast');
   document.getElementById('mvToastMsg').textContent = msg;
@@ -532,17 +613,326 @@ function markComplete() {
         if (data.success) {
           setTimeout(function() { location.reload(); }, 1800);
         }
+      } else if (data.message) {
+        showToast(data.message);
       }
     })
     .catch(function(e) { console.error('complete_module error:', e); });
 }
+
+/** Single trigger model: 0..1 playback progress when checkpoint fires (seconds override percent). */
+function ytTriggerProgress01(q, durationSec) {
+  var ts = parseInt(q.trigger_seconds, 10) || 0;
+  if (ts > 0 && durationSec > 0) {
+    return Math.min(1, Math.max(0, ts / durationSec));
+  }
+  var p = parseFloat(q.trigger_percent);
+  if (!isNaN(p)) return Math.min(1, Math.max(0, p / 100));
+  return 0.25;
+}
+
+function vcSortedCheckpointsByTrigger(durationSec) {
+  return (VIDEO_CHECKPOINTS || []).slice().sort(function(a, b) {
+    return ytTriggerProgress01(a, durationSec) - ytTriggerProgress01(b, durationSec);
+  });
+}
+
+function vcAllRequiredPassed() {
+  if (!VIDEO_CHECKPOINT_GATE) return true;
+  for (var i = 0; i < VIDEO_CHECKPOINTS.length; i++) {
+    var q = VIDEO_CHECKPOINTS[i];
+    if (q.is_required && !vcPassed[q.id]) return false;
+  }
+  return true;
+}
+
+function ytStopProgressCheck() {
+  if (ytCheckTimer) {
+    clearInterval(ytCheckTimer);
+    ytCheckTimer = null;
+  }
+}
+
+function ytStartProgressCheck() {
+  ytStopProgressCheck();
+  if (!ytPlaybackActive) return;
+  ytCheckTimer = setInterval(ytTick, 1000);
+}
+
+function vcModalIsOpen() {
+  var o = document.getElementById('mvVcCheckpointOverlay');
+  return o && o.classList.contains('is-open');
+}
+
+function vcOpenCheckpointModal(cp) {
+  vcActiveCheckpoint = cp;
+  ytStopProgressCheck();
+  if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+
+  var overlay = document.getElementById('mvVcCheckpointOverlay');
+  var qEl = document.getElementById('mvVcCheckpointQuestion');
+  var cEl = document.getElementById('mvVcCheckpointChoices');
+  var err = document.getElementById('mvVcCheckpointErr');
+  var sub = document.getElementById('mvVcCheckpointSubmit');
+  if (err) { err.textContent = ''; err.classList.remove('is-visible'); }
+  if (qEl) qEl.textContent = cp.question || '';
+  if (cEl) {
+    cEl.innerHTML = '';
+    (cp.choices || []).forEach(function(label, idx) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'mv-yt-choice';
+      b.setAttribute('data-idx', String(idx));
+      b.textContent = label;
+      b.addEventListener('click', function() {
+        cEl.querySelectorAll('.mv-yt-choice').forEach(function(x) { x.classList.remove('selected'); });
+        b.classList.add('selected');
+        if (sub) sub.disabled = false;
+      });
+      cEl.appendChild(b);
+    });
+  }
+  if (sub) sub.disabled = true;
+  if (overlay) {
+    overlay.classList.add('is-open');
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+}
+
+function vcCloseCheckpointModal() {
+  vcActiveCheckpoint = null;
+  var overlay = document.getElementById('mvVcCheckpointOverlay');
+  if (overlay) {
+    overlay.classList.remove('is-open');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+  if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+}
+
+function ytTick() {
+  if (!ytPlaybackActive || !ytPlayer || !ytPlayer.getCurrentTime || vcModalIsOpen()) return;
+  var d = ytPlayer.getDuration();
+  var t = ytPlayer.getCurrentTime();
+  if (!(d > 0)) return;
+  var progress = t / d;
+  if (!VIDEO_CHECKPOINT_GATE && progress >= 0.8) {
+    var mbEarly = document.getElementById('mvMarkBtn');
+    if (mbEarly) mbEarly.disabled = false;
+  }
+  var order = vcSortedCheckpointsByTrigger(d);
+  for (var i = 0; i < order.length; i++) {
+    var q = order[i];
+    if (vcPassed[q.id]) continue;
+    if (progress + 1e-6 >= ytTriggerProgress01(q, d) - 0.002) {
+      vcOpenCheckpointModal(q);
+      return;
+    }
+  }
+}
+
+/** If IFrame API never becomes ready, avoid leaving the user stuck on a dead control. */
+function mvYoutubeApiWatchdog() {
+  if (!IS_YOUTUBE_IFRAME || IS_COMPLETED) return;
+  if (ytPlayerReady) return;
+  showToast('Video player could not load. You can use Mark as Complete after a short wait, or reload the page.');
+  setTimeout(function() {
+    var b = document.getElementById('mvMarkBtn');
+    var h = document.getElementById('mvCompleteHint');
+    if (!b || IS_COMPLETED) return;
+    if (!VIDEO_CHECKPOINT_GATE) {
+      b.disabled = false;
+      if (h) h.textContent = 'Mark as complete (video unavailable)';
+    }
+  }, 45000);
+  setTimeout(function() {
+    var b = document.getElementById('mvMarkBtn');
+    var h = document.getElementById('mvCompleteHint');
+    if (!b || IS_COMPLETED) return;
+    if (VIDEO_CHECKPOINT_GATE) {
+      b.disabled = false;
+      if (h) {
+        h.textContent = 'If the player failed, reload. Mark as Complete still requires all checkpoints on the server.';
+      }
+    }
+  }, 90000);
+}
+
+function onYouTubeIframeAPIReady() {
+  if (!IS_YOUTUBE_IFRAME) return;
+  function boot() {
+    if (IS_COMPLETED) return;
+    var host = document.getElementById('mvYouTubePlayer');
+    if (!host || ytPlayer || !window.YT || !YT.Player) return;
+    ytPlayer = new YT.Player('mvYouTubePlayer', {
+      videoId: <?= json_encode((string) $youtube_video_id) ?>,
+      width: '100%',
+      height: '100%',
+      playerVars: { rel: 0, modestbranding: 1, enablejsapi: 1 },
+      events: {
+        onReady: function() {
+          ytPlayerReady = true;
+        },
+        onStateChange: function(ev) {
+          if (typeof YT === 'undefined' || !YT.PlayerState) return;
+          var markBtn = document.getElementById('mvMarkBtn');
+          var YS = YT.PlayerState;
+          if (ev.data === YS.PLAYING) {
+            ytPlaybackActive = true;
+            ytStartProgressCheck();
+          } else if (ev.data === YS.PAUSED || ev.data === YS.BUFFERING || ev.data === YS.CUED) {
+            ytPlaybackActive = false;
+            ytStopProgressCheck();
+          } else if (ev.data === YS.ENDED) {
+            ytPlaybackActive = false;
+            ytStopProgressCheck();
+            if (markBtn) markBtn.disabled = false;
+            if (VIDEO_CHECKPOINT_GATE) {
+              if (vcAllRequiredPassed()) {
+                showToast('Video finished. Click Mark as Complete when ready.');
+              } else {
+                showToast('Answer all checkpoints to complete this module.');
+                if (markBtn) markBtn.disabled = true;
+              }
+            } else {
+              markComplete();
+            }
+          }
+        }
+      }
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var ovBg = document.getElementById('mvVcCheckpointOverlay');
+  if (ovBg) {
+    ovBg.addEventListener('mousedown', function(ev) {
+      if (ev.target === ovBg) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    });
+  }
+
+  var qSub = document.getElementById('mvVcCheckpointSubmit');
+  if (qSub) {
+    qSub.addEventListener('click', function() {
+      if (!vcActiveCheckpoint) return;
+      var cEl = document.getElementById('mvVcCheckpointChoices');
+      var sel = cEl ? cEl.querySelector('.mv-yt-choice.selected') : null;
+      var err = document.getElementById('mvVcCheckpointErr');
+      if (!sel) {
+        if (err) { err.textContent = 'Select an answer.'; err.classList.add('is-visible'); }
+        return;
+      }
+      var idx = parseInt(sel.getAttribute('data-idx'), 10);
+      if (isNaN(idx) || idx < 0) {
+        if (err) { err.textContent = 'Select a valid answer.'; err.classList.add('is-visible'); }
+        return;
+      }
+      var fd = new FormData();
+      fd.append('assessment_id', String(vcActiveCheckpoint.id));
+      fd.append('module_id', String(MODULE_ID));
+      fd.append('choice_index', String(idx));
+      if (CSRF_NAME) {
+        fd.append(CSRF_NAME, CSRF_HASH);
+      }
+      qSub.disabled = true;
+      qSub.setAttribute('aria-busy', 'true');
+      fetch(VIDEO_CHECKPOINT_SUBMIT_URL, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin'
+      })
+        .then(function(r) {
+          var status = r.status;
+          return r.text().then(function(text) {
+            var data = null;
+            try {
+              data = text ? JSON.parse(text) : null;
+            } catch (e) {
+              console.error('video_checkpoint_submit: JSON parse failed', {
+                status: status,
+                bodySnippet: text ? text.slice(0, 800) : ''
+              });
+              throw e;
+            }
+            if (!data || typeof data !== 'object') {
+              console.error('video_checkpoint_submit: invalid JSON body', status, text ? text.slice(0, 800) : '');
+              throw new Error('invalid_json');
+            }
+            if (!r.ok) {
+              console.warn('video_checkpoint_submit: HTTP error', status, data);
+            }
+            return data;
+          });
+        })
+        .then(function(data) {
+          if (data.ok) {
+            vcPassed[vcActiveCheckpoint.id] = true;
+            if (err) err.classList.remove('is-visible');
+            vcCloseCheckpointModal();
+          } else {
+            if (err) {
+              err.textContent = data.message || 'Incorrect answer. Please try again.';
+              err.classList.add('is-visible');
+            }
+            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+          }
+        })
+        .catch(function() {
+          if (err) {
+            err.textContent = 'Could not submit. Check your connection and try again.';
+            err.classList.add('is-visible');
+          }
+        })
+        .then(function() {
+          qSub.removeAttribute('aria-busy');
+          if (vcModalIsOpen()) qSub.disabled = false;
+        });
+    });
+  }
+
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Escape' && vcModalIsOpen()) {
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+  }, true);
+});
 
 document.addEventListener('DOMContentLoaded', function() {
   if (IS_COMPLETED || PRE_BLOCKED) return;
 
   var markBtn = document.getElementById('mvMarkBtn');
 
-  // ── VIDEO: auto-complete on ended ──────────────────────────
+  // ── VIDEO: YouTube (IFrame API + checkpoints) ───────────────
+  if (CONTENT_TYPE === 'video' && IS_YOUTUBE_IFRAME) {
+    if (markBtn) {
+      markBtn.disabled = true;
+      if (VIDEO_CHECKPOINT_GATE && vcAllRequiredPassed()) {
+        markBtn.disabled = false;
+      }
+    }
+    if (markBtn) {
+      markBtn.addEventListener('click', function() {
+        if (!this.disabled && VIDEO_CHECKPOINT_GATE && !vcAllRequiredPassed()) {
+          showToast('Answer all video checkpoints first.');
+          return;
+        }
+        if (!this.disabled) markComplete();
+      });
+    }
+    setTimeout(mvYoutubeApiWatchdog, 5000);
+    return;
+  }
+
+  // ── VIDEO: HTML5 (non-YouTube) ───────────────────────────────
   if (CONTENT_TYPE === 'video') {
     var video = document.getElementById('mvVideo');
     if (video) {
@@ -639,3 +1029,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+<?php if ( ! empty($youtube_video_id)): ?>
+<script src="https://www.youtube.com/iframe_api"></script>
+<?php endif; ?>

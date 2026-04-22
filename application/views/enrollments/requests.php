@@ -37,11 +37,11 @@ $pending_rows = $pending_rows ?? [];
               <?= htmlspecialchars($r->enrolled_at ?? '') ?>
             </td>
             <td style="padding:.75rem 1rem;">
-              <form method="post" action="<?= base_url('index.php/enrollments/approve/'.$r->enrollment_id) ?>" style="display:inline;">
+              <form method="post" action="<?= site_url('enrollments/approve/'.$r->enrollment_id) ?>" style="display:inline;">
                 <input type="hidden" name="<?= html_escape($csrf_field_name ?? '') ?>" value="<?= html_escape($csrf_hash ?? '') ?>">
                 <button type="submit" class="btn btn-sm btn-primary" style="margin-right:.35rem;">Approve</button>
               </form>
-              <form method="post" action="<?= base_url('index.php/enrollments/reject/'.$r->enrollment_id) ?>" style="display:inline;">
+              <form method="post" action="<?= site_url('enrollments/reject/'.$r->enrollment_id) ?>" style="display:inline;">
                 <input type="hidden" name="<?= html_escape($csrf_field_name ?? '') ?>" value="<?= html_escape($csrf_hash ?? '') ?>">
                 <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
               </form>

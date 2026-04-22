@@ -22,7 +22,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Eligibility rules:
  *   1. All course modules must be status = 'completed'
  *   2. All POST assessments for each module must be PASSED
- *      (score >= 75% and no pending essay answers)
+ *      (score >= ka_assessment_pass_threshold() and no pending essay answers)
  *   3. No existing certificate (archived = 0) for this user + course
  *
  * @property CI_DB_mysqli_driver $db
@@ -33,6 +33,7 @@ class certificate_model extends CI_Model {
     {
         parent::__construct();
         $this->load->database();
+        $this->load->helper('ka_format');
     }
 
     // =========================================================
@@ -124,7 +125,7 @@ class certificate_model extends CI_Model {
             $post_assessment_rows = $post_assessments ? $post_assessments->result() : [];
 
             if ( ! empty($post_assessment_rows)) {
-                // For each post assessment, check: attempted AND score >= 75%
+                // For each post assessment, check: attempted AND score >= pass threshold
                 $all_passed  = true;
                 $not_passed  = [];
                 foreach ($post_assessment_rows as $pa) {
@@ -177,9 +178,10 @@ class certificate_model extends CI_Model {
                         break;
                     }
 
-                    // Must score >= 75% to pass
+                    $min_pass = ka_assessment_pass_threshold();
+                    // Must meet pass threshold
                     $avg_score = $scored > 0 ? round($sum / $scored, 2) : 0;
-                    if ($avg_score < 75) {
+                    if ($avg_score < $min_pass) {
                         $all_passed = false;
                         $not_passed[] = [
                             'reason'        => 'score_too_low',

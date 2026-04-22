@@ -5,6 +5,7 @@ $questions  = $questions  ?? [];
 $attempts   = $attempts   ?? [];
 if ( ! $assessment) return;
 $total_q    = count($questions);
+$pass_thr   = (float) ka_assessment_pass_threshold();
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
 
@@ -82,7 +83,9 @@ $total_q    = count($questions);
 <!-- ══ Stats ════════════════════════════════════════════════ -->
 <?php
 $total_attempts  = count($attempts);
-$total_passed    = count(array_filter($attempts, function($a) { return (float)($a->avg_score ?? 0) >= 75 && (int)($a->pending ?? 0) === 0; }));
+$total_passed    = count(array_filter($attempts, function($a) use ($pass_thr) {
+    return (float)($a->avg_score ?? 0) >= $pass_thr && (int)($a->pending ?? 0) === 0;
+}));
 $total_pending   = count(array_filter($attempts, function($a) { return (int)($a->pending ?? 0) > 0; }));
 $avg_all         = $total_attempts > 0
   ? round(array_sum(array_column(array_map('get_object_vars', $attempts), 'avg_score')) / $total_attempts, 1)
@@ -95,7 +98,7 @@ $avg_all         = $total_attempts > 0
   </div>
   <div class="rev-stat">
     <div class="rev-stat-val" style="color:#22c55e;"><?= $total_passed ?></div>
-    <div class="rev-stat-lbl">Passed ≥ 75%</div>
+    <div class="rev-stat-lbl">Passed ≥ <?= number_format($pass_thr, 0) ?>%</div>
   </div>
   <div class="rev-stat">
     <div class="rev-stat-val" style="color:#f59f00;"><?= $total_pending ?></div>
@@ -133,7 +136,7 @@ $avg_all         = $total_attempts > 0
       <?php foreach ($attempts as $a):
         $avg      = $a->avg_score !== null ? round((float)$a->avg_score, 1) : null;
         $pending  = (int)($a->pending ?? 0);
-        $is_pass  = $avg !== null && $avg >= 75 && $pending === 0;
+        $is_pass  = $avg !== null && $avg >= $pass_thr && $pending === 0;
         $initials = '';
         foreach (explode(' ', trim($a->student_name ?? '')) as $w) {
           if ($w !== '') $initials .= strtoupper(substr($w, 0, 1));

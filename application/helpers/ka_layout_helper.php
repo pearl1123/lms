@@ -73,11 +73,19 @@ if ( ! function_exists('ka_merge_layout_vars')) {
         $data['csrf_field_name'] = (string) $SEC->get_csrf_token_name();
         $data['csrf_hash']       = (string) $SEC->get_csrf_hash();
 
-        if ( ! isset($data['unread_notification_count']) && is_object($user) && isset($user->id)) {
+        $uid = (is_object($user) && isset($user->id)) ? (int) $user->id : 0;
+        if ($uid > 0) {
             $CI->load->model('Notification_model', 'notification_model');
             $notification_model = $CI->{'notification_model'};
-            $data['unread_notification_count'] = $notification_model
-                ->count_unread((int) $user->id);
+            if ( ! isset($data['unread_notification_count'])) {
+                $data['unread_notification_count'] = $notification_model->count_unread($uid);
+            }
+            if ( ! isset($data['navbar_notifications'])) {
+                $data['navbar_notifications'] = $notification_model->get_all($uid, 5, 0);
+            }
+        }
+        if ( ! isset($data['navbar_notifications']) || ! is_array($data['navbar_notifications'])) {
+            $data['navbar_notifications'] = [];
         }
 
         $data['notif_count'] = (int) ($data['unread_notification_count'] ?? 0);

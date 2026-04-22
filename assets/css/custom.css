@@ -1110,11 +1110,18 @@ body.wmis-nav-collapsed .page-wrapper {
   inset: 0;
   background:
     linear-gradient(150deg, rgba(9, 26, 53, 0.38) 0%, rgba(9, 26, 53, 0.7) 100%),
-    url("../img/Login-wallpaper.jpg") center center / cover no-repeat;
+    url("../img/Login-wallpaper1.jpg") center center / cover no-repeat;
   transform: scale(1.02);
-  filter: blur(0);
-  animation: login-backdrop-focus 1s ease-out forwards;
+
+  filter: blur(8px);
+  animation: login-backdrop-focus 0.2s ease-out forwards;
+
   z-index: 0;
+}
+
+@keyframes login-backdrop-focus {
+  from { filter: blur(8px); }
+  to { filter: blur(0); }
 }
 
 .wmis-login-page .wmis-ambient {
@@ -2937,7 +2944,7 @@ body.wmis-nav-collapsed .page-wrapper {
 :root[data-theme="dark"] .wmis-login-page::before {
   background:
     linear-gradient(155deg, rgba(3, 10, 20, 0.62) 0%, rgba(3, 10, 20, 0.86) 100%),
-    url("../img/Login-wallpaper.jpg") center center / cover no-repeat;
+    url("../img/Login-wallpaper1.jpg") center center / cover no-repeat;
 }
 
 :root[data-theme="dark"] .login-card-future {
@@ -3789,7 +3796,7 @@ body {
 .wmis-login-page::before {
   background:
     linear-gradient(150deg, rgba(7, 22, 44, 0.46) 0%, rgba(7, 22, 44, 0.78) 100%),
-    url("../img/Login-wallpaper.jpg") center center / cover no-repeat;
+    url("../img/Login-wallpaper1.jpg") center center / cover no-repeat;
 }
 
 .login-card-future {
@@ -4050,7 +4057,7 @@ body {
 :root[data-theme="dark"] .wmis-login-page::before {
   background:
     linear-gradient(155deg, rgba(2, 10, 8, 0.68) 0%, rgba(2, 10, 8, 0.86) 100%),
-    url("../img/Login-wallpaper.jpg") center center / cover no-repeat;
+    url("../img/Login-wallpaper1.jpg") center center / cover no-repeat;
 }
 
 :root[data-theme="dark"] .login-card-future {

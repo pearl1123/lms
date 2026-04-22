@@ -11,8 +11,9 @@ $scored     = (int)($result['scored']    ?? 0);
 $total_q    = (int)($result['total']     ?? 0);
 $pending    = (int)($result['pending']   ?? 0);
 $has_pending= $pending > 0;
-$passed     = ! $has_pending && $score >= 75;
-$failed     = ! $has_pending && $score < 75;
+$pass_thr   = (float) ka_assessment_pass_threshold();
+$passed     = ! $has_pending && $score >= $pass_thr;
+$failed     = ! $has_pending && $score < $pass_thr;
 
 $type_colors = ['multiple_choice'=>'#3b82f6','essay'=>'#f59f00','likert'=>'#22c55e','fill_blank'=>'#6dabcf'];
 ?>
@@ -141,7 +142,7 @@ $type_colors = ['multiple_choice'=>'#3b82f6','essay'=>'#f59f00','likert'=>'#22c5
         $badge_class = 'pending';
         $badge_text  = 'Pending review';
         $num_class   = 'pending';
-      } elseif ($ans_score >= 75) {
+      } elseif ($ans_score >= $pass_thr) {
         $status = 'correct';
         $badge_class = 'correct';
         $badge_text  = number_format($ans_score, 0) . '% correct';
