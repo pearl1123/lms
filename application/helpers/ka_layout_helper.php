@@ -89,6 +89,14 @@ if ( ! function_exists('ka_merge_layout_vars')) {
         }
 
         $data['notif_count'] = (int) ($data['unread_notification_count'] ?? 0);
+        $data['notifications_context'] = [
+            'unreadUrl'      => base_url('index.php/notifications/unread_count'),
+            'latestUrl'      => base_url('index.php/notifications/latest'),
+            'markReadBaseUrl'=> base_url('index.php/notifications/mark_read/'),
+            'allUrl'         => base_url('index.php/notifications'),
+            'csrfName'       => $data['csrf_field_name'],
+            'csrfHash'       => $data['csrf_hash'],
+        ];
 
         // Pre-render alerts so content views never call $this->load or get_instance().
         $data['alerts_partial_html'] = '';

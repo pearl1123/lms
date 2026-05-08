@@ -206,6 +206,35 @@ $content_types = [
             </div>
           </div>
 
+          <div class="ef-row">
+            <div class="ef-group">
+              <label class="ef-label">Certificate Prefix <span>*</span></label>
+              <input type="text" name="certificate_prefix" class="ef-input"
+                     value="<?= htmlspecialchars(set_value('certificate_prefix', $course->certificate_prefix ?? '')) ?>"
+                     maxlength="12" placeholder="e.g. UIUX" required>
+              <?php if (form_error('certificate_prefix')): ?><div class="ef-error"><?= form_error('certificate_prefix') ?></div><?php endif; ?>
+              <div class="ef-help" style="margin-top:.35rem;font-size:.72rem;color:var(--ka-text-muted,#64748b);">
+                Serial format: KABAGA-{PREFIX}-<?= date('Y') ?>-0001
+              </div>
+            </div>
+            <div class="ef-group">
+              <label class="ef-label">Signatory Name</label>
+              <input type="text" name="signatory_name" class="ef-input"
+                     value="<?= htmlspecialchars(set_value('signatory_name', $course->signatory_name ?? '')) ?>"
+                     maxlength="120" placeholder="e.g. Maria L. Santos">
+            </div>
+          </div>
+
+          <div class="ef-row">
+            <div class="ef-group">
+              <label class="ef-label">Signatory Title</label>
+              <input type="text" name="signatory_title" class="ef-input"
+                     value="<?= htmlspecialchars(set_value('signatory_title', $course->signatory_title ?? '')) ?>"
+                     maxlength="120" placeholder="e.g. Learning & Development Manager">
+            </div>
+            <div class="ef-group"></div>
+          </div>
+
           <div style="display:flex;justify-content:flex-end;">
             <button type="submit" class="ef-save-btn">Save Details</button>
           </div>

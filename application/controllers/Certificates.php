@@ -13,7 +13,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * @property Certificate_model  $certificate_model
  * @property Course_model       $course_model
- * @property Notification_model $notification_model
+ * @property Notification_service $notification_service
+ * @property Certificate_service $certificate_service
+ * @property Event_dispatcher    $event_dispatcher
  */
 class Certificates extends KA_Controller {
 
@@ -24,7 +26,6 @@ class Certificates extends KA_Controller {
         parent::__construct();
         $this->load->model('Certificate_model', 'certificate_model');
         $this->load->model('Course_model',      'course_model');
-        $this->load->model('Notification_model','notification_model');
 
         // Ensure PDF upload directory exists
         $pdf_dir = FCPATH . self::PDF_DIR;
@@ -269,18 +270,12 @@ class Certificates extends KA_Controller {
                     );
                 }
 
-                // Notify the employee
-                $course = $this->course_model->get_course($course_id);
-                $this->notification_model->send([
-                    'type_id'      => 1,
-                    'title'        => 'Certificate Issued!',
-                    'message'      => 'Congratulations! Your certificate for <strong>'
-                                   . htmlspecialchars($course->title ?? '')
-                                   . '</strong> has been issued. Certificate code: <strong>'
-                                   . $issued['code'] . '</strong>.',
-                    'reference_id' => $issued['certificate_id'],
-                    'user_ids'     => [$user->id],
-                    'encoded_by'   => 0,
+                $this->load->library('event_dispatcher');
+                $this->event_dispatcher->dispatch('certificate.issued', [
+                    'user_id'          => (int) $user->id,
+                    'course_id'        => (int) $course_id,
+                    'certificate_id'   => (int) $issued['certificate_id'],
+                    'certificate_code' => (string) ($issued['code'] ?? ''),
                 ]);
 
                 $this->flash('success',
@@ -324,17 +319,14 @@ class Certificates extends KA_Controller {
         $ok      = $this->certificate_model->revoke($id, $this->auth_user->id, $remarks);
 
         if ($ok) {
-            $this->notification_model->send([
-                'type_id'      => 2,
-                'title'        => 'Certificate Revoked',
-                'message'      => 'Your certificate for <strong>'
-                               . htmlspecialchars($cert->course_title)
-                               . '</strong> (code: ' . $cert->certificate_code
-                               . ') has been revoked.'
-                               . ($remarks ? ' Reason: ' . htmlspecialchars($remarks) : ''),
-                'reference_id' => $id,
-                'user_ids'     => [$cert->user_id],
-                'encoded_by'   => $this->auth_user->id,
+            $this->load->library('event_dispatcher');
+            $this->event_dispatcher->dispatch('certificate.revoked', [
+                'user_id'          => (int) $cert->user_id,
+                'certificate_id'   => (int) $id,
+                'course_title'     => (string) ($cert->course_title ?? ''),
+                'certificate_code' => (string) ($cert->certificate_code ?? ''),
+                'remarks'          => (string) $remarks,
+                'actor_id'         => (int) $this->auth_user->id,
             ]);
             $this->flash('success', 'Certificate revoked and student notified.');
         } else {
@@ -360,58 +352,9 @@ class Certificates extends KA_Controller {
      */
     private function _generate_pdf($cert)
     {
-        try {
-            $autoload = FCPATH . 'vendor/autoload.php';
-            if (file_exists($autoload)) {
-                require_once $autoload;
-            } else {
-                $manual = APPPATH . 'third_party/dompdf/autoload.inc.php';
-                if ( ! file_exists($manual)) {
-                    log_message('error', 'DOMPDF not found. Run: composer require dompdf/dompdf');
-                    return null;
-                }
-                require_once $manual;
-            }
+        $this->load->library('certificate_service');
 
-            $html = $this->load->view('certificates/template_pdf', [
-                'certificate_code' => $cert->certificate_code,
-                'student_name'     => $cert->student_name,
-                'employee_id'      => $cert->employee_id      ?? '',
-                'course_title'     => $cert->course_title,
-                'category_name'    => $cert->category_name    ?? '',
-                'modality_name'    => $cert->modality_name    ?? '',
-                'issued_at'        => date('F j, Y', strtotime($cert->issued_at)),
-                'verify_url'       => base_url('index.php/certificates/verify/'
-                                     . $cert->certificate_code),
-            ], true);
-
-            $options = new Dompdf\Options();
-            $options->set('isHtml5ParserEnabled', true);
-            $options->set('isRemoteEnabled',      false);
-            $options->set('defaultFont',          'DejaVu Sans');
-            $options->set('chroot',               FCPATH);
-
-            $dompdf = new Dompdf\Dompdf($options);
-            $dompdf->loadHtml($html, 'UTF-8');
-            $dompdf->setPaper('A4', 'landscape');
-            $dompdf->render();
-
-            $filename  = 'cert_' . $cert->certificate_code . '.pdf';
-            $full_path = FCPATH . self::PDF_DIR . $filename;
-
-            file_put_contents($full_path, $dompdf->output());
-
-            if (file_exists($full_path) && filesize($full_path) > 0) {
-                return self::PDF_DIR . $filename;
-            }
-
-            log_message('error', 'DOMPDF: file not written to ' . $full_path);
-            return null;
-
-        } catch (Exception $e) {
-            log_message('error', 'Certificate DOMPDF error: ' . $e->getMessage());
-            return null;
-        }
+        return $this->certificate_service->generate_pdf_for_row($cert);
     }
 
     /**

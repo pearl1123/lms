@@ -28,15 +28,10 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property Assessment_model         $assessment_model
  * @property Course_model             $course_model
  * @property Module_video_checkpoint_model $video_checkpoint_model  Video checkpoints (lib_assessments type=checkpoint)
+ * @property Assessment_service       $assessment_service
  * @property CI_Output                $output
  */
 class Assessments extends CI_Controller {
-
-    /**
-     * Legacy POST field name for checkpoint `lib_assessments.id` (canonical: `assessment_id`).
-     * Remove this constant and the fallback in {@see _checkpoint_assessment_id_from_post()} when unused.
-     */
-    private const LEGACY_CHECKPOINT_ID_POST_FIELD = 'quiz_id';
 
     private $user;
 
@@ -49,6 +44,7 @@ class Assessments extends CI_Controller {
         $this->load->model('Assessment_model',          'assessment_model');
         $this->load->model('Course_model',              'course_model');
         $this->load->model('Module_video_checkpoint_model', 'video_checkpoint_model');
+        $this->load->library('assessment_service');
         $this->load->helper('url');
 
         // Auth guard
@@ -83,10 +79,10 @@ class Assessments extends CI_Controller {
         $user = $this->user;
 
         if ($user->role === 'admin') {
-            $assessments = $this->assessment_model->get_assessments();
+            $assessments = $this->assessment_model->get_assessments(0, '', true);
         } elseif ($user->role === 'teacher') {
             $assessments = $this->assessment_model
-                ->get_assessments_by_instructor($user->id);
+                ->get_assessments_by_instructor($user->id, true);
         } else {
             // Employee — show assessments for enrolled courses only
             $enrolled_ids = $this->course_model->get_enrolled_ids($user->id);
@@ -127,9 +123,10 @@ class Assessments extends CI_Controller {
         $is_manager = in_array($user->role, ['admin', 'teacher'], true);
 
         $assessment_stats = [
-            'total'      => count($assessments),
-            'pre_count'  => 0,
-            'post_count' => 0,
+            'total'             => count($assessments),
+            'pre_count'         => 0,
+            'post_count'        => 0,
+            'checkpoint_count'  => 0,
         ];
         foreach ($assessments as $a) {
             $t = $a->type ?? '';
@@ -137,6 +134,8 @@ class Assessments extends CI_Controller {
                 $assessment_stats['pre_count']++;
             } elseif ($t === 'post') {
                 $assessment_stats['post_count']++;
+            } elseif ($t === 'checkpoint') {
+                $assessment_stats['checkpoint_count']++;
             }
         }
 
@@ -197,6 +196,20 @@ class Assessments extends CI_Controller {
         // Already answered — redirect to results
         if ($this->assessment_model->has_answered($user->id, $id)) {
             redirect('assessments/result/' . $id);
+        }
+
+        // Strict post gate: unlock only after the module video/checkpoints are completed.
+        if (($assessment->type ?? '') === 'post'
+            && (int) ($assessment->module_id ?? 0) > 0
+            && ! $this->assessment_service->can_start_post_assessment(
+                (int) $user->id,
+                (int) $assessment->module_id
+            )) {
+            $this->session->set_flashdata(
+                'info',
+                'Complete the video and checkpoints first to unlock the post-assessment'
+            );
+            redirect('courses/module/' . (int) $assessment->module_id);
         }
 
         $questions = $this->assessment_model->get_questions($id);
@@ -261,8 +274,44 @@ class Assessments extends CI_Controller {
                   . ' question(s) awaiting instructor review.';
         }
 
+        // Pre-assessment on a video module: return to module with modal feedback (full result page still available).
+        if ($this->_pre_assessment_use_module_modal_redirect($assessment)) {
+            $agg    = $this->assessment_model->get_result($this->user->id, $id);
+            $passed = $this->assessment_service->is_passing_assessment_result($agg);
+            $this->session->set_flashdata('pre_assessment_modal', [
+                'module_id'      => (int) $assessment->module_id,
+                'assessment_id' => $id,
+                'title'         => (string) ($assessment->title ?? 'Pre-assessment'),
+                'score'         => round((float) ($agg['score'] ?? 0), 1),
+                'passed'        => $passed,
+                'pending_count' => (int) ($agg['pending'] ?? 0),
+                'threshold'     => $this->assessment_service->pass_threshold(),
+                'success_note' => $msg,
+            ]);
+            redirect('courses/module/' . (int) $assessment->module_id);
+        }
+
         $this->session->set_flashdata('success', $msg);
         redirect('assessments/result/' . $id);
+    }
+
+    /**
+     * Pre-assessment only: video-module players get instant modal UX; exams & posts keep result URLs.
+     */
+    private function _pre_assessment_use_module_modal_redirect($assessment)
+    {
+        if (($assessment->type ?? '') !== 'pre') {
+            return false;
+        }
+
+        $mid = (int) ($assessment->module_id ?? 0);
+        if ($mid < 1) {
+            return false;
+        }
+
+        $mod = $this->course_model->get_module($mid);
+
+        return $mod && ($mod->content_type ?? '') === 'video';
     }
 
     // =========================================================
@@ -317,7 +366,6 @@ class Assessments extends CI_Controller {
         $id         = (int) $id;
         $assessment = $this->assessment_model->get_assessment($id);
         if ( ! $assessment) show_404();
-        $this->_reject_checkpoint_assessment($assessment);
 
         $this->_check_ownership($assessment);
 
@@ -354,7 +402,6 @@ class Assessments extends CI_Controller {
 
         $assessment = $this->assessment_model->get_assessment($assessment_id);
         if ( ! $assessment) show_404();
-        $this->_reject_checkpoint_assessment($assessment);
 
         $this->_check_ownership($assessment);
 
@@ -403,32 +450,6 @@ class Assessments extends CI_Controller {
             return;
         }
 
-        if ($answer_id > 0) {
-            $ans = $this->db
-                ->where('id', $answer_id)
-                ->where('archived', 0)
-                ->get('assessment_answers', 1)
-                ->row();
-            if ($ans) {
-                $q = $this->db
-                    ->where('id', (int) $ans->question_id)
-                    ->where('archived', 0)
-                    ->get('lib_assessment_questions', 1)
-                    ->row();
-                if ($q) {
-                    $asmt = $this->assessment_model->get_assessment((int) $q->assessment_id);
-                    if ($asmt && ($asmt->type ?? '') === 'checkpoint') {
-                        echo json_encode([
-                            'success' => false,
-                            'message' => $this->_checkpoint_managed_message(),
-                        ]);
-
-                        return;
-                    }
-                }
-            }
-        }
-
         $ok = $this->assessment_model
             ->score_answer($answer_id, $score, $this->user->id);
 
@@ -448,22 +469,84 @@ class Assessments extends CI_Controller {
 
         if ($this->input->method() === 'post') {
             $this->form_validation
-                ->set_rules('module_id', 'Module',         'required|integer')
-                ->set_rules('type',      'Assessment Type', 'required|in_list[pre,post]')
+                ->set_rules('module_id', 'Module',          'required|integer')
+                ->set_rules('type',      'Assessment Type', 'required|in_list[pre,post,checkpoint]')
                 ->set_rules('title',     'Title',           'required|max_length[255]');
 
-            if ($this->form_validation->run()) {
-                $id = $this->assessment_model->create_assessment([
-                    'module_id'  => $this->input->post('module_id'),
-                    'type'       => $this->input->post('type'),
-                    'title'      => $this->input->post('title'),
-                    'encoded_by' => $user->id,
-                ]);
+            $post_type = (string) $this->input->post('type');
+            $checkpoint_auto = ($post_type === 'checkpoint' && $this->input->post('checkpoint_auto_generate'));
+            if ($post_type === 'checkpoint') {
+                if ($checkpoint_auto) {
+                    $this->form_validation->set_rules(
+                        'video_duration_seconds',
+                        'Video duration (seconds)',
+                        'required|integer|greater_than[0]'
+                    );
+                } else {
+                    $this->form_validation->set_rules(
+                        'trigger_seconds',
+                        'Video timestamp (seconds)',
+                        'integer|greater_than_equal_to[0]'
+                    );
+                }
+            }
 
-                $this->session->set_flashdata(
-                    'success', 'Assessment created. Now add your questions.'
-                );
-                redirect('assessments/edit/' . $id);
+            if ($this->form_validation->run()) {
+                if ($post_type === 'checkpoint'
+                    && ! $this->assessment_model->assessments_checkpoint_schema_ready()) {
+                    $this->session->set_flashdata(
+                        'error',
+                        'Video checkpoints require the unified assessment columns on the server. Run the checkpoint SQL migration first.'
+                    );
+                } elseif ($post_type === 'checkpoint' && $checkpoint_auto) {
+                    $batch = $this->assessment_service->create_auto_distributed_video_checkpoints(
+                        (int) $this->input->post('module_id'),
+                        (int) $user->id,
+                        [
+                            'title'                    => $this->input->post('title'),
+                            'is_required'              => $this->input->post('checkpoint_required'),
+                            'video_duration_seconds'   => (int) $this->input->post('video_duration_seconds'),
+                        ]
+                    );
+                    if (empty($batch['ok'])) {
+                        $this->session->set_flashdata('error', $batch['message'] ?? 'Could not auto-generate checkpoints.');
+                    } else {
+                        $ids = $batch['created_ids'] ?? [];
+                        $first = ! empty($ids) ? (int) $ids[0] : 0;
+                        $this->session->set_flashdata('success', $batch['message'] ?? 'Checkpoints created.');
+                        if ($first > 0) {
+                            redirect('assessments/edit/' . $first);
+                        }
+                    }
+                } else {
+                    $payload = [
+                        'module_id'  => $this->input->post('module_id'),
+                        'type'       => $post_type,
+                        'title'      => $this->input->post('title'),
+                        'encoded_by' => $user->id,
+                    ];
+                    if ($post_type === 'checkpoint') {
+                        $payload['trigger_seconds'] = $this->input->post('trigger_seconds');
+                        $payload['trigger_percent'] = $this->input->post('trigger_percent');
+                        $payload['is_required']    = $this->input->post('checkpoint_required');
+                        $payload['sort_order']     = $this->input->post('sort_order');
+                    }
+
+                    $id = $this->assessment_model->create_assessment($payload);
+
+                    if ( ! $id) {
+                        $this->session->set_flashdata(
+                            'error',
+                            'Could not create this video checkpoint. The module may already have the maximum (3), or another checkpoint uses the same timestamp (seconds).'
+                        );
+                    } else {
+                        $msg = $post_type === 'checkpoint'
+                            ? 'Video checkpoint created. Add one multiple-choice question (shown during video playback).'
+                            : 'Assessment created. Now add your questions.';
+                        $this->session->set_flashdata('success', $msg);
+                        redirect('assessments/edit/' . $id);
+                    }
+                }
             }
         }
 
@@ -474,6 +557,7 @@ class Assessments extends CI_Controller {
             'user'           => $user,
             'page_title'     => 'Create Assessment',
             'modules'        => $modules,
+            'checkpoint_schema_ready' => $this->assessment_model->assessments_checkpoint_schema_ready(),
             'preselect_mod'  => (int) ($this->input->get('module_id') ?? 0),
             'preselect_type' => $this->input->get('type') ?? '',
             'breadcrumbs'    => [
@@ -498,23 +582,56 @@ class Assessments extends CI_Controller {
         $id         = (int) $id;
         $assessment = $this->assessment_model->get_assessment($id);
         if ( ! $assessment) show_404();
-        $this->_reject_checkpoint_assessment($assessment);
 
         $this->_check_ownership($assessment);
 
         if ($this->input->method() === 'post') {
             $this->form_validation
-                ->set_rules('type',  'Type',  'required|in_list[pre,post]')
+                ->set_rules('module_id', 'Module', 'required|integer')
+                ->set_rules('type',  'Type',  'required|in_list[pre,post,checkpoint]')
                 ->set_rules('title', 'Title', 'required|max_length[255]');
 
+            $post_type = (string) $this->input->post('type');
+            if ($post_type === 'checkpoint') {
+                $this->form_validation->set_rules(
+                    'trigger_seconds',
+                    'Video timestamp (seconds)',
+                    'integer|greater_than_equal_to[0]'
+                );
+            }
+
             if ($this->form_validation->run()) {
-                $this->assessment_model->update_assessment($id, [
-                    'type'        => $this->input->post('type'),
-                    'title'       => $this->input->post('title'),
-                    'modified_by' => $this->user->id,
-                ]);
-                $this->session->set_flashdata('success', 'Assessment updated.');
-                redirect('assessments/edit/' . $id);
+                if ($post_type === 'checkpoint'
+                    && ! $this->assessment_model->assessments_checkpoint_schema_ready()) {
+                    $this->session->set_flashdata(
+                        'error',
+                        'Video checkpoints require the unified assessment columns on the server.'
+                    );
+                } else {
+                    $upd = [
+                        'type'        => $post_type,
+                        'title'       => $this->input->post('title'),
+                        'modified_by' => $this->user->id,
+                        'module_id'   => $this->input->post('module_id'),
+                    ];
+                    if ($post_type === 'checkpoint') {
+                        $upd['trigger_seconds'] = $this->input->post('trigger_seconds');
+                        $upd['trigger_percent'] = $this->input->post('trigger_percent');
+                        $upd['is_required']     = $this->input->post('checkpoint_required');
+                        $upd['sort_order']      = $this->input->post('sort_order');
+                    }
+
+                    $updated = $this->assessment_model->update_assessment($id, $upd);
+                    if ( ! $updated) {
+                        $this->session->set_flashdata(
+                            'error',
+                            'Could not update: another video checkpoint on this module may already use that timestamp (seconds).'
+                        );
+                    } else {
+                        $this->session->set_flashdata('success', 'Assessment updated.');
+                    }
+                    redirect('assessments/edit/' . $id);
+                }
             }
         }
 
@@ -527,6 +644,7 @@ class Assessments extends CI_Controller {
             'assessment'  => $assessment,
             'questions'   => $questions,
             'modules'     => $modules,
+            'checkpoint_schema_ready' => $this->assessment_model->assessments_checkpoint_schema_ready(),
             'breadcrumbs' => [
                 ['label' => 'Dashboard',   'url' => 'dashboard'],
                 ['label' => 'Assessments', 'url' => 'assessments'],
@@ -553,15 +671,34 @@ class Assessments extends CI_Controller {
 
             return;
         }
-        if (($assessment->type ?? '') === 'checkpoint') {
-            echo json_encode(['success' => false, 'message' => $this->_checkpoint_managed_message()]);
+        $this->_check_ownership($assessment);
 
-            return;
+        $question_id     = (int) $this->input->post('question_id'); // 0 = new
+        $question_text   = trim($this->input->post('question_text'));
+        $question_type   = $this->input->post('question_type');
+
+        if (($assessment->type ?? '') === 'checkpoint') {
+            if ($question_type !== 'multiple_choice') {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Video checkpoints only support a multiple-choice question.',
+                ]);
+
+                return;
+            }
+            if ($question_id <= 0) {
+                $existing = $this->assessment_model->get_questions($assessment_id);
+                if (count($existing) >= 1) {
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'This video checkpoint already has a question. Edit or delete it before adding another.',
+                    ]);
+
+                    return;
+                }
+            }
         }
 
-        $question_id   = (int) $this->input->post('question_id'); // 0 = new
-        $question_text = trim($this->input->post('question_text'));
-        $question_type = $this->input->post('question_type');
         $is_required   = (int) $this->input->post('is_required');
         $min_words     = (int) $this->input->post('min_words');
         $choices_raw   = $this->input->post('choices'); // array of {text, is_correct}
@@ -614,15 +751,19 @@ class Assessments extends CI_Controller {
         header('Content-Type: application/json');
 
         $question_id = (int) $this->input->post('question_id');
-        $qrow        = $this->assessment_model->get_question($question_id);
-        if ($qrow) {
-            $a = $this->assessment_model->get_assessment((int) $qrow->assessment_id);
-            if ($a && ($a->type ?? '') === 'checkpoint') {
-                echo json_encode(['success' => false, 'message' => $this->_checkpoint_managed_message()]);
+        $qrow         = $this->assessment_model->get_question($question_id);
+        if ( ! $qrow) {
+            echo json_encode(['success' => false, 'message' => 'Question not found.']);
 
-                return;
-            }
+            return;
         }
+        $asmt = $this->assessment_model->get_assessment((int) $qrow->assessment_id);
+        if ( ! $asmt) {
+            echo json_encode(['success' => false, 'message' => 'Assessment not found.']);
+
+            return;
+        }
+        $this->_check_ownership($asmt);
 
         $ok = $this->assessment_model->delete_question($question_id);
 
@@ -643,7 +784,6 @@ class Assessments extends CI_Controller {
         $id         = (int) $id;
         $assessment = $this->assessment_model->get_assessment($id);
         if ( ! $assessment) show_404();
-        $this->_reject_checkpoint_assessment($assessment);
 
         $this->_check_ownership($assessment);
 
@@ -653,7 +793,7 @@ class Assessments extends CI_Controller {
     }
 
     /**
-     * One-time data migration (admin): legacy course_module_youtube_quizzes → lib_assessments.
+     * One-time data migration (admin): legacy course_module_video_checkpoints → lib_assessments.
      * GET index.php/assessments/migrate_video_checkpoints
      *
      * @deprecated Legacy URL still routed: migrate_youtube_checkpoints
@@ -710,7 +850,7 @@ class Assessments extends CI_Controller {
     public function video_checkpoint_submit()
     {
         try {
-            if ($this->input->method() !== 'post') {
+            if ($this->input->method(false) !== 'post') {
                 return $this->_checkpoint_json_response(
                     ['success' => false, 'ok' => false, 'message' => 'Invalid request method.'],
                     405
@@ -818,8 +958,9 @@ class Assessments extends CI_Controller {
     // =========================================================
 
     /**
-     * Video checkpoint `lib_assessments.id` from POST (`assessment_id`, else legacy key only).
+     * Video checkpoint `lib_assessments.id` from POST (`assessment_id` or `checkpoint_id`).
      *
+     * @deprecated POST `quiz_id` is accepted temporarily; prefer `assessment_id`.
      * @return int
      */
     private function _checkpoint_assessment_id_from_post()
@@ -829,7 +970,19 @@ class Assessments extends CI_Controller {
             return $id;
         }
 
-        return (int) $this->input->post(self::LEGACY_CHECKPOINT_ID_POST_FIELD);
+        $id = (int) $this->input->post('checkpoint_id');
+        if ($id > 0) {
+            return $id;
+        }
+
+        $deprecated = (int) $this->input->post('quiz_id');
+        if ($deprecated > 0) {
+            log_message('warning', 'Deprecated POST quiz_id in video_checkpoint_submit; use assessment_id or checkpoint_id.');
+
+            return $deprecated;
+        }
+
+        return 0;
     }
 
     /** Video checkpoints are taken in the course module player only. */
@@ -838,11 +991,6 @@ class Assessments extends CI_Controller {
         if ($assessment && ($assessment->type ?? '') === 'checkpoint') {
             show_404();
         }
-    }
-
-    private function _checkpoint_managed_message()
-    {
-        return 'Checkpoint assessments are managed by system migration.';
     }
 
     /** Redirect non-managers (admin/teacher) away. */

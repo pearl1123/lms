@@ -23,6 +23,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
   <!-- Animate.css -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+  <link rel="stylesheet" href="<?= base_url('assets/css/notifications.css'); ?>"/>
+  <link rel="stylesheet" href="<?= base_url('assets/css/dashboard.css'); ?>"/>
 
   <style>
     /* ============================================================
@@ -337,6 +339,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
       .page-title-ka { font-size: 1.0625rem; }
     }
   </style>
+  <script src="<?= base_url('assets/js/app_context.js'); ?>"></script>
+  <script src="<?= base_url('assets/js/lms_state.js'); ?>"></script>
 </head>
 <body>
   <div class="page">

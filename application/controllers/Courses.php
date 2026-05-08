@@ -13,14 +13,39 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property CI_Session           $session
  * @property CI_Input             $input
  * @property User_model           $user_model
- * @property Course_model         $course_model
- * @property Assessment_service $assessment_service
+ * @property Course_model          $course_model
+ * @property Assessment_service    $assessment_service
+ * @property Certificate_model     $certificate_model
+ * @property Notification_model    $notification_model
+ * @property Certificate_service   $certificate_service
+ * @property Notification_service  $notification_service
+ * @property Event_dispatcher      $event_dispatcher
  * @property CI_Output               $output   Loaded by CI_Controller (JSON helpers use $this->output)
  */
 class Courses extends CI_Controller {
 
     /** @var object Authenticated user row */
     private $user;
+
+    /**
+     * Return JSON auth error for AJAX/fetch calls instead of HTML redirect.
+     *
+     * @param int    $status
+     * @param string $message
+     */
+    private function _auth_json_error($status, $message)
+    {
+        $payload = json_encode([
+            'success' => false,
+            'message' => (string) $message,
+            'auth'    => false,
+        ]);
+
+        $this->output
+            ->set_status_header((int) $status)
+            ->set_content_type('application/json')
+            ->set_output($payload !== false ? $payload : '{"success":false,"message":"Authentication required.","auth":false}');
+    }
 
     public function __construct()
     {
@@ -32,22 +57,56 @@ class Courses extends CI_Controller {
         $this->load->helper('url');
 
         // ── Auth guard ────────────────────────────────────────
+        $is_ajax = strtolower((string) $this->input->server('HTTP_X_REQUESTED_WITH')) === 'xmlhttprequest';
         $user_id = $this->session->userdata('user_id');
         if ( ! $user_id) {
+            if ($is_ajax) {
+                $this->_auth_json_error(401, 'Authentication required.');
+                return;
+            }
             redirect('auth/login');
         }
 
         $user = $this->user_model->get_user($user_id);
 
         if ( ! $user) {
+            if ($is_ajax) {
+                $this->_auth_json_error(401, 'Authentication required.');
+                return;
+            }
             $this->session->sess_destroy();
             redirect('auth/login');
         }
 
-        if ((int) $user->banned   === 1)       { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ($user->status        !== 'active') { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ((int) $user->DELETED  === 1)       { $this->session->sess_destroy(); redirect('auth/login'); }
+        if ((int) $user->banned   === 1) {
+            if ($is_ajax) {
+                $this->_auth_json_error(403, 'Account is banned.');
+                return;
+            }
+            $this->session->sess_destroy();
+            redirect('auth/login');
+        }
+        if ($user->status !== 'active') {
+            if ($is_ajax) {
+                $this->_auth_json_error(403, 'Account is not active.');
+                return;
+            }
+            $this->session->sess_destroy();
+            redirect('auth/login');
+        }
+        if ((int) $user->DELETED  === 1) {
+            if ($is_ajax) {
+                $this->_auth_json_error(403, 'Account is unavailable.');
+                return;
+            }
+            $this->session->sess_destroy();
+            redirect('auth/login');
+        }
         if ( ! empty($user->locked_until) && strtotime($user->locked_until) > time()) {
+            if ($is_ajax) {
+                $this->_auth_json_error(423, 'Account is temporarily locked.');
+                return;
+            }
             $this->session->sess_destroy();
             redirect('auth/login');
         }
@@ -86,7 +145,8 @@ class Courses extends CI_Controller {
         $enrolled_ids  = $this->course_model->get_enrolled_ids($user->id);
         $status_map    = $this->course_model->get_user_enrollment_status_map($user->id);
 
-        // ── Attach per-user enrollment & progress to each course ──
+        // ── Attach per-user enrollment & progress (Assessment_service aggregate only) ──
+        $uid = (int) $user->id;
         foreach ($courses as $course) {
             $course->total_modules  = (int) ($course->total_modules  ?? 0);
             $course->total_enrolled = (int) ($course->total_enrolled ?? 0);
@@ -94,12 +154,14 @@ class Courses extends CI_Controller {
             $course->enrollment_status = $status_map[$cid] ?? null;
             $course->is_enrolled    = in_array($cid, $enrolled_ids, true);
 
-            // Only calculate progress for enrolled users with modules
-            if ($course->is_enrolled && $course->total_modules > 0) {
-                $course->my_progress = $this->course_model
-                    ->get_progress_pct($user->id, $course->id);
+            if ( ! $course->is_enrolled) {
+                $course->progress_pct = 0;
+            } elseif ($uid < 1 || $course->total_modules < 1) {
+                $course->progress_pct = 0;
             } else {
-                $course->my_progress = 0;
+                $modules              = $this->course_model->get_modules($cid, $uid);
+                $agg                  = $this->assessment_service->get_course_progress_aggregate($uid, $cid, $modules);
+                $course->progress_pct = (int) $agg['course_progress_percent'];
             }
         }
 
@@ -151,9 +213,23 @@ class Courses extends CI_Controller {
         // ── Modules with user's progress per module ───────────
         // Returns: id, title, description, content_type, content_path,
         //          weight_percentage, module_order,
-        //          my_status (not_started/in_progress/completed),
+        //          status (not_started/in_progress/completed),
         //          my_score, my_completed_at
         $modules = $this->course_model->get_modules($id, $user->id);
+        $agg     = $this->assessment_service->get_course_progress_aggregate((int) $user->id, $id, $modules);
+        foreach ($modules as $m) {
+            $sid     = (int) $m->id;
+            $summary = $agg['module_summaries'][$sid] ?? null;
+            if ($summary) {
+                $m->progress_percent      = (int) ($summary['progress_percent'] ?? 0);
+                $m->checkpoints_total     = (int) ($summary['checkpoints_total'] ?? 0);
+                $m->checkpoints_completed = (int) ($summary['checkpoints_completed'] ?? 0);
+            } else {
+                $m->progress_percent      = 0;
+                $m->checkpoints_total     = 0;
+                $m->checkpoints_completed = 0;
+            }
+        }
 
         // ── Enrollment row (or null) ──────────────────────────
         $enrollment         = $this->course_model->get_enrollment($user->id, $id);
@@ -162,15 +238,10 @@ class Courses extends CI_Controller {
             : ($enrollment ? 'approved' : null);
         $is_enrolled        = $this->course_model->has_approved_enrollment($user->id, $id);
 
-        // ── Progress stats ────────────────────────────────────
-        $total_modules     = count($modules);
-        $completed_modules = 0;
-        foreach ($modules as $m) {
-            if ($m->my_status === 'completed') $completed_modules++;
-        }
-        $progress_pct = $total_modules > 0
-            ? (int) round(($completed_modules / $total_modules) * 100)
-            : 0;
+        // ── Progress stats (from service aggregate only) ─────
+        $total_modules     = (int) $agg['total_modules'];
+        $completed_modules = (int) $agg['completed_modules'];
+        $progress_pct      = (int) $agg['course_progress_percent'];
 
         // ── Total enrolled students for this course ───────────
         $total_enrolled = $this->course_model->count_enrollments($id);
@@ -221,6 +292,14 @@ class Courses extends CI_Controller {
         $ok = $this->course_model->request_enrollment($user->id, $id);
 
         if ($ok) {
+            $row = $this->course_model->get_enrollment((int) $user->id, $id);
+            if ($row && (int) ($row->id ?? 0) > 0) {
+                $this->load->library('event_dispatcher');
+                $this->event_dispatcher->dispatch('enrollment.requested', [
+                    'request_id' => (int) $row->id,
+                ]);
+            }
+
             $this->session->set_flashdata(
                 'success',
                 'Enrollment request submitted for <strong>'
@@ -371,6 +450,8 @@ class Courses extends CI_Controller {
             'video_checkpoint_gate'           => $player['video_checkpoint_gate'],
             'video_checkpoint_submit_url'     => $player['video_checkpoint_submit_url'],
             'video_checkpoint_json_url'       => $player['video_checkpoint_json_url'],
+            'module_completion_state'         => $player['module_completion_state'] ?? null,
+            'can_start_post_assessment'       => $this->assessment_service->can_start_post_assessment((int) $user->id, $mid),
             'breadcrumbs'       => [
                 ['label' => 'Dashboard',      'url' => 'dashboard'],
                 ['label' => 'Course Catalog', 'url' => 'courses'],
@@ -384,12 +465,109 @@ class Courses extends CI_Controller {
     }
 
     /**
+     * GET JSON — course-level progress for live UI sync (aggregate only).
+     * URL: index.php/courses/progress_state/{course_id}
+     *
+     * @param int|null $course_id
+     */
+    public function progress_state($course_id = null)
+    {
+        $cid  = (int) $course_id;
+        $user = $this->user;
+
+        if ($cid < 1) {
+            return $this->_complete_module_json([
+                'ok'      => false,
+                'message' => 'Invalid course.',
+            ]);
+        }
+
+        $course = $this->course_model->get_course($cid);
+        if ( ! $course) {
+            return $this->_complete_module_json([
+                'ok'      => false,
+                'message' => 'Course not found.',
+            ]);
+        }
+
+        if ($user->role === 'employee') {
+            if ( ! $this->course_model->has_approved_enrollment($user->id, $cid)) {
+                return $this->_complete_module_json([
+                    'ok'      => false,
+                    'message' => 'Not enrolled.',
+                ]);
+            }
+        }
+
+        $uid     = (int) $user->id;
+        $modules = $this->course_model->get_modules($cid, $uid);
+        $agg     = $this->assessment_service->get_course_progress_aggregate($uid, $cid, $modules);
+
+        return $this->_complete_module_json([
+            'ok'                      => true,
+            'course_progress_percent' => (int) $agg['course_progress_percent'],
+            'completed_modules'       => (int) $agg['completed_modules'],
+            'total_modules'           => (int) $agg['total_modules'],
+        ]);
+    }
+
+    /**
+     * GET JSON — live module flow state for reactive UI updates.
+     * URL: index.php/courses/module_state/{module_id}
+     *
+     * @param int|null $module_id
+     */
+    public function module_state($module_id = null)
+    {
+        $mid  = (int) $module_id;
+        $user = $this->user;
+
+        if ($mid < 1) {
+            return $this->_complete_module_json([
+                'ok'      => false,
+                'message' => 'Invalid module.',
+            ]);
+        }
+
+        $module = $this->course_model->get_module($mid);
+        if ( ! $module) {
+            return $this->_complete_module_json([
+                'ok'      => false,
+                'message' => 'Module not found.',
+            ]);
+        }
+
+        if ($user->role === 'employee') {
+            if ( ! $this->course_model->has_approved_enrollment($user->id, (int) $module->course_id)) {
+                return $this->_complete_module_json([
+                    'ok'      => false,
+                    'message' => 'Not approved for this course.',
+                ]);
+            }
+        }
+
+        $summary = $this->assessment_service->get_module_progress_summary((int) $user->id, $mid);
+
+        return $this->_complete_module_json([
+            'ok'                        => true,
+            'checkpoints_total'         => (int) $summary['checkpoints_total'],
+            'checkpoints_completed'     => (int) $summary['checkpoints_completed'],
+            'video_completed'           => ! empty($summary['video_completed']),
+            'post_assessment_passed'    => ! empty($summary['post_assessment_passed']),
+            'progress_percent'          => (int) $summary['progress_percent'],
+            'can_start_post_assessment' => $this->assessment_service->can_start_post_assessment((int) $user->id, $mid),
+        ]);
+    }
+
+    /**
      * POST JSON — mark module complete (employee with approved enrollment).
      * URL: index.php/courses/complete_module/{module_id}
      */
     public function complete_module($module_id = null)
     {
-        if ($this->input->method(true) !== 'post') {
+        log_message('debug', 'COMPLETE MODULE HIT: ' . (int) $module_id);
+
+        if (strtolower((string) $this->input->method()) !== 'post') {
             show_404();
         }
 
@@ -416,26 +594,118 @@ class Courses extends CI_Controller {
         )) {
             return $this->_complete_module_json([
                 'success' => false,
-                'message' => 'You must complete all video checkpoints before finishing this module.',
+                'message' => 'Complete all requirements for this module (required video checkpoints and passing post-assessment) before marking complete.',
             ]);
         }
 
         $this->course_model->complete_module($user->id, $mid, null);
 
-        $course_id    = (int) $module->course_id;
-        $total_mods   = $this->course_model->count_modules($course_id);
-        $done_mods    = $this->course_model->count_completed_modules($user->id, $course_id);
-        $progress_pct = $total_mods > 0
-            ? (int) round(($done_mods / $total_mods) * 100)
-            : 0;
-        $course_done = ($total_mods > 0 && $done_mods >= $total_mods);
+        $course_id = (int) $module->course_id;
+        $uid       = (int) $user->id;
 
-        return $this->_complete_module_json([
-            'success'       => true,
-            'message'       => 'Already completed.',
-            'progress_pct'  => $progress_pct,
-            'course_done'   => $course_done,
-        ]);
+        log_message(
+            'debug',
+            'FINAL MODULE MARKED COMPLETE '
+            . json_encode([
+                'user_id'   => $uid,
+                'module_id' => $mid,
+                'course_id' => $course_id,
+            ])
+        );
+
+        $this->assessment_service->invalidate_course_progress_aggregate_cache($uid, $course_id);
+        usleep(100000);
+        $modules = $this->course_model->get_modules($course_id, $uid);
+
+        // Certificate gate: DB-only; pass prefetch so gate uses same snapshot as logs.
+        $course_completed = $this->assessment_service->is_course_fully_completed($uid, $course_id, $modules);
+
+        $incomplete_count = (int) $this->db
+            ->select('COUNT(*) AS c', false)
+            ->from('module_progress mp')
+            ->join('course_modules cm', 'cm.id = mp.module_id', 'inner')
+            ->where('cm.course_id', $course_id)
+            ->where('cm.archived', 0)
+            ->where('mp.user_id', $uid)
+            ->where('mp.status <>', 'completed')
+            ->get()
+            ->row()->c;
+        log_message('debug', 'CERT FINAL CHECK SQL incomplete_count=' . $incomplete_count);
+
+        log_message('debug', 'MODULE COMPLETE CHECK: ' . json_encode([
+            'user_id'   => $uid,
+            'course_id' => $course_id,
+            'completed' => $course_completed,
+        ]));
+
+        // UI / catalog only — same DB snapshot as completion gate (not used for certificate decision).
+        $agg_ui = $this->assessment_service->get_course_progress_aggregate($uid, $course_id, $modules);
+        $progress_pct = (int) ($agg_ui['course_progress_percent'] ?? 0);
+
+        $certificate_url = null;
+        $certificate = null;
+        $certificate_generated_now = false;
+
+        if ($course_completed) {
+            log_message('debug', 'CERT CHECK PASS');
+
+            $this->load->library('certificate_service');
+
+            if ( ! class_exists('Certificate_service', false)) {
+                log_message('error', 'Certificate_service NOT LOADED');
+            }
+
+            $this->load->model('Certificate_model', 'certificate_model');
+
+            $existing = $this->certificate_model->get_by_user_course($uid, $course_id);
+            if ($existing) {
+                log_message('debug', 'CERT SKIPPED (already exists)');
+                $certificate = $existing;
+                $certificate_url = base_url(
+                    'index.php/certificates/view/' . (int) $existing->id
+                );
+            } else {
+                $certificate = $this->certificate_service->generate($uid, $course_id);
+
+                if ($certificate) {
+                    $certificate_generated_now = true;
+                    log_message('debug', 'CERT GENERATED SUCCESS');
+                    $certificate_url = base_url(
+                        'index.php/certificates/view/' . (int) $certificate->id
+                    );
+                }
+            }
+
+            if ($certificate_generated_now && $certificate) {
+                $this->load->library('event_dispatcher');
+                $this->event_dispatcher->dispatch('course.completed', [
+                    'user_id'        => (int) $uid,
+                    'course_id'      => (int) $course_id,
+                    'certificate_id' => (int) $certificate->id,
+                ]);
+            }
+        }
+
+        $payload = [
+            'ok'               => true,
+            'success'          => true,
+            'module_completed' => true,
+            'course_completed' => $course_completed,
+            'certificate_url'  => $certificate_url,
+            'message'          => 'Module marked complete.',
+            // Legacy / toast only — derived from aggregate, not certificate gate.
+            'progress_pct'     => $progress_pct,
+            'course_done'      => $course_completed,
+        ];
+
+        if ($course_completed && $certificate_url === null) {
+            $payload['certificate_ready']    = false;
+            $payload['certificate_message'] = 'Course completed; certificate could not be issued automatically. Please contact support.';
+        } elseif ($certificate_url !== null) {
+            $payload['certificate_ready'] = true;
+        }
+
+        return $this->_complete_module_json($payload);
     }
 
     /**
@@ -458,7 +728,7 @@ class Courses extends CI_Controller {
 
         $this->output->enable_profiler(false);
 
-        $this->output
+        return $this->output
             ->set_status_header(200)
             ->set_content_type('application/json')
             ->set_output($payload_json);

@@ -7,5 +7,5 @@ ALTER TABLE `lib_assessments` ADD COLUMN IF NOT EXISTS `trigger_type` ENUM('manu
 ALTER TABLE `lib_assessments` ADD COLUMN IF NOT EXISTS `trigger_value` DECIMAL(5,2) NULL DEFAULT NULL AFTER `trigger_type`;
 ALTER TABLE `lib_assessments` ADD COLUMN IF NOT EXISTS `is_required` TINYINT(1) NOT NULL DEFAULT 1 AFTER `trigger_value`;
 ALTER TABLE `lib_assessments` ADD COLUMN IF NOT EXISTS `sort_order` INT NOT NULL DEFAULT 0 AFTER `is_required`;
-ALTER TABLE `lib_assessments` ADD COLUMN IF NOT EXISTS `legacy_youtube_quiz_id` INT(11) NULL DEFAULT NULL COMMENT 'Legacy YouTube quiz id after migration' AFTER `sort_order`;
+ALTER TABLE `lib_assessments` ADD COLUMN IF NOT EXISTS `legacy_checkpoint_id` INT(11) NULL DEFAULT NULL COMMENT 'Legacy course_module_video_checkpoints.id after migration' AFTER `sort_order`;
 

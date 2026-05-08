@@ -11,6 +11,7 @@ $notifications = $navbar_notifications ?? [];
 if ( ! is_array($notifications)) {
     $notifications = [];
 }
+$notif_count = (int) ($notif_count ?? 0);
 
 // Breadcrumb — set $breadcrumbs in controller (passed through layouts/main)
 // e.g. $data['breadcrumbs'] = [['label'=>'Courses','url'=>'courses'],['label'=>'Module 1']];
@@ -334,22 +335,30 @@ if ( ! is_array($notifications)) {
 
     <!-- Notifications -->
     <div class="dropdown">
-      <a href="#" class="ka-nav-btn" data-bs-toggle="dropdown" aria-label="Notifications">
+      <a href="#"
+         class="ka-nav-btn ka-notify-btn"
+         id="kaNotifyBtn"
+         data-bs-toggle="dropdown"
+         aria-label="Notifications"
+         data-unread-url="<?= htmlspecialchars($notifications_context['unreadUrl'] ?? '') ?>"
+         data-latest-url="<?= htmlspecialchars($notifications_context['latestUrl'] ?? '') ?>"
+         data-mark-read-base-url="<?= htmlspecialchars($notifications_context['markReadBaseUrl'] ?? '') ?>"
+         data-all-url="<?= htmlspecialchars($notifications_context['allUrl'] ?? '') ?>"
+         data-csrf-name="<?= htmlspecialchars($notifications_context['csrfName'] ?? '') ?>"
+         data-csrf-hash="<?= htmlspecialchars($notifications_context['csrfHash'] ?? '') ?>">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <?php if (!empty($notif_count) && $notif_count > 0): ?>
-          <span class="ka-badge"><?= $notif_count > 9 ? '9+' : $notif_count ?></span>
-        <?php endif; ?>
+        <span class="ka-badge ka-notify-badge<?= empty($notif_count) ? ' is-hidden' : '' ?>" id="kaNotifyBadge"><?= $notif_count > 9 ? '9+' : (int) $notif_count ?></span>
       </a>
-      <div class="dropdown-menu dropdown-menu-end ka-notif-dropdown">
+      <div class="dropdown-menu dropdown-menu-end ka-notif-dropdown ka-notify-dropdown" id="kaNotifyDropdown">
         <div class="ka-notif-header">
           <p class="ka-notif-header-title">Notifications</p>
           <?php if ( ! empty($notif_count) && $notif_count > 0): ?>
-          <a href="<?= base_url('index.php/announcements/mark_all_read'); ?>" style="font-size:.75rem;font-weight:600;color:var(--ka-primary);text-decoration:none;">Mark all read</a>
+          <a href="<?= base_url('index.php/announcements/mark_all_read'); ?>" class="ka-notify-mark-all">Mark all read</a>
           <?php endif; ?>
         </div>
-        <div class="ka-notif-list">
+        <div class="ka-notif-list ka-notify-list" id="kaNotifyList">
           <?php if (empty($notifications)): ?>
-          <div class="ka-notif-item" style="cursor:default;pointer-events:none;">
+          <div class="ka-notif-item ka-notify-empty">
             <div class="ka-notif-icon info">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
@@ -399,7 +408,7 @@ if ( ! is_array($notifications)) {
           <?php endif; ?>
         </div>
         <div class="ka-notif-footer">
-          <a href="<?= base_url('index.php/announcements'); ?>">View all notifications</a>
+          <a href="<?= base_url('index.php/notifications'); ?>" id="kaNotifyViewAll">View all notifications</a>
         </div>
       </div>
     </div>

@@ -103,7 +103,10 @@ class Manage_courses extends CI_Controller {
             $this->form_validation
                 ->set_rules('title',       'Course Title', 'required|max_length[255]')
                 ->set_rules('category_id', 'Category',     'required|integer')
-                ->set_rules('modality_id', 'Modality',     'required|integer');
+                ->set_rules('modality_id', 'Modality',     'required|integer')
+                ->set_rules('certificate_prefix', 'Certificate Prefix', 'required|alpha_numeric|max_length[12]')
+                ->set_rules('signatory_name', 'Signatory Name', 'trim|max_length[120]')
+                ->set_rules('signatory_title', 'Signatory Title', 'trim|max_length[120]');
 
             if ($this->form_validation->run()) {
 
@@ -119,6 +122,9 @@ class Manage_courses extends CI_Controller {
                     'modality_id'    => $this->input->post('modality_id'),
                     'access_type_id' => $this->input->post('access_type_id'),
                     'expiry_days'    => $this->input->post('expiry_days'),
+                    'certificate_prefix' => $this->input->post('certificate_prefix'),
+                    'signatory_name'     => $this->input->post('signatory_name'),
+                    'signatory_title'    => $this->input->post('signatory_title'),
                     'created_by'     => $created_by,
                 ], $user->id);
 
@@ -162,7 +168,10 @@ class Manage_courses extends CI_Controller {
             $this->form_validation
                 ->set_rules('title',       'Course Title', 'required|max_length[255]')
                 ->set_rules('category_id', 'Category',     'required|integer')
-                ->set_rules('modality_id', 'Modality',     'required|integer');
+                ->set_rules('modality_id', 'Modality',     'required|integer')
+                ->set_rules('certificate_prefix', 'Certificate Prefix', 'required|alpha_numeric|max_length[12]')
+                ->set_rules('signatory_name', 'Signatory Name', 'trim|max_length[120]')
+                ->set_rules('signatory_title', 'Signatory Title', 'trim|max_length[120]');
 
             if ($this->form_validation->run()) {
                 $this->course_model->update_course($id, [
@@ -172,6 +181,9 @@ class Manage_courses extends CI_Controller {
                     'modality_id'    => $this->input->post('modality_id'),
                     'access_type_id' => $this->input->post('access_type_id'),
                     'expiry_days'    => $this->input->post('expiry_days'),
+                    'certificate_prefix' => $this->input->post('certificate_prefix'),
+                    'signatory_name'     => $this->input->post('signatory_name'),
+                    'signatory_title'    => $this->input->post('signatory_title'),
                 ], $this->user->id);
 
                 $this->session->set_flashdata('success', 'Course details updated.');

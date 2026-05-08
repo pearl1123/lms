@@ -264,7 +264,11 @@ class Course_model extends CI_Model {
 
     /**
      * Get all non-archived modules for a course, ordered by module_order.
-     * Joins module_progress for the given user (LEFT JOIN → null if no row).
+     *
+     * Contract (certificate / completion rely on this):
+     * - When $user_id > 0: LEFT JOIN module_progress mp
+     *       ON mp.module_id = cm.id AND mp.user_id = (bound user id)
+     * - Completion state is read from mp.status only.
      *
      * @param  int $course_id
      * @param  int $user_id   Pass 0 to skip progress join
@@ -289,21 +293,22 @@ class Course_model extends CI_Model {
             ->where('cm.archived',  0);
 
         if ((int) $user_id > 0) {
+            $uid = (int) $user_id;
             $this->db
                 ->select('
-                    COALESCE(mp.status, "not_started") AS my_status,
+                    mp.status       AS status,
                     mp.score        AS my_score,
                     mp.completed_at AS my_completed_at
                 ', false)
                 ->join(
                     'module_progress mp',
-                    'mp.module_id = cm.id AND mp.user_id = ' . (int) $user_id,
+                    'mp.module_id = cm.id AND mp.user_id = ' . $uid,
                     'left'
                 );
         } else {
             // Provide null placeholders so view code works without errors
             $this->db->select(
-                '"not_started" AS my_status,
+                'NULL AS status,
                  NULL AS my_score,
                  NULL AS my_completed_at',
                 false
@@ -459,11 +464,20 @@ class Course_model extends CI_Model {
             : [];
 
         $total_modules = $this->count_modules($course_id);
+        if ( ! class_exists('Assessment_service', false)) {
+            require_once APPPATH . 'libraries/Assessment_service.php';
+        }
+        $assessment_service = new Assessment_service();
 
         foreach ($students as $s) {
-            $s->progress_pct = ($total_modules > 0)
-                ? $this->get_progress_pct($s->id, $course_id)
-                : 0;
+            $sid = (int) $s->id;
+            if ($total_modules < 1 || $sid < 1) {
+                $s->progress_pct = 0;
+                continue;
+            }
+            $modules         = $this->get_modules((int) $course_id, $sid);
+            $agg             = $assessment_service->get_course_progress_aggregate($sid, (int) $course_id, $modules);
+            $s->progress_pct = (int) $agg['course_progress_percent'];
         }
 
         return $students;
@@ -667,22 +681,6 @@ class Course_model extends CI_Model {
             ->row();
 
         return $row ? (int) $row->cnt : 0;
-    }
-
-    /**
-     * Get overall progress % (0–100) for a user in a course.
-     *
-     * @param  int $user_id
-     * @param  int $course_id
-     * @return int
-     */
-    public function get_progress_pct($user_id, $course_id)
-    {
-        $total = $this->count_modules($course_id);
-        if ($total === 0) return 0;
-
-        $done = $this->count_completed_modules($user_id, $course_id);
-        return (int) round(($done / $total) * 100);
     }
 
     // =========================================================
@@ -896,18 +894,33 @@ class Course_model extends CI_Model {
      */
     public function get_in_progress_courses($user_id)
     {
-        $enrolled_ids = $this->get_enrolled_ids($user_id);
-        if (empty($enrolled_ids)) return [];
+        $uid = (int) $user_id;
+        if ($uid < 1) {
+            return [];
+        }
+
+        $enrolled_ids = $this->get_enrolled_ids($uid);
+        if (empty($enrolled_ids)) {
+            return [];
+        }
+
+        if ( ! class_exists('Assessment_service', false)) {
+            require_once APPPATH . 'libraries/Assessment_service.php';
+        }
+        $assessment_service = new Assessment_service();
 
         $courses = [];
         foreach ($enrolled_ids as $course_id) {
-            $pct = $this->get_progress_pct($user_id, $course_id);
+            $cid = (int) $course_id;
+            $modules = $this->get_modules($cid, $uid);
+            $agg     = $assessment_service->get_course_progress_aggregate($uid, $cid, $modules);
+            $pct     = (int) $agg['course_progress_percent'];
             if ($pct > 0 && $pct < 100) {
-                $course = $this->get_course($course_id);
+                $course = $this->get_course($cid);
                 if ($course) {
-                    $course->my_progress  = $pct;
-                    $course->module_count = $this->count_modules($course_id);
-                    $courses[] = $course;
+                    $course->progress_pct = $pct;
+                    $course->module_count = (int) $agg['total_modules'];
+                    $courses[]            = $course;
                 }
             }
         }
@@ -1001,6 +1014,9 @@ class Course_model extends CI_Model {
             'modality_id'    => ! empty($data['modality_id'])    ? (int) $data['modality_id']    : null,
             'access_type_id' => ! empty($data['access_type_id']) ? (int) $data['access_type_id'] : null,
             'expiry_days'    => ! empty($data['expiry_days'])    ? (int) $data['expiry_days']    : null,
+            'certificate_prefix'  => isset($data['certificate_prefix']) ? strtoupper(trim((string) $data['certificate_prefix'])) : null,
+            'signatory_name'      => isset($data['signatory_name']) ? trim((string) $data['signatory_name']) : null,
+            'signatory_title'     => isset($data['signatory_title']) ? trim((string) $data['signatory_title']) : null,
             'archived'       => 0,
             'created_at'     => $now,
             'date_encoded'   => $now,
@@ -1028,6 +1044,9 @@ class Course_model extends CI_Model {
                 'modality_id'        => ! empty($data['modality_id'])    ? (int) $data['modality_id']    : null,
                 'access_type_id'     => ! empty($data['access_type_id']) ? (int) $data['access_type_id'] : null,
                 'expiry_days'        => ! empty($data['expiry_days'])    ? (int) $data['expiry_days']    : null,
+                'certificate_prefix' => isset($data['certificate_prefix']) ? strtoupper(trim((string) $data['certificate_prefix'])) : null,
+                'signatory_name'     => isset($data['signatory_name']) ? trim((string) $data['signatory_name']) : null,
+                'signatory_title'    => isset($data['signatory_title']) ? trim((string) $data['signatory_title']) : null,
                 'date_last_modified' => date('Y-m-d H:i:s'),
                 'modified_by'        => (int) $user_id,
             ]);

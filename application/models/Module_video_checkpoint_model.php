@@ -6,7 +6,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * Data lives in lib_assessments (type=checkpoint, context=video),
  * lib_assessment_questions, lib_assessment_choices, assessment_answers.
- * Legacy fallback: course_module_youtube_quizzes + user_youtube_quiz_passes when
+ * Legacy fallback: course_module_video_checkpoints + user_video_checkpoint_passes when
  * unified schema/data is not present for a module.
  *
  * choices column on legacy table is LONGTEXT (JSON string).
@@ -15,6 +15,15 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property assessment_model      $assessment_model
  */
 class Module_video_checkpoint_model extends CI_Model {
+
+    /** Max video checkpoints (type=checkpoint, context=video) per module in lib_assessments. */
+    public const MAX_VIDEO_CHECKPOINTS_PER_MODULE = 3;
+
+    /** Legacy per-module checkpoint definitions (pre–lib_assessments). */
+    private const TBL_LEGACY_CHECKPOINTS = 'course_module_video_checkpoints';
+
+    /** Pass rows for legacy engine (user + checkpoint definition id). */
+    private const TBL_LEGACY_PASSES = 'user_video_checkpoint_passes';
 
     /** @var bool|null */
     private $_table_legacy_checkpoint;
@@ -59,7 +68,7 @@ class Module_video_checkpoint_model extends CI_Model {
         return (int) $this->db
             ->where('module_id', (int) $module_id)
             ->where('archived', 0)
-            ->count_all_results('course_module_youtube_quizzes') > 0;
+            ->count_all_results(self::TBL_LEGACY_CHECKPOINTS) > 0;
     }
 
     /**
@@ -84,7 +93,7 @@ class Module_video_checkpoint_model extends CI_Model {
     private function _has_legacy_checkpoint_table()
     {
         if ($this->_table_legacy_checkpoint === null) {
-            $this->_table_legacy_checkpoint = (bool) $this->db->table_exists('course_module_youtube_quizzes');
+            $this->_table_legacy_checkpoint = (bool) $this->db->table_exists(self::TBL_LEGACY_CHECKPOINTS);
         }
 
         return $this->_table_legacy_checkpoint;
@@ -93,7 +102,7 @@ class Module_video_checkpoint_model extends CI_Model {
     private function _has_passes_table()
     {
         if ($this->_table_passes === null) {
-            $this->_table_passes = (bool) $this->db->table_exists('user_youtube_quiz_passes');
+            $this->_table_passes = (bool) $this->db->table_exists(self::TBL_LEGACY_PASSES);
         }
 
         return $this->_table_passes;
@@ -187,6 +196,103 @@ class Module_video_checkpoint_model extends CI_Model {
     }
 
     /**
+     * Count unified video checkpoints on lib_assessments for this module (non-archived).
+     * Used for the per-module cap regardless of legacy read path.
+     *
+     * @param int $module_id
+     * @return int
+     */
+    public function count_lib_video_checkpoints_for_module($module_id)
+    {
+        if ( ! $this->assessment_model->assessments_checkpoint_schema_ready()) {
+            return 0;
+        }
+
+        return (int) $this->db
+            ->where('module_id', (int) $module_id)
+            ->where('type', 'checkpoint')
+            ->where('context', 'video')
+            ->where('archived', 0)
+            ->count_all_results('lib_assessments');
+    }
+
+    /**
+     * Seconds triggers already used by other checkpoints on this module (trigger_type = seconds, value > 0).
+     *
+     * @param int $module_id
+     * @return int[] sorted ascending
+     */
+    public function get_lib_video_checkpoint_trigger_seconds_in_use($module_id)
+    {
+        if ( ! $this->assessment_model->assessments_checkpoint_schema_ready()) {
+            return [];
+        }
+
+        $r = $this->db
+            ->select('trigger_value')
+            ->where('module_id', (int) $module_id)
+            ->where('type', 'checkpoint')
+            ->where('context', 'video')
+            ->where('trigger_type', 'seconds')
+            ->where('archived', 0)
+            ->get('lib_assessments');
+
+        if ( ! $r || $r->num_rows() === 0) {
+            return [];
+        }
+
+        $set = [];
+        foreach ($r->result() as $row) {
+            $v = (int) round((float) ($row->trigger_value ?? 0));
+            if ($v > 0) {
+                $set[$v] = true;
+            }
+        }
+
+        $keys = array_keys($set);
+        sort($keys, SORT_NUMERIC);
+
+        return $keys;
+    }
+
+    /**
+     * Whether another non-archived video checkpoint on this module already uses this trigger (seconds).
+     *
+     * @param int $module_id
+     * @param int $seconds     must be > 0
+     * @param int $exclude_assessment_id lib_assessments.id to ignore (0 = none)
+     */
+    public function lib_video_checkpoint_trigger_seconds_is_taken($module_id, $seconds, $exclude_assessment_id = 0)
+    {
+        $s = (int) $seconds;
+        if ($s < 1 || ! $this->assessment_model->assessments_checkpoint_schema_ready()) {
+            return false;
+        }
+
+        $this->db
+            ->where('module_id', (int) $module_id)
+            ->where('type', 'checkpoint')
+            ->where('context', 'video')
+            ->where('trigger_type', 'seconds')
+            ->where('archived', 0);
+        if ((int) $exclude_assessment_id > 0) {
+            $this->db->where('id !=', (int) $exclude_assessment_id);
+        }
+        $r = $this->db->get('lib_assessments');
+        if ( ! $r || $r->num_rows() === 0) {
+            return false;
+        }
+
+        foreach ($r->result() as $row) {
+            if ((int) round((float) ($row->trigger_value ?? 0)) === $s) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Checkpoint rows for this module (unified lib_assessments or legacy table).
      *
      * @param int $module_id
@@ -216,7 +322,7 @@ class Module_video_checkpoint_model extends CI_Model {
             ->where('archived', 0)
             ->order_by('sort_order', 'ASC')
             ->order_by('id', 'ASC')
-            ->get('course_module_youtube_quizzes');
+            ->get(self::TBL_LEGACY_CHECKPOINTS);
 
         return ($r && $r->num_rows() > 0) ? $r->result() : [];
     }
@@ -283,7 +389,7 @@ class Module_video_checkpoint_model extends CI_Model {
     }
 
     /**
-     * @param int $assessment_id lib_assessments.id (unified) or legacy course_module_youtube_quizzes.id
+     * @param int $assessment_id lib_assessments.id (unified) or legacy course_module_video_checkpoints.id
      * @return object|null
      */
     public function get_checkpoint_assessment($assessment_id)
@@ -310,7 +416,7 @@ class Module_video_checkpoint_model extends CI_Model {
         $r = $this->db
             ->where('id', $aid)
             ->where('archived', 0)
-            ->get('course_module_youtube_quizzes', 1);
+            ->get(self::TBL_LEGACY_CHECKPOINTS, 1);
 
         return ($r && $r->num_rows() > 0) ? $r->row() : null;
     }
@@ -339,7 +445,7 @@ class Module_video_checkpoint_model extends CI_Model {
             ->where('module_id', (int) $module_id)
             ->where('is_required', 1)
             ->where('archived', 0)
-            ->count_all_results('course_module_youtube_quizzes');
+            ->count_all_results(self::TBL_LEGACY_CHECKPOINTS);
     }
 
     /**
@@ -391,9 +497,9 @@ class Module_video_checkpoint_model extends CI_Model {
         }
 
         $r = $this->db
-            ->select('p.quiz_id')
-            ->from('user_youtube_quiz_passes p')
-            ->join('course_module_youtube_quizzes q', 'q.id = p.quiz_id', 'inner')
+            ->select('p.checkpoint_id')
+            ->from(self::TBL_LEGACY_PASSES . ' p')
+            ->join(self::TBL_LEGACY_CHECKPOINTS . ' q', 'q.id = p.checkpoint_id', 'inner')
             ->where('p.user_id', (int) $user_id)
             ->where('p.archived', 0)
             ->where('q.module_id', (int) $module_id)
@@ -404,7 +510,7 @@ class Module_video_checkpoint_model extends CI_Model {
             return [];
         }
 
-        return array_map('intval', array_column($r->result_array(), 'quiz_id'));
+        return array_map('intval', array_column($r->result_array(), 'checkpoint_id'));
     }
 
     /**
@@ -458,8 +564,8 @@ class Module_video_checkpoint_model extends CI_Model {
         }
 
         $cnt = (int) $this->db
-            ->from('user_youtube_quiz_passes p')
-            ->join('course_module_youtube_quizzes q', 'q.id = p.quiz_id', 'inner')
+            ->from(self::TBL_LEGACY_PASSES . ' p')
+            ->join(self::TBL_LEGACY_CHECKPOINTS . ' q', 'q.id = p.checkpoint_id', 'inner')
             ->where('p.user_id', (int) $user_id)
             ->where('p.archived', 0)
             ->where('q.module_id', (int) $module_id)
@@ -520,9 +626,9 @@ class Module_video_checkpoint_model extends CI_Model {
 
         $now = date('Y-m-d H:i:s');
         $uid = (int) $user_id;
-        $ok  = $this->db->replace('user_youtube_quiz_passes', [
+        $ok  = $this->db->replace(self::TBL_LEGACY_PASSES, [
             'user_id'            => $uid,
-            'quiz_id'            => (int) $assessment_id,
+            'checkpoint_id'      => (int) $assessment_id,
             'passed_at'          => $now,
             'date_encoded'       => $now,
             'encoded_by'         => $uid,
@@ -533,7 +639,7 @@ class Module_video_checkpoint_model extends CI_Model {
 
         if ( ! $ok) {
             $dbErr = $this->db->error();
-            log_message('error', 'user_youtube_quiz_passes replace failed: ' . json_encode($dbErr));
+            log_message('error', 'user_video_checkpoint_passes replace failed: ' . json_encode($dbErr));
 
             return ['ok' => false, 'message' => 'Could not save your answer. Please try again.'];
         }

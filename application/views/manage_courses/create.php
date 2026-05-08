@@ -115,6 +115,30 @@ $is_admin     = $user_role === 'admin';
             </div>
           </div>
 
+          <div class="crs-row">
+            <div class="crs-form-group">
+              <label class="crs-label" for="certificate_prefix">Certificate Prefix <span>*</span></label>
+              <input type="text" id="certificate_prefix" name="certificate_prefix" class="crs-input"
+                     placeholder="e.g. UIUX" maxlength="12" value="<?= htmlspecialchars(set_value('certificate_prefix')) ?>" required>
+              <div class="crs-help">Used in certificate serial: KABAGA-{PREFIX}-<?= date('Y') ?>-0001</div>
+              <?php if (form_error('certificate_prefix')): ?><div class="crs-error"><?= form_error('certificate_prefix') ?></div><?php endif; ?>
+            </div>
+            <div class="crs-form-group">
+              <label class="crs-label" for="signatory_name">Signatory Name</label>
+              <input type="text" id="signatory_name" name="signatory_name" class="crs-input"
+                     placeholder="e.g. Maria L. Santos" maxlength="120" value="<?= htmlspecialchars(set_value('signatory_name')) ?>">
+            </div>
+          </div>
+
+          <div class="crs-row">
+            <div class="crs-form-group">
+              <label class="crs-label" for="signatory_title">Signatory Title</label>
+              <input type="text" id="signatory_title" name="signatory_title" class="crs-input"
+                     placeholder="e.g. Learning & Development Manager" maxlength="120" value="<?= htmlspecialchars(set_value('signatory_title')) ?>">
+            </div>
+            <div class="crs-form-group"></div>
+          </div>
+
           <?php if ($is_admin && ! empty($teachers)): ?>
           <div class="crs-form-group">
             <label class="crs-label" for="created_by">Assign to Instructor</label>

@@ -9,50 +9,7 @@ $pass_thr   = (float) ka_assessment_pass_threshold();
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
 
-<style>
-.rev-topbar { display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem; }
-.rev-topbar-title { font-size:1.25rem;font-weight:800;color:var(--ka-text,#1e293b);margin:0 0 3px;letter-spacing:-.02em; }
-.rev-topbar-sub { font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0; }
-.rev-badge { display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:.75rem;font-weight:700; }
-.rev-badge-pre  { background:#eff6ff;color:#3b82f6; }
-.rev-badge-post { background:#ecfdf5;color:#15803d; }
-.rev-btn { display:inline-flex;align-items:center;gap:6px;padding:.5rem 1rem;border-radius:8px;font-size:.8125rem;font-weight:600;text-decoration:none;border:none;cursor:pointer;transition:all .18s; }
-.rev-btn-outline { background:#fff;color:var(--ka-text,#1e293b);border:1.5px solid var(--ka-border,#e2e8f0); }
-.rev-btn-outline:hover { border-color:var(--ka-primary,#6dabcf);color:var(--ka-primary,#6dabcf); }
-
-/* Stats strip */
-.rev-stats { display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem; }
-@media(max-width:767.98px){ .rev-stats { grid-template-columns:repeat(2,1fr); } }
-.rev-stat { background:#fff;border:1px solid var(--ka-border,#e2e8f0);border-radius:12px;padding:.875rem 1rem; }
-.rev-stat-val { font-size:1.5rem;font-weight:800;color:var(--ka-text,#1e293b);line-height:1; }
-.rev-stat-lbl { font-size:.6875rem;color:var(--ka-text-muted,#64748b);font-weight:500;margin-top:3px; }
-
-/* Attempts table */
-.rev-panel { background:#fff;border:1px solid var(--ka-border,#e2e8f0);border-radius:14px;overflow:hidden; }
-.rev-panel-hdr { padding:1rem 1.25rem;border-bottom:1px solid var(--ka-border,#e2e8f0);display:flex;align-items:center;justify-content:space-between; }
-.rev-panel-title { font-size:.9rem;font-weight:700;color:var(--ka-text,#1e293b);margin:0; }
-.rev-table { width:100%;border-collapse:collapse; }
-.rev-table th { padding:.75rem 1rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ka-text-muted,#64748b);border-bottom:1px solid var(--ka-border,#e2e8f0);background:var(--ka-bg,#f8fafc);white-space:nowrap; }
-.rev-table td { padding:.875rem 1rem;border-bottom:1px solid var(--ka-border,#e2e8f0);font-size:.8125rem;color:var(--ka-text,#1e293b);vertical-align:middle; }
-.rev-table tr:last-child td { border-bottom:none; }
-.rev-table tr:hover td { background:var(--ka-accent,#e8f4fd); }
-.rev-avatar { width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--ka-primary,#6dabcf),#4a8eb0);display:flex;align-items:center;justify-content:center;font-size:.6875rem;font-weight:700;color:#fff;flex-shrink:0; }
-.rev-prog-bar { height:6px;background:var(--ka-border,#e2e8f0);border-radius:3px;overflow:hidden;width:100px; }
-.rev-prog-fill { height:100%;border-radius:3px;background:linear-gradient(90deg,var(--ka-primary,#6dabcf),#5a9ec1); }
-.rev-prog-fill.pass { background:linear-gradient(90deg,#22c55e,#15803d); }
-.rev-prog-fill.fail { background:linear-gradient(90deg,#ef4444,#991b1b); }
-.rev-chip { display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.625rem;font-weight:700; }
-.rev-chip-pass    { background:#ecfdf5;color:#065f46; }
-.rev-chip-fail    { background:#fef2f2;color:#991b1b; }
-.rev-chip-pending { background:#fffbeb;color:#92400e; }
-.rev-action-btn { padding:5px 12px;border-radius:7px;font-size:.75rem;font-weight:700;text-decoration:none;transition:all .15s;border:1.5px solid var(--ka-border,#e2e8f0);background:#fff;color:var(--ka-text,#1e293b); }
-.rev-action-btn:hover { background:var(--ka-navy,#1a3a5c);color:#fff;border-color:var(--ka-navy,#1a3a5c); }
-
-/* Empty */
-.rev-empty { text-align:center;padding:3rem 1rem; }
-.rev-empty svg { width:44px;height:44px;margin:0 auto .875rem;opacity:.2;display:block; }
-.rev-empty p { font-size:.875rem;color:var(--ka-text-muted,#64748b);margin:0; }
-</style>
+<link rel="stylesheet" href="<?= base_url('assets/css/assessments.css') ?>">
 
 <!-- ══ Topbar ════════════════════════════════════════════════ -->
 <div class="rev-topbar animate__animated animate__fadeIn animate__fast">

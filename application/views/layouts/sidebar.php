@@ -156,7 +156,7 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
   <!-- Brand -->
   <a href="<?= base_url('index.php/dashboard') ?>" class="ka-sidebar-brand">
     <div class="ka-sidebar-brand-logo">
-      <img src="<?= base_url('assets/tabler/img/logo.png') ?>" alt="KABAGA Academy">
+      <img src="<?= base_url('assets/img/LMS-LOGO.png') ?>" alt="KABAGA Academy">
     </div>
     <div class="ka-sidebar-brand-text">
       <span class="ka-sidebar-brand-name">KABAGA Academy</span>

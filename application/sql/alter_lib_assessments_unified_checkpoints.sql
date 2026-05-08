@@ -18,8 +18,8 @@ ALTER TABLE `lib_assessments`
     AFTER `trigger_value`,
   ADD COLUMN `sort_order` INT NOT NULL DEFAULT 0
     AFTER `is_required`,
-  ADD COLUMN `legacy_youtube_quiz_id` INT NULL DEFAULT NULL
-    COMMENT 'Set during migration from course_module_youtube_quizzes; optional'
+  ADD COLUMN `legacy_checkpoint_id` INT NULL DEFAULT NULL
+    COMMENT 'Set during migration from course_module_video_checkpoints; optional'
     AFTER `sort_order`;
 
 -- Allow checkpoint type.
@@ -28,5 +28,5 @@ ALTER TABLE `lib_assessments`
   MODIFY COLUMN `type` ENUM('pre','post','checkpoint') NOT NULL;
 
 -- Optional: idempotent re-runs of migration script
-CREATE UNIQUE INDEX `uq_lib_assessments_legacy_youtube`
-  ON `lib_assessments` (`legacy_youtube_quiz_id`);
+CREATE UNIQUE INDEX `uq_lib_assessments_legacy_checkpoint`
+  ON `lib_assessments` (`legacy_checkpoint_id`);

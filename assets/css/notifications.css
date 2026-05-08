@@ -1,0 +1,118 @@
+.ka-notify-badge.is-hidden {
+  display: none;
+}
+
+.ka-notify-dropdown {
+  transform-origin: top right;
+  animation: kaNotifyPop 160ms ease-out;
+}
+@keyframes kaNotifyPop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ka-notify-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100,116,139,.55) transparent;
+}
+.ka-notify-list::-webkit-scrollbar { width: 8px; }
+.ka-notify-list::-webkit-scrollbar-track { background: transparent; }
+.ka-notify-list::-webkit-scrollbar-thumb {
+  background: rgba(100,116,139,.35);
+  border-radius: 999px;
+}
+.ka-notify-list::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,.55); }
+
+.ka-notify-loading,
+.ka-notify-empty {
+  padding: 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .5rem;
+  text-align: center;
+  color: var(--ka-text-muted);
+}
+
+.ka-notify-loading i,
+.ka-notify-empty i {
+  font-size: 1.25rem;
+  color: var(--ka-text-muted);
+  opacity: .85;
+}
+
+.ka-notify-loading p,
+.ka-notify-empty p {
+  margin: 0;
+  font-size: .8125rem;
+  line-height: 1.45;
+}
+
+.ka-notify-mark-all {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ka-primary);
+  text-decoration: none;
+}
+
+.ka-notify-mark-all:hover {
+  color: var(--ka-primary-dark);
+}
+
+.ka-notify-empty {
+  cursor: default;
+  pointer-events: none;
+}
+
+.ka-notify-item {
+  outline: none;
+}
+.ka-notify-item:focus-visible {
+  box-shadow: 0 0 0 3px rgba(109,171,207,.25);
+  border-radius: 10px;
+}
+
+.ka-notify-item.is-unread {
+  background: #f8fbff;
+}
+
+.ka-notify-item.is-unread:hover {
+  background: #eef6ff;
+}
+
+.ka-notify-item.is-unread .ka-notif-text strong {
+  color: var(--ka-navy);
+}
+
+.ka-notify-type {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: .9rem;
+}
+
+.ka-notify-type.system { background: #f1f5f9; color: #475569; }
+.ka-notify-type.certificate { background: #ecfdf5; color: #16a34a; }
+.ka-notify-type.approval { background: #e8f4fd; color: var(--ka-primary-deep); }
+.ka-notify-type.rejection { background: #fef2f2; color: #ef4444; }
+.ka-notify-type.request { background: #fffbeb; color: #d97706; }
+
+.ka-notify-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ka-primary);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.ka-notify-item .ka-notif-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

@@ -119,6 +119,31 @@ class notification_model extends CI_Model {
         return $notification_id;
     }
 
+    /**
+     * Check if a user already has a notification for a reference + type.
+     * Used for idempotent one-time events (e.g., certificate issued).
+     *
+     * @param int $user_id
+     * @param int $reference_id
+     * @param int $type_id
+     * @return bool
+     */
+    public function exists_for_user_reference_type($user_id, $reference_id, $type_id)
+    {
+        $q = $this->db
+            ->from('lib_user_notification un')
+            ->join('lib_notification n', 'n.notification_id = un.notification_id', 'inner')
+            ->where('un.user_id', (int) $user_id)
+            ->where('un.archived', 0)
+            ->where('n.archived', 0)
+            ->where('n.reference_id', (int) $reference_id)
+            ->where('n.notification_type_id', (int) $type_id)
+            ->limit(1)
+            ->get();
+
+        return ($q && $q->num_rows() > 0);
+    }
+
     // =========================================================
     // LMS-SPECIFIC HELPERS
     // =========================================================
@@ -301,6 +326,24 @@ class notification_model extends CI_Model {
             ->count_all_results();
     }
 
+    /** Backward-compatible alias for API endpoints. */
+    public function get_unread_count($user_id)
+    {
+        return $this->count_unread((int) $user_id);
+    }
+
+    /**
+     * Latest notifications for dropdown/panel.
+     *
+     * @param int $user_id
+     * @param int $limit
+     * @return object[]
+     */
+    public function get_latest_for_user($user_id, $limit = 10)
+    {
+        return $this->get_all((int) $user_id, (int) $limit, 0);
+    }
+
     // =========================================================
     // MARK AS READ
     // =========================================================
@@ -323,6 +366,33 @@ class notification_model extends CI_Model {
                 'date_last_modified' => date('Y-m-d H:i:s'),
                 'modified_by'        => (int) $user_id,
             ]);
+    }
+
+    /**
+     * Mark notification as read by notification_id (ownership enforced).
+     * Returns true when a matching row exists and update succeeds.
+     *
+     * @param int $user_id
+     * @param int $notification_id
+     * @return bool
+     */
+    public function mark_read_by_notification($user_id, $notification_id)
+    {
+        $row = $this->db
+            ->select('user_notification_id')
+            ->from('lib_user_notification')
+            ->where('user_id', (int) $user_id)
+            ->where('notification_id', (int) $notification_id)
+            ->where('archived', 0)
+            ->limit(1)
+            ->get()
+            ->row();
+
+        if ( ! $row) {
+            return false;
+        }
+
+        return $this->mark_read((int) $row->user_notification_id, (int) $user_id);
     }
 
     /**

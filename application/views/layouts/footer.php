@@ -117,6 +117,9 @@ $year = date('Y');
 <!-- Tabler JS -->
 <script src="<?= base_url('assets/tabler/js/tabler.min.js'); ?>" defer></script>
 <script src="<?= base_url('assets/tabler/js/demo.min.js'); ?>" defer></script>
+<script src="<?= base_url('assets/js/notifications.js'); ?>" defer></script>
+<script src="<?= base_url('assets/js/chart.umd.min.js'); ?>" defer></script>
+<script src="<?= base_url('assets/js/dashboard-charts.js'); ?>" defer></script>
 
 <script>
 // ── Sidebar toggle (mobile) ──────────────────────────────────
@@ -170,6 +173,20 @@ document.querySelectorAll('a[href]:not([href="#"]):not([data-bs-toggle]):not([ta
 });
 window.addEventListener('pageshow', function() {
   document.body.style.opacity = '1';
+});
+
+// ── Dashboard chart role initialization ──────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  if (!window.DASHBOARD_ROLE || !window.DASHBOARD_CHARTS) return;
+  if (window.DASHBOARD_ROLE === 'admin' && typeof window.initAdminCharts === 'function') {
+    window.initAdminCharts(window.DASHBOARD_CHARTS);
+  }
+  if (window.DASHBOARD_ROLE === 'instructor' && typeof window.initInstructorCharts === 'function') {
+    window.initInstructorCharts(window.DASHBOARD_CHARTS);
+  }
+  if ((window.DASHBOARD_ROLE === 'student' || window.DASHBOARD_ROLE === 'employee') && typeof window.initStudentCharts === 'function') {
+    window.initStudentCharts(window.DASHBOARD_CHARTS);
+  }
 });
 </script>
 

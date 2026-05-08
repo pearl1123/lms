@@ -251,23 +251,37 @@ class certificate_model extends CI_Model {
             ];
         }
 
-        // Generate unique certificate code: KBGA-YYYYMMDD-XXXX
-        $code = $this->_generate_code();
         $now  = date('Y-m-d H:i:s');
+        $certificate_id = 0;
+        $code = '';
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            // Generate unique certificate code:
+            // KABAGA-{COURSE_PREFIX}-{YEAR}-{INCREMENT}
+            $code = $this->_generate_code((int) $course_id);
 
-        // Insert into lib_certificates
-        $this->db->insert('lib_certificates', [
-            'user_id'          => (int) $user_id,
-            'course_id'        => (int) $course_id,
-            'certificate_code' => $code,
-            'issued_at'        => $now,
-            'file_path'        => null,  // updated after PDF generation
-            'date_encoded'     => $now,
-            'encoded_by'       => (int) $issued_by,
-            'archived'         => 0,
-        ]);
+            $ok = $this->db->insert('lib_certificates', [
+                'user_id'          => (int) $user_id,
+                'course_id'        => (int) $course_id,
+                'certificate_code' => $code,
+                'issued_at'        => $now,
+                'file_path'        => null,  // updated after PDF generation
+                'date_encoded'     => $now,
+                'encoded_by'       => (int) $issued_by,
+                'archived'         => 0,
+            ]);
 
-        $certificate_id = (int) $this->db->insert_id();
+            if ($ok) {
+                $certificate_id = (int) $this->db->insert_id();
+                if ($certificate_id > 0) {
+                    break;
+                }
+            }
+
+            // Retry only duplicate-code conflicts; stop on other DB errors.
+            if ((int) $this->db->error()['code'] !== 1062) {
+                break;
+            }
+        }
 
         if ($certificate_id === 0) {
             return ['success' => false, 'reason' => 'db_error'];
@@ -351,6 +365,12 @@ class certificate_model extends CI_Model {
         return ($r && $r->num_rows() > 0) ? $r->row() : null;
     }
 
+    /** @see get_certificate() */
+    public function get_by_user_course($user_id, $course_id)
+    {
+        return $this->get_certificate($user_id, $course_id);
+    }
+
     /**
      * Get a certificate by ID with user + course info.
      *
@@ -366,12 +386,17 @@ class certificate_model extends CI_Model {
                 u.employee_id,
                 c.title        AS course_title,
                 c.description  AS course_description,
-                cc.name        AS category_name
+                c.certificate_prefix,
+                c.signatory_name,
+                c.signatory_title,
+                cc.name        AS category_name,
+                lm.modality_desc AS modality_name
             ', false)
             ->from('lib_certificates lc')
             ->join('aauth_users u',      'u.id  = lc.user_id',   'left')
             ->join('courses c',           'c.id  = lc.course_id', 'left')
             ->join('course_categories cc','cc.id = c.category_id','left')
+            ->join('lib_course_modality lm', 'lm.modality_id = c.modality_id', 'left')
             ->where('lc.id',       (int) $certificate_id)
             ->where('lc.archived', 0)
             ->get();
@@ -393,6 +418,9 @@ class certificate_model extends CI_Model {
                 u.fullname     AS student_name,
                 u.employee_id,
                 c.title        AS course_title,
+                c.certificate_prefix,
+                c.signatory_name,
+                c.signatory_title,
                 cc.name        AS category_name
             ', false)
             ->from('lib_certificates lc')
@@ -555,12 +583,43 @@ class certificate_model extends CI_Model {
     // =========================================================
 
     /**
-     * Generate a unique certificate code: KBGA-YYYYMMDD-RAND6
+     * Generate a unique certificate code: KABAGA-{PREFIX}-{YEAR}-{NNNN}
+     * Prefix comes from courses.certificate_prefix (fallback AUTO).
      */
-    private function _generate_code()
+    private function _generate_code($course_id)
     {
+        $prefix_row = $this->db
+            ->select('certificate_prefix')
+            ->where('id', (int) $course_id)
+            ->limit(1)
+            ->get('courses')
+            ->row();
+
+        $raw_prefix = strtoupper(trim((string) ($prefix_row->certificate_prefix ?? '')));
+        $norm       = preg_replace('/[^A-Z0-9]/', '', $raw_prefix);
+        $prefix     = $norm !== '' ? substr($norm, 0, 12) : 'AUTO';
+        $year       = date('Y');
+
         do {
-            $code = 'KBGA-' . date('Ymd') . '-' . strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 6));
+            $like_base = 'KABAGA-' . $prefix . '-' . $year . '-';
+            $row = $this->db
+                ->select('certificate_code')
+                ->from('lib_certificates')
+                ->like('certificate_code', $like_base, 'after')
+                ->where('archived', 0)
+                ->order_by('id', 'DESC')
+                ->limit(1)
+                ->get()
+                ->row();
+
+            $next = 1;
+            if ($row && ! empty($row->certificate_code)) {
+                $parts = explode('-', (string) $row->certificate_code);
+                $last  = (int) end($parts);
+                $next  = $last + 1;
+            }
+
+            $code = $like_base . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
             $exists = $this->db
                 ->where('certificate_code', $code)
                 ->count_all_results('lib_certificates');

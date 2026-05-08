@@ -6,7 +6,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Tables used (exact schema):
  * ─────────────────────────────────────────────────────────────
  * lib_assessments        id, module_id, type (pre|post|checkpoint), context, trigger_*,
- *                        title, created_at, archived (+ legacy_youtube_quiz_id after migration)
+ *                        title, created_at, archived (+ legacy_checkpoint_id after migration)
  * lib_assessment_questions  id, assessment_id, question_text, question_type, is_required, min_words, archived
  * lib_assessment_choices    id, question_id, choice_text, is_correct, choice_order, archived  ← NEW
  * assessment_answers     id, question_id, user_id, answer_text, score, checked_by, checked_at, archived
@@ -46,8 +46,12 @@ class assessment_model extends CI_Model {
     /**
      * Get assessments, optionally filtered by module_id and/or type.
      * Includes question count, module title, course title.
+     *
+     * @param int    $module_id
+     * @param string $type                  pre | post | checkpoint | ''
+     * @param bool   $include_checkpoints   When $type is empty, include type=checkpoint (manager listing).
      */
-    public function get_assessments($module_id = 0, $type = '')
+    public function get_assessments($module_id = 0, $type = '', $include_checkpoints = false)
     {
         $this->db
             ->select('
@@ -72,8 +76,7 @@ class assessment_model extends CI_Model {
         }
         if ($type !== '') {
             $this->db->where('la.type', $type);
-        } else {
-            // Video checkpoints are taken inside the course player, not the Assessments UI
+        } elseif ( ! $include_checkpoints) {
             $this->db->where('la.type !=', 'checkpoint');
         }
 
@@ -83,10 +86,12 @@ class assessment_model extends CI_Model {
 
     /**
      * Get all assessments for courses owned by a specific instructor.
+     *
+     * @param bool $include_checkpoints Include video checkpoint rows in the list
      */
-    public function get_assessments_by_instructor($user_id)
+    public function get_assessments_by_instructor($user_id, $include_checkpoints = false)
     {
-        $r = $this->db
+        $this->db
             ->select('
                 la.id, la.module_id, la.type, la.title, la.created_at,
                 cm.title AS module_title,
@@ -103,10 +108,14 @@ class assessment_model extends CI_Model {
                    'laq.assessment_id = la.id AND laq.archived = 0', 'left')
             ->where('c.created_by', (int) $user_id)
             ->where('la.archived',  0)
-            ->where('la.type !=', 'checkpoint')
             ->group_by('la.id')
-            ->order_by('la.created_at', 'DESC')
-            ->get();
+            ->order_by('la.created_at', 'DESC');
+
+        if ( ! $include_checkpoints) {
+            $this->db->where('la.type !=', 'checkpoint');
+        }
+
+        $r = $this->db->get();
 
         return ($r && $r->num_rows() > 0) ? $r->result() : [];
     }
@@ -125,6 +134,28 @@ class assessment_model extends CI_Model {
     }
 
     /**
+     * Physical FK column on lib_assessments for migrated-from-legacy checkpoint rows.
+     *
+     * @deprecated Supports legacy_youtube_quiz_id until migration_rename_quiz_to_video_checkpoint_UP.sql is applied everywhere.
+     * @return string|null legacy_checkpoint_id, legacy_youtube_quiz_id, or null
+     */
+    public function legacy_checkpoint_link_column()
+    {
+        static $memo = '__unset__';
+        if ($memo === '__unset__') {
+            if ($this->db->field_exists('legacy_checkpoint_id', 'lib_assessments')) {
+                $memo = 'legacy_checkpoint_id';
+            } elseif ($this->db->field_exists('legacy_youtube_quiz_id', 'lib_assessments')) {
+                $memo = 'legacy_youtube_quiz_id';
+            } else {
+                $memo = null;
+            }
+        }
+
+        return $memo;
+    }
+
+    /**
      * Get a single assessment row with module + course info.
      */
     public function get_assessment($assessment_id)
@@ -132,8 +163,13 @@ class assessment_model extends CI_Model {
         $extra_cols = '';
         if ($this->assessments_checkpoint_schema_ready()) {
             $extra_cols = ',
-                la.context, la.trigger_type, la.trigger_value, la.is_required, la.sort_order,
-                la.legacy_youtube_quiz_id';
+                la.context, la.trigger_type, la.trigger_value, la.is_required, la.sort_order';
+            $link = $this->legacy_checkpoint_link_column();
+            if ($link === 'legacy_checkpoint_id') {
+                $extra_cols .= ', la.legacy_checkpoint_id';
+            } elseif ($link === 'legacy_youtube_quiz_id') {
+                $extra_cols .= ', la.legacy_youtube_quiz_id AS legacy_checkpoint_id';
+            }
         }
 
         $r = $this->db
@@ -155,31 +191,104 @@ class assessment_model extends CI_Model {
         return ($r && $r->num_rows() > 0) ? $r->row() : null;
     }
 
-    /** Create a new assessment. Returns new ID. */
+    /** Create a new assessment. Returns new ID, or 0 on blocked video checkpoint (limit / duplicate second). */
     public function create_assessment($data)
     {
-        $this->db->insert('lib_assessments', [
-            'module_id'    => (int) $data['module_id'],
+        $now = date('Y-m-d H:i:s');
+        $uid = (int) $data['encoded_by'];
+        $mid = (int) $data['module_id'];
+        $row = [
+            'module_id'    => $mid,
             'type'         => $data['type'],
             'title'        => trim($data['title']),
-            'created_at'   => date('Y-m-d H:i:s'),
-            'date_encoded' => date('Y-m-d H:i:s'),
-            'encoded_by'   => (int) $data['encoded_by'],
-        ]);
+            'created_at'   => $now,
+            'date_encoded' => $now,
+            'encoded_by'   => $uid,
+        ];
+
+        if (($data['type'] ?? '') === 'checkpoint' && $this->assessments_checkpoint_schema_ready()) {
+            $this->load->model('Module_video_checkpoint_model', '_vchklim');
+            $vlim = $this->_vchklim;
+            if ($vlim->count_lib_video_checkpoints_for_module($mid) >= Module_video_checkpoint_model::MAX_VIDEO_CHECKPOINTS_PER_MODULE) {
+                log_message('warning', 'create_assessment: video checkpoint cap reached for module ' . $mid);
+
+                return 0;
+            }
+
+            $secs = isset($data['trigger_seconds']) ? (int) $data['trigger_seconds'] : 0;
+            if ($secs > 0 && $vlim->lib_video_checkpoint_trigger_seconds_is_taken($mid, $secs, 0)) {
+                log_message('warning', 'create_assessment: duplicate video checkpoint trigger_seconds ' . $secs . ' module ' . $mid);
+
+                return 0;
+            }
+            if ($secs > 0) {
+                $row['trigger_type']  = 'seconds';
+                $row['trigger_value'] = (float) $secs;
+            } else {
+                $row['trigger_type']  = 'percent';
+                $row['trigger_value'] = isset($data['trigger_percent'])
+                    ? (float) $data['trigger_percent']
+                    : 0.0;
+            }
+            $row['context']     = 'video';
+            $row['is_required']  = ! empty($data['is_required']) ? 1 : 0;
+            $row['sort_order']   = (int) ($data['sort_order'] ?? 0);
+        }
+
+        $this->db->insert('lib_assessments', $row);
+
         return (int) $this->db->insert_id();
     }
 
-    /** Update assessment title/type. */
+    /** Update assessment title/type/module and optional checkpoint fields. False if duplicate checkpoint second. */
     public function update_assessment($assessment_id, $data)
     {
+        $aid = (int) $assessment_id;
+        $update = [
+            'type'               => $data['type'],
+            'title'              => trim($data['title']),
+            'date_last_modified' => date('Y-m-d H:i:s'),
+            'modified_by'        => (int) $data['modified_by'],
+        ];
+
+        if (isset($data['module_id'])) {
+            $update['module_id'] = (int) $data['module_id'];
+        }
+
+        if (($data['type'] ?? '') === 'checkpoint' && $this->assessments_checkpoint_schema_ready()) {
+            $secs = isset($data['trigger_seconds']) ? (int) $data['trigger_seconds'] : 0;
+            $mod  = (int) ($update['module_id'] ?? $data['module_id'] ?? 0);
+            if ($mod < 1) {
+                $ex = $this->get_assessment($aid);
+                $mod = $ex ? (int) $ex->module_id : 0;
+            }
+            if ($secs > 0 && $mod > 0) {
+                $this->load->model('Module_video_checkpoint_model', '_vchkdup');
+                if ($this->_vchkdup->lib_video_checkpoint_trigger_seconds_is_taken($mod, $secs, $aid)) {
+                    log_message('warning', 'update_assessment: duplicate checkpoint trigger_seconds ' . $secs . ' module ' . $mod);
+
+                    return false;
+                }
+            }
+            if ($secs > 0) {
+                $update['trigger_type']  = 'seconds';
+                $update['trigger_value'] = (float) $secs;
+            } else {
+                $update['trigger_type']  = 'percent';
+                $update['trigger_value'] = isset($data['trigger_percent'])
+                    ? (float) $data['trigger_percent']
+                    : 0.0;
+            }
+            $update['context']    = 'video';
+            $update['is_required'] = ! empty($data['is_required']) ? 1 : 0;
+            if (array_key_exists('sort_order', $data)) {
+                $update['sort_order'] = (int) $data['sort_order'];
+            }
+        }
+
         return (bool) $this->db
             ->where('id', (int) $assessment_id)
-            ->update('lib_assessments', [
-                'type'               => $data['type'],
-                'title'              => trim($data['title']),
-                'date_last_modified' => date('Y-m-d H:i:s'),
-                'modified_by'        => (int) $data['modified_by'],
-            ]);
+            ->update('lib_assessments', $update);
     }
 
     /** Soft-delete an assessment. */
@@ -584,7 +693,7 @@ class assessment_model extends CI_Model {
 
     /**
      * Single-question MCQ pass during YouTube playback. Stores a row in assessment_answers
-     * only when the selected choice is correct (same behaviour as legacy user_youtube_quiz_passes).
+     * only when the selected choice is correct (same behaviour as legacy user_video_checkpoint_passes).
      *
      * @param int $user_id
      * @param int $assessment_id lib_assessments.id (POST: assessment_id; legacy alias still accepted)
@@ -679,8 +788,8 @@ class assessment_model extends CI_Model {
     }
 
     /**
-     * One-time: copy course_module_youtube_quizzes (+ passes) into lib_assessments / questions /
-     * choices / assessment_answers. Safe to re-run (skips rows already linked via legacy_youtube_quiz_id).
+     * One-time: copy course_module_video_checkpoints (+ passes) into lib_assessments / questions /
+     * choices / assessment_answers. Safe to re-run (skips rows already linked via legacy_checkpoint_id).
      *
      * @return array{ok:bool,message?:string,migrated_checkpoints?:int,migrated_passes?:int}
      */
@@ -693,14 +802,15 @@ class assessment_model extends CI_Model {
             ];
         }
 
-        if ( ! $this->db->field_exists('legacy_youtube_quiz_id', 'lib_assessments')) {
+        $link_col = $this->legacy_checkpoint_link_column();
+        if ( ! $link_col) {
             return [
                 'ok'      => false,
-                'message' => 'Column legacy_youtube_quiz_id is missing. Run application/sql/patch_lib_assessments_columns_incremental.sql (or alter_lib_assessments_unified_checkpoints.sql).',
+                'message' => 'Link column legacy_checkpoint_id (or legacy_youtube_quiz_id) is missing on lib_assessments. Run patch/alter SQL, then migration_rename_quiz_to_video_checkpoint_UP.sql if upgrading from old names.',
             ];
         }
 
-        if ( ! $this->db->table_exists('course_module_youtube_quizzes')) {
+        if ( ! $this->db->table_exists('course_module_video_checkpoints')) {
             return [
                 'ok'               => true,
                 'message'          => 'No legacy checkpoint table.',
@@ -719,13 +829,13 @@ class assessment_model extends CI_Model {
             ->order_by('module_id', 'ASC')
             ->order_by('sort_order', 'ASC')
             ->order_by('id', 'ASC')
-            ->get('course_module_youtube_quizzes')
+            ->get('course_module_video_checkpoints')
             ->result();
 
         foreach ($old_rows as $row) {
             $legacy_id = (int) $row->id;
             $dup       = (int) $this->db
-                ->where('legacy_youtube_quiz_id', $legacy_id)
+                ->where($link_col, $legacy_id)
                 ->where('archived', 0)
                 ->count_all_results('lib_assessments');
 
@@ -762,7 +872,7 @@ class assessment_model extends CI_Model {
             $now = date('Y-m-d H:i:s');
             $enc = ! empty($row->date_encoded) ? $row->date_encoded : $now;
 
-            $this->db->insert('lib_assessments', [
+            $insert_row = [
                 'module_id'              => (int) $row->module_id,
                 'type'                   => 'checkpoint',
                 'title'                  => $title,
@@ -771,12 +881,13 @@ class assessment_model extends CI_Model {
                 'trigger_value'          => $trigger_value,
                 'is_required'            => (int) ($row->is_required ?? 1) === 1 ? 1 : 0,
                 'sort_order'             => (int) ($row->sort_order ?? 0),
-                'legacy_youtube_quiz_id' => $legacy_id,
                 'created_at'             => $enc,
                 'date_encoded'           => $enc,
                 'encoded_by'             => (int) ($row->encoded_by ?? 1),
                 'archived'               => 0,
-            ]);
+            ];
+            $insert_row[$link_col] = $legacy_id;
+            $this->db->insert('lib_assessments', $insert_row);
 
             $assessment_id = (int) $this->db->insert_id();
             if ($assessment_id < 1) {
@@ -811,16 +922,16 @@ class assessment_model extends CI_Model {
             $migrated_checkpoints++;
         }
 
-        if ($this->db->table_exists('user_youtube_quiz_passes')) {
+        if ($this->db->table_exists('user_video_checkpoint_passes')) {
             $passes = $this->db
                 ->where('archived', 0)
-                ->get('user_youtube_quiz_passes')
+                ->get('user_video_checkpoint_passes')
                 ->result();
 
             foreach ($passes as $p) {
-                $legacy_qid = (int) $p->quiz_id;
+                $legacy_qid = (int) $p->checkpoint_id;
                 $la         = $this->db
-                    ->where('legacy_youtube_quiz_id', $legacy_qid)
+                    ->where($link_col, $legacy_qid)
                     ->where('archived', 0)
                     ->get('lib_assessments', 1)
                     ->row();

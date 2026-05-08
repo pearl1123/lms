@@ -4,6 +4,8 @@ $assessment = $assessment ?? null;
 $student    = $student    ?? null;
 $answers    = $answers    ?? [];
 $result     = $result     ?? ['score'=>0,'scored'=>0,'total'=>0,'pending'=>0];
+$csrf_field_name = $csrf_field_name ?? '';
+$csrf_hash       = $csrf_hash ?? '';
 if ( ! $assessment || ! $student) return;
 
 $score   = (float)($result['score']   ?? 0);
@@ -22,72 +24,7 @@ $initials = substr($initials, 0, 2);
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
 
-<style>
-.grd-topbar { display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem; }
-.grd-topbar-title { font-size:1.125rem;font-weight:800;color:var(--ka-text,#1e293b);margin:0 0 3px;letter-spacing:-.02em; }
-.grd-topbar-sub { font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0; }
-.grd-btn { display:inline-flex;align-items:center;gap:6px;padding:.5rem 1rem;border-radius:8px;font-size:.8125rem;font-weight:600;text-decoration:none;border:1.5px solid var(--ka-border,#e2e8f0);background:#fff;color:var(--ka-text,#1e293b);cursor:pointer;transition:all .15s; }
-.grd-btn:hover { border-color:var(--ka-primary,#6dabcf);color:var(--ka-primary,#6dabcf); }
-
-/* Student card */
-.grd-student-card {
-  background:#fff;border:1px solid var(--ka-border,#e2e8f0);border-radius:14px;
-  padding:1.125rem;margin-bottom:1.5rem;
-  display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
-}
-.grd-student-avatar {
-  width:48px;height:48px;border-radius:50%;flex-shrink:0;
-  background:linear-gradient(135deg,var(--ka-primary,#6dabcf),#4a8eb0);
-  display:flex;align-items:center;justify-content:center;
-  font-size:1rem;font-weight:800;color:#fff;
-}
-.grd-student-name { font-size:1rem;font-weight:700;color:var(--ka-text,#1e293b);margin-bottom:2px; }
-.grd-student-meta { font-size:.75rem;color:var(--ka-text-muted,#64748b); }
-.grd-score-summary { margin-left:auto;text-align:right; }
-.grd-score-val { font-size:1.75rem;font-weight:900;letter-spacing:-.02em;line-height:1; }
-.grd-score-lbl { font-size:.6875rem;color:var(--ka-text-muted,#64748b);font-weight:500; }
-
-/* Answer cards */
-.grd-a-card { background:#fff;border:1px solid var(--ka-border,#e2e8f0);border-radius:14px;overflow:hidden;margin-bottom:1.125rem; }
-.grd-a-header { padding:.875rem 1.125rem;border-bottom:1px solid var(--ka-border,#e2e8f0);display:flex;align-items:center;justify-content:space-between;background:var(--ka-bg,#f8fafc); }
-.grd-a-num { width:28px;height:28px;border-radius:50%;background:var(--ka-navy,#1a3a5c);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6875rem;font-weight:700;flex-shrink:0; }
-.grd-a-type { font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:20px; }
-.grd-a-body { padding:1.125rem; }
-.grd-q-text { font-size:.9375rem;font-weight:600;color:var(--ka-text,#1e293b);line-height:1.5;margin-bottom:.875rem; }
-
-/* Answer display */
-.grd-answer-box { border-radius:9px;padding:.875rem 1rem;font-size:.875rem;line-height:1.6;background:var(--ka-bg,#f8fafc);border:1px solid var(--ka-border,#e2e8f0);margin-bottom:.875rem; }
-
-/* Score input */
-.grd-score-row { display:flex;align-items:center;gap:.875rem;flex-wrap:wrap; }
-.grd-score-label { font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);white-space:nowrap; }
-.grd-score-input {
-  width:90px;height:38px;padding:0 .75rem;
-  border:1.5px solid var(--ka-border,#e2e8f0);border-radius:8px;
-  font-size:.9375rem;font-weight:700;color:var(--ka-text,#1e293b);
-  outline:none;text-align:center;transition:all .2s;
-}
-.grd-score-input:focus { border-color:var(--ka-primary,#6dabcf);box-shadow:0 0 0 3px rgba(109,171,207,.15); }
-.grd-save-btn {
-  padding:.5rem 1.125rem;border-radius:8px;background:var(--ka-navy,#1a3a5c);
-  color:#fff;border:none;cursor:pointer;font-size:.8125rem;font-weight:700;transition:all .15s;
-}
-.grd-save-btn:hover { background:#254d75; }
-.grd-saved-chip { display:none;align-items:center;gap:4px;font-size:.75rem;font-weight:600;color:#059669; }
-
-/* Already scored indicator */
-.grd-scored-badge { display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.6875rem;font-weight:700; }
-.grd-scored-badge.graded  { background:#ecfdf5;color:#065f46; }
-.grd-scored-badge.pending { background:#fffbeb;color:#92400e; }
-.grd-scored-badge.auto    { background:var(--ka-accent,#e8f4fd);color:var(--ka-navy,#1a3a5c); }
-
-/* MC choices display */
-.grd-choice { display:flex;align-items:center;gap:.625rem;padding:.5rem .75rem;border-radius:7px;font-size:.875rem;margin-bottom:.25rem; }
-.grd-choice.selected.correct { background:#ecfdf5;color:#065f46; }
-.grd-choice.selected.wrong   { background:#fef2f2;color:#991b1b; }
-.grd-choice.correct-ans      { background:#ecfdf5;color:#065f46;opacity:.7; }
-.grd-choice-dot              { width:10px;height:10px;border-radius:50%;flex-shrink:0; }
-</style>
+<link rel="stylesheet" href="<?= base_url('assets/css/assessments.css') ?>">
 
 <!-- ══ Topbar ════════════════════════════════════════════════ -->
 <div class="grd-topbar animate__animated animate__fadeIn animate__fast">
@@ -229,44 +166,16 @@ $initials = substr($initials, 0, 2);
 </div>
 <?php endif; ?>
 
+<?php $_jf = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT; ?>
 <script>
-function saveScore(answerId) {
-  var input   = document.getElementById('scoreinput-' + answerId);
-  var score   = parseFloat(input.value);
-  var chip    = document.getElementById('savedchip-' + answerId);
-
-  if (isNaN(score) || score < 0 || score > 100) {
-    KA.toast('error', 'Score must be between 0 and 100.');
-    return;
-  }
-
-  var btn = input.closest('.grd-score-row').querySelector('.grd-save-btn');
-  btn.disabled    = true;
-  btn.textContent = 'Saving…';
-
-  fetch('<?= base_url('index.php/assessments/save_grade') ?>', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: '<?= $csrf_field_name ?>=<?= $csrf_hash ?>'
-        + '&answer_id=' + answerId
-        + '&score='     + score,
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    btn.disabled    = false;
-    btn.textContent = 'Update';
-    if (data.success) {
-      chip.style.display = 'flex';
-      setTimeout(function() { chip.style.display = 'none'; }, 3000);
-      KA.toast('success', 'Score saved successfully.');
-    } else {
-      KA.toast('error', data.message || 'Failed to save score.');
-    }
-  })
-  .catch(function() {
-    btn.disabled    = false;
-    btn.textContent = 'Update';
-    KA.toast('error', 'Network error. Please try again.');
-  });
-}
+kaApplyAppContext(<?= json_encode([
+  'assessments' => [
+    'grade' => [
+      'saveGradeUrl' => base_url('index.php/assessments/save_grade'),
+      'csrfFieldName' => $csrf_field_name,
+      'csrfHash' => $csrf_hash,
+    ],
+  ],
+], $_jf) ?>);
 </script>
+<script src="<?= base_url('assets/js/assessments.js') ?>"></script>

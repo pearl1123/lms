@@ -21,6 +21,8 @@ $thumb_gradients = [
 ];
 ?>
 
+<link rel="stylesheet" href="<?= base_url('assets/css/module.css') ?>">
+
 <!-- ============================================================
      KABAGA ACADEMY — Course Catalog
 ============================================================ -->
@@ -379,12 +381,12 @@ $thumb_gradients = [
       $modules   = (int)($course->total_modules  ?? 0);
       $enrolled  = (int)($course->total_enrolled ?? 0);
       $is_enr    = (bool)$course->is_enrolled;
-      $my_pct    = (int)($course->my_progress ?? 0);
+      $pct       = (int) ($course->progress_pct ?? 0);
       $est       = $course->enrollment_status ?? null;
 
       // Status tag for filtering
-      if ($is_enr && $my_pct >= 100) $status_tag = 'completed';
-      elseif ($is_enr && $my_pct > 0) $status_tag = 'inprogress';
+      if ($is_enr && $pct >= 100) $status_tag = 'completed';
+      elseif ($is_enr && $pct > 0) $status_tag = 'inprogress';
       elseif ($is_enr) $status_tag = 'enrolled';
       elseif ($est === 'pending') $status_tag = 'pending';
       elseif ($est === 'rejected') $status_tag = 'rejected';
@@ -392,7 +394,7 @@ $thumb_gradients = [
 
       // CTA
       if ($user_role === 'employee') {
-        if ($my_pct >= 100)  { $cta_text = 'Review';   $cta_class = 'cat-cta-review'; }
+        if ($pct >= 100)  { $cta_text = 'Review';   $cta_class = 'cat-cta-review'; }
         elseif ($is_enr)     { $cta_text = 'Continue'; $cta_class = 'cat-cta-continue'; }
         elseif ($est === 'pending') { $cta_text = 'Waiting for approval'; $cta_class = 'cat-cta-view'; }
         elseif ($est === 'rejected') { $cta_text = 'Request again'; $cta_class = 'cat-cta-enroll'; }
@@ -406,7 +408,8 @@ $thumb_gradients = [
          style="animation-delay:<?= ($i % 8) * 0.04 ?>s;"
          data-title="<?= htmlspecialchars(strtolower($course->title)) ?>"
          data-cat="<?= (int)($course->category_id ?? 0) ?>"
-         data-status="<?= $status_tag ?>">
+         data-status="<?= $status_tag ?>"
+         <?php if ($is_enr): ?>data-course-id="<?= (int) $course->id ?>"<?php endif; ?>>
 
       <div class="cat-card-thumb" style="background:<?= $grad ?>;">
         <div class="cat-card-thumb-icon">
@@ -420,7 +423,7 @@ $thumb_gradients = [
         <?php if ($is_enr): ?>
         <span class="cat-enrolled-ribbon enrolled">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4"/></svg>
-          <?= $my_pct >= 100 ? 'Completed' : 'Enrolled' ?>
+          <?= $pct >= 100 ? 'Completed' : 'Enrolled' ?>
         </span>
         <?php elseif ($est === 'pending'): ?>
         <span class="cat-enrolled-ribbon" style="background:rgba(234,179,8,.92);color:#422006;">Pending</span>
@@ -432,9 +435,13 @@ $thumb_gradients = [
 
         <!-- Progress overlay for enrolled -->
         <?php if ($is_enr && $modules > 0): ?>
-        <div class="cat-card-progress-overlay">
-          <div class="cat-card-progress-fill" style="width:<?= $my_pct ?>%"></div>
-        </div>
+        <?php $this->load->view('components/progress_bar', [
+            'progress_percent' => (int) $course->progress_pct,
+            'size'               => 'sm',
+            'course_id'          => (int) $course->id,
+            'variant'            => 'catalog_overlay',
+            'sync_live'          => ($user_role === 'employee'),
+        ]); ?>
         <?php endif; ?>
       </div>
 
@@ -465,15 +472,14 @@ $thumb_gradients = [
         <!-- Progress bar for enrolled employee -->
         <?php if ($is_enr && $user_role === 'employee' && $modules > 0): ?>
         <div class="cat-inline-progress">
-          <div class="cat-inline-progress-top">
-            <span class="cat-inline-progress-lbl">Your Progress</span>
-            <span class="cat-inline-progress-pct" style="color:<?= $my_pct >= 100 ? '#22c55e' : 'var(--ka-primary,#6dabcf)' ?>">
-              <?= $my_pct ?>%
-            </span>
-          </div>
-          <div class="cat-prog-bar">
-            <div class="cat-prog-fill <?= $my_pct >= 100 ? 'complete' : '' ?>" style="width:<?= $my_pct ?>%"></div>
-          </div>
+          <?php $this->load->view('components/progress_bar', [
+              'progress_percent' => (int) $course->progress_pct,
+              'size'               => 'sm',
+              'label'              => 'Your Progress',
+              'course_id'          => (int) $course->id,
+              'variant'            => 'embed',
+              'sync_live'          => true,
+          ]); ?>
         </div>
         <?php endif; ?>
 
@@ -530,11 +536,11 @@ $thumb_gradients = [
       $modules  = (int)($course->total_modules  ?? 0);
       $enrolled = (int)($course->total_enrolled ?? 0);
       $is_enr   = (bool)$course->is_enrolled;
-      $my_pct   = (int)($course->my_progress ?? 0);
+      $pct      = (int) ($course->progress_pct ?? 0);
       $est      = $course->enrollment_status ?? null;
 
-      if ($is_enr && $my_pct >= 100) $status_tag = 'completed';
-      elseif ($is_enr && $my_pct > 0) $status_tag = 'inprogress';
+      if ($is_enr && $pct >= 100) $status_tag = 'completed';
+      elseif ($is_enr && $pct > 0) $status_tag = 'inprogress';
       elseif ($is_enr) $status_tag = 'enrolled';
       elseif ($est === 'pending') $status_tag = 'pending';
       elseif ($est === 'rejected') $status_tag = 'rejected';
@@ -543,7 +549,8 @@ $thumb_gradients = [
     <div class="cat-list-item"
          data-title="<?= htmlspecialchars(strtolower($course->title)) ?>"
          data-cat="<?= (int)($course->category_id ?? 0) ?>"
-         data-status="<?= $status_tag ?>">
+         data-status="<?= $status_tag ?>"
+         <?php if ($is_enr): ?>data-course-id="<?= (int) $course->id ?>"<?php endif; ?>>
 
       <div class="cat-list-thumb" style="background:<?= $grad ?>"><?= $initials ?></div>
 
@@ -562,20 +569,21 @@ $thumb_gradients = [
             <?= $enrolled ?> enrolled
           </div>
           <?php if ($is_enr): ?>
-          <div class="cat-list-meta-item" style="color:<?= $my_pct >= 100 ? '#22c55e' : 'var(--ka-primary,#6dabcf)' ?>;font-weight:600;">
-            <?= $my_pct >= 100 ? '✓ Completed' : $my_pct.'% done' ?>
+          <div class="cat-list-meta-item cmp-course-progress-meta" style="color:<?= (int) $course->progress_pct >= 100 ? '#22c55e' : 'var(--ka-primary,#6dabcf)' ?>;font-weight:600;">
+            <?= (int) $course->progress_pct >= 100 ? '✓ Completed' : ((int) $course->progress_pct) . '% done' ?>
           </div>
           <?php endif; ?>
         </div>
       </div>
 
       <?php if ($is_enr && $user_role === 'employee' && $modules > 0): ?>
-      <div class="cat-list-progress">
-        <div class="cat-prog-bar">
-          <div class="cat-prog-fill <?= $my_pct >= 100 ? 'complete' : '' ?>" style="width:<?= $my_pct ?>%"></div>
-        </div>
-        <div style="font-size:.625rem;color:var(--ka-text-muted,#64748b);margin-top:3px;text-align:right;"><?= $my_pct ?>%</div>
-      </div>
+      <?php $this->load->view('components/progress_bar', [
+          'progress_percent' => (int) $course->progress_pct,
+          'size'               => 'sm',
+          'course_id'          => (int) $course->id,
+          'variant'            => 'list_micro',
+          'sync_live'          => true,
+      ]); ?>
       <?php endif; ?>
 
       <div class="cat-list-actions">
@@ -596,7 +604,7 @@ $thumb_gradients = [
           <a href="<?= base_url('courses/view/'.$course->id) ?>"
              class="cat-list-btn"
              style="background:var(--ka-accent,#e8f4fd);color:var(--ka-primary-deep,#4a8eb0);">
-            <?= $my_pct >= 100 ? 'Review' : 'Continue' ?>
+            <?= (int) $course->progress_pct >= 100 ? 'Review' : 'Continue' ?>
           </a>
         <?php else: ?>
           <a href="<?= base_url('courses/view/'.$course->id) ?>"
@@ -709,3 +717,10 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 </script>
+<?php $_ka_json = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT; ?>
+<script>
+kaApplyAppContext(<?= json_encode([
+  'catalog' => ['courseProgressUrl' => base_url('index.php/courses/progress_state/')],
+], $_ka_json) ?>);
+</script>
+<script src="<?= base_url('assets/js/catalog.js') ?>"></script>

@@ -2,64 +2,21 @@
 <?php
 $modules   = $modules ?? [];
 $user_role = strtolower($user->role ?? 'admin');
+$checkpoint_schema_ready = ! empty($checkpoint_schema_ready);
+$csrf_field_name         = $csrf_field_name ?? '';
+$csrf_hash               = $csrf_hash ?? '';
+$preselect_mod           = (int) ($preselect_mod ?? 0);
+$checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST['checkpoint_auto_generate'] === '1');
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
 
-<style>
-.crt-layout { display:grid;grid-template-columns:1fr 300px;gap:1.5rem;align-items:start; }
-@media(max-width:991.98px){ .crt-layout { grid-template-columns:1fr; } }
-.crt-panel { background:#fff;border:1px solid var(--ka-border,#e2e8f0);border-radius:14px;overflow:hidden; }
-.crt-panel-hdr { padding:1rem 1.25rem;border-bottom:1px solid var(--ka-border,#e2e8f0); }
-.crt-panel-title { font-size:.9rem;font-weight:700;color:var(--ka-text,#1e293b);margin:0; }
-.crt-panel-body { padding:1.25rem; }
-.crt-form-group { margin-bottom:1.25rem; }
-.crt-label { display:block;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);margin-bottom:.5rem; }
-.crt-label span { color:#dc2626; }
-.crt-input, .crt-select, .crt-textarea {
-  width:100%;padding:.625rem .875rem;
-  border:1.5px solid var(--ka-border,#e2e8f0);border-radius:8px;
-  font-size:.875rem;color:var(--ka-text,#1e293b);
-  background:var(--ka-bg,#f8fafc);outline:none;
-  font-family:inherit;transition:all .2s;
-}
-.crt-input:focus, .crt-select:focus, .crt-textarea:focus {
-  border-color:var(--ka-primary,#6dabcf);background:#fff;
-  box-shadow:0 0 0 3px rgba(109,171,207,.15);
-}
-.crt-select { height:42px;cursor:pointer; }
-.crt-help { font-size:.6875rem;color:var(--ka-text-muted,#64748b);margin-top:.375rem; }
-.crt-error { font-size:.6875rem;color:#dc2626;margin-top:.375rem; }
-.crt-type-grid { display:grid;grid-template-columns:1fr 1fr;gap:.75rem; }
-.crt-type-card {
-  border:2px solid var(--ka-border,#e2e8f0);border-radius:10px;
-  padding:1rem;cursor:pointer;transition:all .18s;text-align:center;
-}
-.crt-type-card:hover { border-color:var(--ka-primary,#6dabcf); }
-.crt-type-card input { display:none; }
-.crt-type-card.selected { border-color:var(--ka-navy,#1a3a5c);background:var(--ka-accent,#e8f4fd); }
-.crt-type-icon { font-size:1.5rem;margin-bottom:.375rem; }
-.crt-type-label { font-size:.8125rem;font-weight:700;color:var(--ka-text,#1e293b); }
-.crt-type-sub   { font-size:.6875rem;color:var(--ka-text-muted,#64748b);margin-top:2px; }
-.crt-submit-btn {
-  width:100%;padding:.875rem;border-radius:9px;
-  background:var(--ka-navy,#1a3a5c);color:#fff;border:none;cursor:pointer;
-  font-size:.9375rem;font-weight:700;transition:all .2s;
-}
-.crt-submit-btn:hover { background:#254d75;transform:translateY(-1px); }
-
-/* Info panel */
-.crt-info-item { display:flex;gap:.75rem;margin-bottom:1rem; }
-.crt-info-icon { width:32px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center; }
-.crt-info-icon svg { width:15px;height:15px; }
-.crt-info-text h4 { font-size:.8125rem;font-weight:700;color:var(--ka-text,#1e293b);margin:0 0 2px; }
-.crt-info-text p  { font-size:.75rem;color:var(--ka-text-muted,#64748b);margin:0;line-height:1.5; }
-</style>
+<link rel="stylesheet" href="<?= base_url('assets/css/assessments.css') ?>">
 
 <!-- Page header -->
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;" class="animate__animated animate__fadeIn animate__fast">
   <div>
     <h2 style="font-size:1.25rem;font-weight:800;color:var(--ka-text,#1e293b);margin:0 0 3px;letter-spacing:-.02em;">Create Assessment</h2>
-    <p style="font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0;">Set up a pre or post assessment for a course module</p>
+    <p style="font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0;">Set up a pre, post, or video checkpoint assessment for a course module</p>
   </div>
   <a href="<?= base_url('index.php/assessments') ?>"
      style="display:inline-flex;align-items:center;gap:6px;padding:.5rem 1rem;border-radius:8px;font-size:.8125rem;font-weight:600;text-decoration:none;border:1.5px solid var(--ka-border,#e2e8f0);background:#fff;color:var(--ka-text,#1e293b);">
@@ -68,7 +25,7 @@ $user_role = strtolower($user->role ?? 'admin');
 </div>
 
 <form method="post" action="<?= base_url('index.php/assessments/create') ?>" id="createForm">
-  <input type="hidden" name="<?= $csrf_field_name ?>" value="<?= $csrf_hash ?>">
+  <input type="hidden" name="<?= html_escape($csrf_field_name) ?>" value="<?= html_escape($csrf_hash) ?>">
 
   <div class="crt-layout animate__animated animate__fadeInUp animate__fast">
 
@@ -148,10 +105,72 @@ $user_role = strtolower($user->role ?? 'admin');
               <div class="crt-type-label">Post-Assessment</div>
               <div class="crt-type-sub">Taken after the module to evaluate learning outcomes</div>
             </label>
+            <?php
+              $sel_cp = (set_value('type') === 'checkpoint')
+                || (empty($_POST) && ($preselect_type ?? '') === 'checkpoint' && $checkpoint_schema_ready);
+            ?>
+            <label class="crt-type-card <?= $sel_cp ? 'selected' : '' ?> <?= $checkpoint_schema_ready ? '' : 'disabled' ?>" id="card-checkpoint">
+              <input type="radio" name="type" value="checkpoint"
+                     <?= $sel_cp ? 'checked' : '' ?>
+                     <?= $checkpoint_schema_ready ? 'onchange="selectType(\'checkpoint\')"' : 'disabled' ?>>
+              <div class="crt-type-icon">▶️</div>
+              <div class="crt-type-label">Video Checkpoint</div>
+              <div class="crt-type-sub">Shown during module video at an optional timestamp</div>
+            </label>
           </div>
+          <?php if ( ! $checkpoint_schema_ready): ?>
+            <p class="crt-help" style="margin-top:.75rem;color:#b45309;">
+              Video checkpoints need the unified <code>lib_assessments</code> checkpoint columns (e.g. <code>context</code>) on this server. Pre and post assessments are still available.
+            </p>
+          <?php endif; ?>
           <?php if (form_error('type')): ?>
             <div class="crt-error" style="margin-top:.5rem;"><?= form_error('type') ?></div>
           <?php endif; ?>
+
+          <div class="crt-checkpoint-panel" id="checkpointFields">
+            <input type="hidden" name="trigger_percent" id="trigger_percent" value="<?= htmlspecialchars(set_value('trigger_percent', '0')) ?>">
+            <div class="crt-form-group">
+              <label class="crt-toggle">
+                <input type="checkbox" name="checkpoint_auto_generate" id="checkpoint_auto_generate" value="1"
+                  <?= set_checkbox('checkpoint_auto_generate', '1') ?>
+                  onchange="toggleCheckpointAuto(this.checked)">
+                Auto-generate 3 checkpoints (random times in early, middle, and late video)
+              </label>
+              <div class="crt-help">Requires whole-video duration in seconds (e.g. from YouTube studio). Module must have room for 3 checkpoints (max 3 per module total).</div>
+            </div>
+            <div class="crt-form-group" id="checkpointDurationWrap" style="display:<?= $checkpoint_auto_checked ? 'block' : 'none' ?>;">
+              <label class="crt-label" for="video_duration_seconds">Whole video duration (seconds) <span>*</span></label>
+              <input type="number" id="video_duration_seconds" name="video_duration_seconds" class="crt-input" min="1" step="1"
+                     placeholder="e.g. 720 for a 12-minute video"
+                     value="<?= htmlspecialchars(set_value('video_duration_seconds', '')) ?>">
+              <div class="crt-help">Used only for auto mode. Timestamps are placed at random seconds within 5–30%, 30–70%, and 70–95% of this length.</div>
+              <?php if (form_error('video_duration_seconds')): ?>
+                <div class="crt-error"><?= form_error('video_duration_seconds') ?></div>
+              <?php endif; ?>
+            </div>
+            <div class="crt-form-group" id="checkpointManualTriggerWrap" style="display:<?= $checkpoint_auto_checked ? 'none' : 'block' ?>;">
+              <label class="crt-label" for="trigger_seconds">Video timestamp (seconds)</label>
+              <input type="number" id="trigger_seconds" name="trigger_seconds" class="crt-input" min="0" step="1"
+                     placeholder="Leave empty to use start of video (0%)"
+                     value="<?= htmlspecialchars(set_value('trigger_seconds', '')) ?>">
+              <div class="crt-help">Optional. When set, the checkpoint prompt appears after this many seconds of playback.</div>
+              <?php if (form_error('trigger_seconds')): ?>
+                <div class="crt-error"><?= form_error('trigger_seconds') ?></div>
+              <?php endif; ?>
+            </div>
+            <div class="crt-form-group">
+              <label class="crt-toggle">
+                <input type="checkbox" name="checkpoint_required" value="1" <?= set_checkbox('checkpoint_required', '1') ?>>
+                Required — learner must answer before continuing
+              </label>
+            </div>
+            <div class="crt-form-group" style="margin-bottom:0;">
+              <label class="crt-label" for="sort_order">Display order (optional)</label>
+              <input type="number" id="sort_order" name="sort_order" class="crt-input" min="0" step="1"
+                     placeholder="0 = first among checkpoints in this module"
+                     value="<?= htmlspecialchars(set_value('sort_order', '0')) ?>">
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -161,7 +180,7 @@ $user_role = strtolower($user->role ?? 'admin');
       <div class="crt-panel" style="margin-bottom:1rem;">
         <div class="crt-panel-hdr"><h3 class="crt-panel-title">Ready to create?</h3></div>
         <div class="crt-panel-body">
-          <p style="font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0 0 1rem;">
+          <p style="font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0 0 1rem;" id="createSidebarHint">
             After creating the assessment, you'll be taken to the question builder where you can add multiple choice, essay, fill-in-the-blank, or Likert scale questions.
           </p>
           <button type="submit" class="crt-submit-btn" <?= empty($modules) ? 'disabled' : '' ?>>
@@ -216,14 +235,4 @@ $user_role = strtolower($user->role ?? 'admin');
   </div>
 </form>
 
-<script>
-function selectType(type) {
-  document.getElementById('card-pre').classList.toggle('selected', type === 'pre');
-  document.getElementById('card-post').classList.toggle('selected', type === 'post');
-}
-// Pre-select on page load if returning from validation
-(function() {
-  var checked = document.querySelector('input[name="type"]:checked');
-  if (checked) selectType(checked.value);
-})();
-</script>
+<script src="<?= base_url('assets/js/assessments.js') ?>"></script>

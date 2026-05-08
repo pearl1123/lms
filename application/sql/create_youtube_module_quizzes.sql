@@ -1,8 +1,9 @@
--- DEPRECATED: superseded by lib_assessments (type=checkpoint, context=video)
--- + lib_assessment_questions / lib_assessment_choices + assessment_answers.
--- Kept for reference / rollback; new installs should use the unified engine only.
+-- DEPRECATED FILE NAME / TABLE NAMES (quiz).
+-- New installs: use `create_course_module_video_checkpoints.sql` + unified lib_assessments checkpoints.
+-- Existing DBs with these tables: run `migration_rename_quiz_to_video_checkpoint_UP.sql` then deploy app.
+-- Unified engine: lib_assessments (type=checkpoint, context=video) + lib_assessment_questions / choices + assessment_answers.
 --
--- YouTube checkpoint quizzes (per course module).
+-- Historical: checkpoint definitions (per course module) under old table names.
 -- Audit columns align with lib_* tables (e.g. lib_certificates).
 -- choices: LONGTEXT storing JSON (use json_encode / json_decode in PHP — no native JSON column).
 

@@ -12,6 +12,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property CI_Input             $input
  * @property User_model           $user_model
  * @property Course_model         $course_model
+ * @property Assessment_service   $assessment_service
  */
 class My_courses extends CI_Controller {
 
@@ -24,6 +25,7 @@ class My_courses extends CI_Controller {
         $this->load->library('session');
         $this->load->model('User_model',   'user_model');
         $this->load->model('Course_model', 'course_model');
+        $this->load->library('assessment_service');
         $this->load->helper('url');
 
         // ── Auth guard ────────────────────────────────────────
@@ -287,31 +289,16 @@ class My_courses extends CI_Controller {
         if ($enrolled_result && $enrolled_result->num_rows() > 0) {
             foreach ($enrolled_result->result() as $ec) {
 
-                $total_modules = $this->db
-                    ->where('course_id', $ec->course_id)
-                    ->where('archived', 0)
-                    ->count_all_results('course_modules');
+                $agg = $this->assessment_service->get_course_progress_aggregate(
+                    (int) $user->id,
+                    (int) $ec->course_id
+                );
 
-                $ec->module_count = $total_modules;
-
-                if ($total_modules > 0) {
-                    $done = $this->db
-                        ->select('COUNT(*) AS cnt')
-                        ->from('module_progress mp')
-                        ->join('course_modules cm', 'cm.id = mp.module_id', 'inner')
-                        ->where('cm.course_id', $ec->course_id)
-                        ->where('mp.user_id',   $user->id)
-                        ->where('mp.status',    'completed')
-                        ->get()->row();
-                    $done_count = $done ? (int) $done->cnt : 0;
-                } else {
-                    $done_count = 0;
-                }
-
-                $ec->modules_done = $done_count;
-                $ec->progress_pct = $total_modules > 0
-                    ? round(($done_count / $total_modules) * 100)
-                    : 0;
+                $ec->module_count            = (int) $agg['total_modules'];
+                $ec->modules_done            = (int) $agg['completed_modules'];
+                $ec->course_progress_percent = (int) $agg['course_progress_percent'];
+                // Backward-compatible key used by existing templates/widgets.
+                $ec->progress_pct = $ec->course_progress_percent;
 
                 $enrolled_courses[] = $ec;
             }
