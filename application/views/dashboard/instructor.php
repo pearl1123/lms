@@ -67,7 +67,7 @@ $ins_icon = static function ($type_key) {
       <div class="db-card-body"><div class="db-chart-wrap db-dash-chart-md"><canvas id="instructorCourseProgressChart"></canvas></div></div>
     </article>
     <article class="db-card db-card--elevated">
-      <header class="db-card-header"><h2 class="db-card-title">Student performance distribution</h2></header>
+      <header class="db-card-header"><h2 class="db-card-title">Completed modules by learner</h2></header>
       <div class="db-card-body"><div class="db-chart-wrap db-dash-chart-md"><canvas id="instructorStudentPerformanceChart"></canvas></div></div>
     </article>
     <article class="db-card db-card--elevated">

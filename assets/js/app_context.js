@@ -1,11 +1,12 @@
 /**
- * Normalizes window.APP_CONTEXT to four namespaces (catalog, dashboard, module, assessments).
- * Pages merge patches via kaApplyAppContext — shallow merge per namespace only.
+ * Normalizes window.APP_CONTEXT to shared page namespaces.
+ * Pages merge patches via kaApplyAppContext — shallow merge per namespace;
+ * nested `assessments.edit` is deep-merged so URLs/CSRF are not dropped by partial patches.
  */
 (function(global) {
   'use strict';
 
-  var NS = ['catalog', 'dashboard', 'module', 'assessments'];
+  var NS = ['catalog', 'dashboard', 'module', 'assessments', 'notifications'];
 
   function skeleton() {
     var o = {};
@@ -31,12 +32,22 @@
         Object.assign(base[k], patch[k]);
       }
     });
+    // Deep-merge assessments.edit so a partial patch cannot wipe saveQuestionUrl / CSRF (shallow assign replaces the whole edit object).
+    if (isPlainObject(base.assessments)) {
+      var prevEdit = isPlainObject(prev) && prev.assessments && isPlainObject(prev.assessments.edit)
+        ? prev.assessments.edit : null;
+      var patchEdit = isPlainObject(patch) && patch.assessments && isPlainObject(patch.assessments.edit)
+        ? patch.assessments.edit : null;
+      if (prevEdit || patchEdit) {
+        base.assessments.edit = Object.assign({}, prevEdit || {}, patchEdit || {});
+      }
+    }
     return base;
   }
 
   /**
    * Deep-merge namespace objects onto APP_CONTEXT (preserves sibling namespaces).
-   * @param {Object=} patch Partial { catalog?, dashboard?, module?, assessments? }
+   * @param {Object=} patch Partial page context namespaces.
    */
   global.kaApplyAppContext = function(patch) {
     global.APP_CONTEXT = mergeNs(global.APP_CONTEXT || skeleton(), patch || {});

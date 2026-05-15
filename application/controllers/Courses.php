@@ -45,6 +45,9 @@ class Courses extends CI_Controller {
             ->set_status_header((int) $status)
             ->set_content_type('application/json')
             ->set_output($payload !== false ? $payload : '{"success":false,"message":"Authentication required.","auth":false}');
+
+        $this->output->_display();
+        exit;
     }
 
     public function __construct()
@@ -620,7 +623,7 @@ class Courses extends CI_Controller {
         // Certificate gate: DB-only; pass prefetch so gate uses same snapshot as logs.
         $course_completed = $this->assessment_service->is_course_fully_completed($uid, $course_id, $modules);
 
-        $incomplete_count = (int) $this->db
+        $incomplete_result = $this->db
             ->select('COUNT(*) AS c', false)
             ->from('module_progress mp')
             ->join('course_modules cm', 'cm.id = mp.module_id', 'inner')
@@ -628,8 +631,11 @@ class Courses extends CI_Controller {
             ->where('cm.archived', 0)
             ->where('mp.user_id', $uid)
             ->where('mp.status <>', 'completed')
-            ->get()
-            ->row()->c;
+            ->get();
+        $incomplete_row = ($incomplete_result && $incomplete_result->num_rows() > 0)
+            ? $incomplete_result->row()
+            : null;
+        $incomplete_count = $incomplete_row ? (int) $incomplete_row->c : 0;
         log_message('debug', 'CERT FINAL CHECK SQL incomplete_count=' . $incomplete_count);
 
         log_message('debug', 'MODULE COMPLETE CHECK: ' . json_encode([

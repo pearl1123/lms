@@ -35,6 +35,27 @@ class Assessments extends CI_Controller {
 
     private $user;
 
+    private function _is_ajax()
+    {
+        return strtolower((string) $this->input->server('HTTP_X_REQUESTED_WITH')) === 'xmlhttprequest';
+    }
+
+    private function _json_error($status, $message)
+    {
+        $payload = json_encode([
+            'success' => false,
+            'message' => (string) $message,
+        ]);
+
+        $this->output
+            ->set_status_header((int) $status)
+            ->set_content_type('application/json')
+            ->set_output($payload !== false ? $payload : '{"success":false,"message":"Request failed."}');
+
+        $this->output->_display();
+        exit;
+    }
+
     public function __construct()
     {
         parent::__construct();
@@ -49,14 +70,42 @@ class Assessments extends CI_Controller {
 
         // Auth guard
         $user_id = $this->session->userdata('user_id');
-        if ( ! $user_id) redirect('auth/login');
+        if ( ! $user_id) {
+            if ($this->_is_ajax()) {
+                $this->_json_error(401, 'Authentication required.');
+            }
+            redirect('auth/login');
+        }
 
         $user = $this->user_model->get_user($user_id);
-        if ( ! $user)                                           { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ((int)$user->banned   === 1)                        { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ($user->status       !== 'active')                  { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ((int)$user->DELETED  === 1)                        { $this->session->sess_destroy(); redirect('auth/login'); }
+        if ( ! $user) {
+            if ($this->_is_ajax()) {
+                $this->_json_error(401, 'Authentication required.');
+            }
+            $this->session->sess_destroy(); redirect('auth/login');
+        }
+        if ((int)$user->banned   === 1) {
+            if ($this->_is_ajax()) {
+                $this->_json_error(403, 'Account is banned.');
+            }
+            $this->session->sess_destroy(); redirect('auth/login');
+        }
+        if ($user->status       !== 'active') {
+            if ($this->_is_ajax()) {
+                $this->_json_error(403, 'Account is not active.');
+            }
+            $this->session->sess_destroy(); redirect('auth/login');
+        }
+        if ((int)$user->DELETED  === 1) {
+            if ($this->_is_ajax()) {
+                $this->_json_error(403, 'Account is unavailable.');
+            }
+            $this->session->sess_destroy(); redirect('auth/login');
+        }
         if ( ! empty($user->locked_until) && strtotime($user->locked_until) > time()) {
+            if ($this->_is_ajax()) {
+                $this->_json_error(423, 'Account is temporarily locked.');
+            }
             $this->session->sess_destroy(); redirect('auth/login');
         }
 
@@ -719,10 +768,17 @@ class Assessments extends CI_Controller {
         ];
 
         if ($question_id > 0) {
-            $this->assessment_model->update_question($question_id, $q_data);
+            $saved = $this->assessment_model->update_question($question_id, $q_data);
             $qid = $question_id;
         } else {
             $qid = $this->assessment_model->create_question($q_data);
+            $saved = $qid > 0;
+        }
+
+        if ( ! $saved) {
+            echo json_encode(['success' => false, 'message' => 'Failed to save question.']);
+
+            return;
         }
 
         // Save choices if provided
@@ -996,7 +1052,10 @@ class Assessments extends CI_Controller {
     /** Redirect non-managers (admin/teacher) away. */
     private function _require_manager()
     {
-        if ( ! in_array($this->user->role, ['admin', 'teacher'])) {
+        if ( ! in_array($this->user->role, ['admin', 'teacher', 'instructor'], true)) {
+            if ($this->_is_ajax()) {
+                $this->_json_error(403, 'You do not have permission to do that.');
+            }
             $this->session->set_flashdata(
                 'error', 'You do not have permission to do that.'
             );
@@ -1013,6 +1072,9 @@ class Assessments extends CI_Controller {
         if ($this->user->role === 'admin') return;
 
         if ((int) $assessment->course_owner !== (int) $this->user->id) {
+            if ($this->_is_ajax()) {
+                $this->_json_error(403, 'You can only manage assessments for your own courses.');
+            }
             $this->session->set_flashdata(
                 'error', 'You can only manage assessments for your own courses.'
             );
@@ -1035,7 +1097,7 @@ class Assessments extends CI_Controller {
             ->order_by('c.title', 'ASC')
             ->order_by('cm.module_order', 'ASC');
 
-        if ($user->role === 'teacher') {
+        if (in_array($user->role, ['teacher', 'instructor'], true)) {
             $this->db->where('c.created_by', $user->id);
         }
 

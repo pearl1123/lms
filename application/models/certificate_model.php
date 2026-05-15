@@ -81,7 +81,7 @@ class certificate_model extends CI_Model {
             ];
         }
 
-        $completed_modules = (int) $this->db
+        $completed_result = $this->db
             ->select('COUNT(*) AS cnt', false)
             ->from('module_progress mp')
             ->join('course_modules cm', 'cm.id = mp.module_id', 'inner')
@@ -89,7 +89,11 @@ class certificate_model extends CI_Model {
             ->where('cm.archived',  0)
             ->where('mp.user_id',   (int) $user_id)
             ->where('mp.status',    'completed')
-            ->get()->row()->cnt ?? 0;
+            ->get();
+        $completed_row = ($completed_result && $completed_result->num_rows() > 0)
+            ? $completed_result->row()
+            : null;
+        $completed_modules = $completed_row ? (int) $completed_row->cnt : 0;
 
         $checks['all_modules_complete'] = ($completed_modules >= $total_modules);
 
@@ -588,12 +592,14 @@ class certificate_model extends CI_Model {
      */
     private function _generate_code($course_id)
     {
-        $prefix_row = $this->db
+        $prefix_result = $this->db
             ->select('certificate_prefix')
             ->where('id', (int) $course_id)
             ->limit(1)
-            ->get('courses')
-            ->row();
+            ->get('courses');
+        $prefix_row = ($prefix_result && $prefix_result->num_rows() > 0)
+            ? $prefix_result->row()
+            : null;
 
         $raw_prefix = strtoupper(trim((string) ($prefix_row->certificate_prefix ?? '')));
         $norm       = preg_replace('/[^A-Z0-9]/', '', $raw_prefix);

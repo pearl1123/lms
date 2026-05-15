@@ -35,6 +35,16 @@
     csrfHash: appCtx.csrfHash || btn.getAttribute('data-csrf-hash') || ''
   };
 
+  function parseJsonResponse(r) {
+    return r.text().then(function(text) {
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        return {};
+      }
+    });
+  }
+
   btn.setAttribute('aria-label', 'Notifications');
   btn.setAttribute('aria-haspopup', 'menu');
 
@@ -88,7 +98,7 @@
   function loadUnreadCount() {
     if (!ctx.unreadUrl) return Promise.resolve();
     return fetch(ctx.unreadUrl, { credentials: 'same-origin' })
-      .then(function(r) { return r.json(); })
+      .then(parseJsonResponse)
       .then(function(res) { updateBadge(res && res.count); })
       .catch(function() {});
   }
@@ -100,9 +110,10 @@
     return fetch(ctx.markReadBaseUrl + encodeURIComponent(String(id)), {
       method: 'POST',
       body: fd,
-      credentials: 'same-origin'
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
-      .then(function(r) { return r.json(); })
+      .then(parseJsonResponse)
       .then(function(res) {
         if (res && typeof res.count !== 'undefined') {
           updateBadge(res.count);
@@ -165,7 +176,7 @@
       + '  <p>Loading notifications...</p>'
       + '</div>';
     return fetch(ctx.latestUrl, { credentials: 'same-origin' })
-      .then(function(r) { return r.json(); })
+      .then(parseJsonResponse)
       .then(function(res) {
         renderNotifications((res && res.items) || []);
       })

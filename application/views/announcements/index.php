@@ -172,8 +172,7 @@ if ($role === 'admin') {
 }
 </style>
 
-<div class="page-body">
-  <div class="container-xl">
+<div class="ann-page">
 
     <div class="ann-hero animate__animated animate__fadeIn animate__fast">
       <div class="ann-hero-body">
@@ -304,7 +303,6 @@ if ($role === 'admin') {
       </div>
     </div>
 
-  </div>
 </div>
 
 <script>

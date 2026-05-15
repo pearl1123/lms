@@ -86,7 +86,7 @@ $stu_initial = static function ($title) {
   <section class="db-kpi-grid" aria-label="Learning summary">
     <article class="db-kpi-card"><div class="db-kpi-head"><div class="db-kpi-label">Courses enrolled</div><span class="db-kpi-icon">C</span></div><div class="db-kpi-value"><?= number_format($courses_enrolled) ?></div><div class="db-kpi-sub">Approved enrollments</div></article>
     <article class="db-kpi-card"><div class="db-kpi-head"><div class="db-kpi-label">Courses completed</div><span class="db-kpi-icon">D</span></div><div class="db-kpi-value"><?= number_format($courses_completed) ?></div><div class="db-kpi-sub">All modules done</div></article>
-    <article class="db-kpi-card"><div class="db-kpi-head"><div class="db-kpi-label">Certificates</div><span class="db-kpi-icon">A</span></div><div class="db-kpi-value"><?= number_format(count($certificates)) ?></div><div class="db-kpi-sub">Issued &amp; ready</div></article>
+    <article class="db-kpi-card"><div class="db-kpi-head"><div class="db-kpi-label">Certificates</div><span class="db-kpi-icon">A</span></div><div class="db-kpi-value"><?= number_format((int)($stats['certificate_count'] ?? count($certificates))) ?></div><div class="db-kpi-sub">Issued &amp; ready</div></article>
     <article class="db-kpi-card"><div class="db-kpi-head"><div class="db-kpi-label">Catalog progress</div><span class="db-kpi-icon">%</span></div><div class="db-kpi-value"><?= number_format($progress_pct) ?>%</div><div class="db-kpi-sub">Share of courses finished</div></article>
   </section>
 

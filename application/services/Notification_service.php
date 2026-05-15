@@ -78,7 +78,7 @@ class Notification_service {
             ->from('aauth_users')
             ->where('DELETED', 0)
             ->where('status', 'active')
-            ->where_in('role', ['admin', 'teacher'])
+            ->where_in('role', ['admin', 'teacher', 'instructor'])
             ->get()
             ->result();
         foreach ($mgr_rows as $r) {

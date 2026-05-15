@@ -3,6 +3,8 @@
 $assessment = $assessment ?? null;
 $questions  = $questions  ?? [];
 $modules    = $modules    ?? [];
+$csrf_field_name = $csrf_field_name ?? '';
+$csrf_hash       = $csrf_hash ?? '';
 if ( ! $assessment) return;
 $checkpoint_schema_ready = ! empty($checkpoint_schema_ready);
 $is_checkpoint = ($assessment->type === 'checkpoint');

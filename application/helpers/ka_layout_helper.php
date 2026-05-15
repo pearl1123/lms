@@ -69,9 +69,15 @@ if ( ! function_exists('ka_merge_layout_vars')) {
             $data['flash_messages'] = [];
         }
 
-        $SEC =& load_class('Security', 'core');
-        $data['csrf_field_name'] = (string) $SEC->get_csrf_token_name();
-        $data['csrf_hash']       = (string) $SEC->get_csrf_hash();
+        $csrf_enabled = (bool) config_item('csrf_protection');
+        if ($csrf_enabled) {
+            $SEC =& load_class('Security', 'core');
+            $data['csrf_field_name'] = (string) $SEC->get_csrf_token_name();
+            $data['csrf_hash']       = (string) $SEC->get_csrf_hash();
+        } else {
+            $data['csrf_field_name'] = '';
+            $data['csrf_hash']       = '';
+        }
 
         $uid = (is_object($user) && isset($user->id)) ? (int) $user->id : 0;
         if ($uid > 0) {

@@ -33,6 +33,20 @@ var VIDEO_CHECKPOINT_SUBMIT_URL = C.videoCheckpointSubmitUrl || '';
 var ytPlayer = null;
 var vcPassed = {};
 var ytCheckTimer = null;
+
+function parseJsonResponse(r) {
+  return r.text().then(function(text) {
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      return {
+        success: false,
+        ok: false,
+        message: r.status === 401 ? 'Session expired. Please log in again.' : 'Unexpected server response.',
+      };
+    }
+  });
+}
 var vcActiveCheckpoint = null;
 var ytPlaybackActive = false;
 var ytPlayerReady = false;
@@ -283,7 +297,7 @@ function runVideoCompletionUx(state) {
 function fetchModuleFlowStateAndApply() {
   if (!MODULE_STATE_URL) return Promise.resolve();
   return fetch(MODULE_STATE_URL, { credentials: 'same-origin' })
-    .then(function(r) { return r.json(); })
+    .then(parseJsonResponse)
     .then(function(data) {
       if (data && data.ok) {
         applyModuleFlowState(data);
@@ -316,7 +330,9 @@ function dispatchCourseProgressUpdated() {
 function markComplete() {
   if (IS_COMPLETED) return;
   var fd = new FormData();
-  fd.append(CSRF_NAME, CSRF_HASH);
+  if (CSRF_NAME) {
+    fd.append(CSRF_NAME, CSRF_HASH || '');
+  }
   var withIndex = function(url) {
     if (!url || url.indexOf('/index.php/') !== -1) return url;
     try {
@@ -341,7 +357,7 @@ function markComplete() {
         if (r.status === 404 && !retried) {
           return postComplete(withIndex(url), true);
         }
-        return r.json();
+        return parseJsonResponse(r);
       });
   };
 
@@ -387,7 +403,10 @@ function markComplete() {
         // No page reload; this page keeps state reactively.
       }
     })
-    .catch(function(e) { console.error('complete_module error:', e); });
+    .catch(function(e) {
+      console.error('complete_module error:', e);
+      showToast('Could not mark complete. Please try again.');
+    });
 }
 
 /** Single trigger model: 0..1 playback progress when checkpoint fires (seconds override percent). */

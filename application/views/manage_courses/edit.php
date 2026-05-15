@@ -509,6 +509,19 @@ function closeModModalOutside(e) {
   if (e.target === document.getElementById('modModalOverlay')) closeModModal();
 }
 
+function parseJsonResponse(r) {
+  return r.text().then(function(text) {
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      return {
+        success: false,
+        message: r.status === 401 ? 'Session expired. Please log in again.' : 'Unexpected server response.',
+      };
+    }
+  });
+}
+
 // ── Save module (AJAX) ───────────────────────────────────────
 function saveModule() {
   var id    = parseInt(document.getElementById('modId').value) || 0;
@@ -521,8 +534,11 @@ function saveModule() {
   btn.disabled = true;
   document.getElementById('modSaveText').textContent = 'Saving…';
 
-  var body = CSRF_NAME  + '=' + CSRF_HASH
-    + '&course_id='         + COURSE_ID
+  var body = '';
+  if (CSRF_NAME) {
+    body = CSRF_NAME + '=' + encodeURIComponent(CSRF_HASH || '') + '&';
+  }
+  body += 'course_id='      + COURSE_ID
     + '&module_id='         + id
     + '&title='             + encodeURIComponent(title)
     + '&description='       + encodeURIComponent(document.getElementById('modDesc').value)
@@ -532,10 +548,13 @@ function saveModule() {
 
   fetch(BASE_URL + 'manage_courses/save_module', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
     body: body,
   })
-  .then(function(r) { return r.json(); })
+  .then(parseJsonResponse)
   .then(function(data) {
     btn.disabled = false;
     document.getElementById('modSaveText').textContent = id ? 'Update Module' : 'Add Module';
@@ -606,12 +625,20 @@ function deleteModule(id) {
     confirmText: 'Yes, delete',
     type: 'danger',
     onConfirm: function() {
+      var delBody = '';
+      if (CSRF_NAME) {
+        delBody = CSRF_NAME + '=' + encodeURIComponent(CSRF_HASH || '') + '&';
+      }
+      delBody += 'module_id=' + id;
       fetch(BASE_URL + 'manage_courses/delete_module', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: CSRF_NAME + '=' + CSRF_HASH + '&module_id=' + id,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: delBody,
       })
-      .then(function(r) { return r.json(); })
+      .then(parseJsonResponse)
       .then(function(data) {
         if (data.success) {
           document.getElementById('moditem-' + id)?.remove();
@@ -625,6 +652,9 @@ function deleteModule(id) {
         } else {
           KA.toast('error', data.message || 'Failed to delete.');
         }
+      })
+      .catch(function() {
+        KA.toast('error', 'Network error. Please try again.');
       });
     },
   });

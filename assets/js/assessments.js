@@ -183,7 +183,20 @@
     var saveUrl = C.saveGradeUrl;
     var csrfName = C.csrfFieldName;
     var csrfHash = C.csrfHash;
-    if (!saveUrl || !csrfName || !csrfHash) return;
+    if (!saveUrl) return;
+
+    function parseJsonResponse(r) {
+      return r.text().then(function(text) {
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          return {
+            success: false,
+            message: r.status === 401 ? 'Session expired. Please log in again.' : 'Unexpected server response.',
+          };
+        }
+      });
+    }
 
     function saveScore(answerId) {
       var input = document.getElementById('scoreinput-' + answerId);
@@ -204,12 +217,15 @@
 
       fetch(saveUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: csrfName + '=' + encodeURIComponent(csrfHash)
-          + '&answer_id=' + encodeURIComponent(answerId)
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: (csrfName ? csrfName + '=' + encodeURIComponent(csrfHash || '') + '&' : '')
+          + 'answer_id=' + encodeURIComponent(answerId)
           + '&score=' + encodeURIComponent(score),
       })
-        .then(function(r) { return r.json(); })
+        .then(parseJsonResponse)
         .then(function(data) {
           btn.disabled = false;
           btn.textContent = 'Update';
@@ -240,14 +256,54 @@
     if (!overlay) return;
 
     var C = (window.APP_CONTEXT && window.APP_CONTEXT.assessments && window.APP_CONTEXT.assessments.edit) || {};
-    var ASSESSMENT_ID = C.assessmentId;
-    var CSRF_NAME = C.csrfFieldName;
-    var CSRF_HASH = C.csrfHash;
-    var SAVE_Q_URL = C.saveQuestionUrl;
-    var DEL_Q_URL = C.deleteQuestionUrl;
+    var ASSESSMENT_ID = C.assessmentId || 0;
+    var CSRF_NAME = C.csrfFieldName || '';
+    var CSRF_HASH = C.csrfHash || '';
+    var SAVE_Q_URL = C.saveQuestionUrl || '';
+    var DEL_Q_URL = C.deleteQuestionUrl || '';
     var TYPE_COLORS = C.typeColors || {};
     var TYPE_LABELS = C.typeLabels || {};
-    if (!SAVE_Q_URL || !DEL_Q_URL || !CSRF_NAME || !CSRF_HASH || !ASSESSMENT_ID) return;
+
+    // CI3 may have csrf_protection=false → token name/hash are empty strings; do not require them for editReady.
+    var needsCsrf = String(CSRF_NAME || '').trim().length > 0;
+    var csrfOk = !needsCsrf || String(CSRF_HASH || '').length > 0;
+    var hasId = parseInt(ASSESSMENT_ID, 10) > 0;
+    var editReady = !!(SAVE_Q_URL && DEL_Q_URL && hasId && csrfOk);
+
+    function missingEditContextKeys() {
+      var miss = [];
+      if (!SAVE_Q_URL) miss.push('saveQuestionUrl');
+      if (!DEL_Q_URL) miss.push('deleteQuestionUrl');
+      if (!hasId) miss.push('assessmentId');
+      if (!csrfOk) miss.push(needsCsrf ? 'csrfHash' : 'csrf');
+      return miss;
+    }
+
+    if (!editReady && typeof console !== 'undefined' && console.warn) {
+      console.warn('ASSESSMENT EDIT CONTEXT', {
+        SAVE_Q_URL: SAVE_Q_URL,
+        DEL_Q_URL: DEL_Q_URL,
+        CSRF_NAME: CSRF_NAME,
+        CSRF_HASH: CSRF_HASH,
+        ASSESSMENT_ID: ASSESSMENT_ID,
+        needsCsrf: needsCsrf,
+        missingKeys: missingEditContextKeys(),
+        APP_CONTEXT: window.APP_CONTEXT,
+      });
+    }
+
+    function parseJsonResponse(r) {
+      return r.text().then(function(text) {
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          return {
+            success: false,
+            message: r.status === 401 ? 'Session expired. Please log in again.' : 'Unexpected server response.',
+          };
+        }
+      });
+    }
 
     function isCheckpointMode() {
       var sel = document.getElementById('editAssessmentType');
@@ -397,6 +453,12 @@
     }
 
     function saveQuestion() {
+      if (!editReady) {
+        if (window.KA && window.KA.toast) {
+          window.KA.toast('error', 'Cannot save: missing assessment context: ' + missingEditContextKeys().join(', ') + '.');
+        }
+        return;
+      }
       var qid = parseInt(document.getElementById('modalQuestionId').value, 10) || 0;
       var text = document.getElementById('mfQText').value.trim();
       var type = document.getElementById('mfQType').value;
@@ -428,8 +490,11 @@
       saveBtn.disabled = true;
       document.getElementById('modalSaveText').textContent = 'Saving…';
 
-      var body = CSRF_NAME + '=' + encodeURIComponent(CSRF_HASH)
-        + '&assessment_id=' + encodeURIComponent(ASSESSMENT_ID)
+      var body = '';
+      if (String(CSRF_NAME || '').length > 0) {
+        body = String(CSRF_NAME) + '=' + encodeURIComponent(String(CSRF_HASH || '')) + '&';
+      }
+      body += 'assessment_id=' + encodeURIComponent(ASSESSMENT_ID)
         + '&question_id=' + encodeURIComponent(qid)
         + '&question_text=' + encodeURIComponent(text)
         + '&question_type=' + encodeURIComponent(type)
@@ -443,10 +508,13 @@
 
       fetch(SAVE_Q_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
         body: body,
       })
-        .then(function(r) { return r.json(); })
+        .then(parseJsonResponse)
         .then(function(data) {
           saveBtn.disabled = false;
           document.getElementById('modalSaveText').textContent = qid ? 'Update Question' : 'Add Question';
@@ -558,18 +626,32 @@
     }
 
     function deleteQuestion(qid) {
+      if (!editReady) {
+        if (window.KA && window.KA.toast) {
+          window.KA.toast('error', 'Cannot delete: missing assessment context: ' + missingEditContextKeys().join(', ') + '.');
+        }
+        return;
+      }
       window.KA.confirm({
         title: 'Delete this question?',
         text: 'This will remove the question and all associated answers.',
         confirmText: 'Yes, delete',
         type: 'danger',
         onConfirm: function() {
+          var delBody = '';
+          if (String(CSRF_NAME || '').length > 0) {
+            delBody = String(CSRF_NAME) + '=' + encodeURIComponent(String(CSRF_HASH || '')) + '&';
+          }
+          delBody += 'question_id=' + encodeURIComponent(qid);
           fetch(DEL_Q_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: CSRF_NAME + '=' + encodeURIComponent(CSRF_HASH) + '&question_id=' + encodeURIComponent(qid),
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: delBody,
           })
-            .then(function(r) { return r.json(); })
+            .then(parseJsonResponse)
             .then(function(data) {
               if (data.success) {
                 var el = document.getElementById('qitem-' + qid);
@@ -586,6 +668,9 @@
               } else {
                 window.KA.toast('error', data.message || 'Failed to delete.');
               }
+            })
+            .catch(function() {
+              window.KA.toast('error', 'Network error. Please try again.');
             });
         },
       });

@@ -6,6 +6,7 @@ $nc        = $nav_context ?? [];
 // First URI segment only — strict equality for active states (my_courses ≠ courses).
 $segment   = isset($nc['segment_1']) ? trim((string) $nc['segment_1']) : '';
 $seg2      = isset($nc['segment_2']) ? trim((string) $nc['segment_2']) : '';
+$announcements_active = in_array($segment, ['announcements', 'notifications'], true);
 $user_role        = $nc['user_role'] ?? 'employee';
 $user_role_label  = $nc['user_role_label'] ?? 'Employee';
 $full_name        = $nc['full_name'] ?? 'User';
@@ -272,7 +273,7 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
 
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/announcements') ?>"
-           class="ka-nav-link <?= $segment === 'announcements' ? 'active' : '' ?>">
+           class="ka-nav-link <?= $announcements_active ? 'active' : '' ?>">
           <svg class="ka-nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
             <path d="M13.73 21a2 2 0 0 1-3.46 0"/>

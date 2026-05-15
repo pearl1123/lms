@@ -342,7 +342,7 @@ class assessment_model extends CI_Model {
     /** Create a question. Returns new question ID. */
     public function create_question($data)
     {
-        $this->db->insert('lib_assessment_questions', [
+        $ok = $this->db->insert('lib_assessment_questions', [
             'assessment_id' => (int) $data['assessment_id'],
             'question_text' => trim($data['question_text']),
             'question_type' => $data['question_type'],
@@ -352,6 +352,10 @@ class assessment_model extends CI_Model {
             'date_encoded'  => date('Y-m-d H:i:s'),
             'encoded_by'    => (int) $data['encoded_by'],
         ]);
+        if ( ! $ok) {
+            return 0;
+        }
+
         return (int) $this->db->insert_id();
     }
 

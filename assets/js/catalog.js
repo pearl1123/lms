@@ -53,7 +53,15 @@
     if (!b || !courseId) return;
 
     fetch(b + encodeURIComponent(courseId), { credentials: 'same-origin' })
-      .then(function(r) { return r.json(); })
+      .then(function(r) {
+        return r.text().then(function(text) {
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            return null;
+          }
+        });
+      })
       .then(function(data) {
         if (!data || !data.ok) return;
         var pct = data.course_progress_percent;

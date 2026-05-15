@@ -157,6 +157,10 @@ class dashboard_model extends CI_Model {
             'courses_completed' => (int) ($analytics['courses_completed'] ?? 0),
             'learning_hours' => (string) ($analytics['learning_hours'] ?? '0h 0m'),
             'badges' => (int) ($analytics['badges'] ?? 0),
+            'certificate_count' => (int) $this->_safe_count('lib_certificates', [
+                'user_id'  => $uid,
+                'archived' => 0,
+            ]),
         ];
         $data['courses'] = [
             'enrolled' => $courses,
@@ -906,6 +910,7 @@ class dashboard_model extends CI_Model {
     {
         $sql = "SELECT DATE_FORMAT(enrolled_at, '%Y-%m') AS ym, COUNT(*) AS cnt
              FROM enrollments
+             WHERE status = 'approved'
              GROUP BY DATE_FORMAT(enrolled_at, '%Y-%m')
              ORDER BY ym DESC
              LIMIT " . (int) $months;
