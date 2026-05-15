@@ -191,6 +191,37 @@ class assessment_model extends CI_Model {
         return ($r && $r->num_rows() > 0) ? $r->row() : null;
     }
 
+    /**
+     * Find the active assessment for a module/type that has questions.
+     * Used to recover from duplicate stale assessment rows that have no questions.
+     *
+     * @param int    $module_id
+     * @param string $type pre|post
+     * @return object|null
+     */
+    public function get_assessment_with_questions_for_module($module_id, $type)
+    {
+        $r = $this->db
+            ->select('la.id, la.module_id, la.type, la.title, COUNT(DISTINCT laq.id) AS question_count', false)
+            ->from('lib_assessments la')
+            ->join(
+                'lib_assessment_questions laq',
+                'laq.assessment_id = la.id AND laq.archived = 0',
+                'inner'
+            )
+            ->where('la.module_id', (int) $module_id)
+            ->where('la.type', (string) $type)
+            ->where('la.archived', 0)
+            ->group_by('la.id')
+            ->order_by('question_count', 'DESC')
+            ->order_by('la.created_at', 'DESC')
+            ->order_by('la.id', 'DESC')
+            ->limit(1)
+            ->get();
+
+        return ($r && $r->num_rows() > 0) ? $r->row() : null;
+    }
+
     /** Create a new assessment. Returns new ID, or 0 on blocked video checkpoint (limit / duplicate second). */
     public function create_assessment($data)
     {

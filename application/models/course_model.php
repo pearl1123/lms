@@ -399,21 +399,42 @@ class Course_model extends CI_Model {
                 return false;
             }
             if ($st === 'rejected') {
-                return (bool) $this->db
+                $data = [
+                    'status'       => 'pending',
+                    'enrolled_at'  => date('Y-m-d H:i:s'),
+                ];
+                log_message('debug', 'ENROLL REQUEST DATA: ' . json_encode([
+                    'mode' => 'resubmit',
+                    'id'   => (int) $row->id,
+                    'data' => $data,
+                ]));
+                $ok = (bool) $this->db
                     ->where('id', (int) $row->id)
-                    ->update('enrollments', [
-                        'status'       => 'pending',
-                        'enrolled_at'  => date('Y-m-d H:i:s'),
-                    ]);
+                    ->update('enrollments', $data);
+                if ( ! $ok) {
+                    log_message('error', 'ENROLL REQUEST UPDATE FAILED: ' . json_encode($this->db->error()));
+                }
+
+                return $ok;
             }
         }
 
-        return (bool) $this->db->insert('enrollments', [
+        $data = [
             'user_id'     => (int) $user_id,
             'course_id'   => (int) $course_id,
             'status'      => 'pending',
             'enrolled_at' => date('Y-m-d H:i:s'),
-        ]);
+        ];
+        log_message('debug', 'ENROLL REQUEST DATA: ' . json_encode([
+            'mode' => 'insert',
+            'data' => $data,
+        ]));
+        $ok = (bool) $this->db->insert('enrollments', $data);
+        if ( ! $ok) {
+            log_message('error', 'ENROLL REQUEST INSERT FAILED: ' . json_encode($this->db->error()));
+        }
+
+        return $ok;
     }
 
     /**
@@ -943,14 +964,26 @@ class Course_model extends CI_Model {
     public function get_assessments($module_id, $type = '')
     {
         $this->db
-            ->where('module_id', (int) $module_id)
-            ->where('archived',  0);
+            ->select('la.*, COUNT(DISTINCT laq.id) AS question_count', false)
+            ->from('lib_assessments la')
+            ->join(
+                'lib_assessment_questions laq',
+                'laq.assessment_id = la.id AND laq.archived = 0',
+                'left'
+            )
+            ->where('la.module_id', (int) $module_id)
+            ->where('la.archived',  0);
 
         if ($type !== '') {
-            $this->db->where('type', $type);
+            $this->db->where('la.type', $type);
         }
 
-        $result = $this->db->get('lib_assessments');
+        $result = $this->db
+            ->group_by('la.id')
+            ->order_by('question_count', 'DESC')
+            ->order_by('la.created_at', 'DESC')
+            ->order_by('la.id', 'DESC')
+            ->get();
 
         return ($result && $result->num_rows() > 0)
             ? $result->result()

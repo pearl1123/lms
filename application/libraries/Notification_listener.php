@@ -29,7 +29,9 @@ class Notification_listener {
     {
         $svc = $this->CI->{'notification_service'};
         $svc->enrollment_requested(
-            (int) ($event['request_id'] ?? 0)
+            (int) ($event['request_id'] ?? 0),
+            (int) ($event['student_id'] ?? $event['user_id'] ?? 0),
+            (int) ($event['course_id'] ?? 0)
         );
     }
 

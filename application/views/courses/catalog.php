@@ -8,6 +8,7 @@ $total_available= $total_available?? 0;
 $keyword        = $keyword        ?? '';
 $filter_cat     = $filter_cat     ?? '';
 $user_role      = strtolower($user->role ?? 'employee');
+$is_learner_role = in_array($user_role, ['employee', 'student'], true);
 
 $thumb_gradients = [
     'linear-gradient(135deg,#3b82f6,#1d4ed8)',
@@ -340,7 +341,7 @@ $thumb_gradients = [
     <option value="">All Courses</option>
     <option value="enrolled">Enrolled</option>
     <option value="available">Not Enrolled</option>
-    <?php if ($user_role === 'employee'): ?>
+    <?php if ($is_learner_role): ?>
     <option value="completed">Completed</option>
     <option value="inprogress">In Progress</option>
     <?php endif; ?>
@@ -393,7 +394,7 @@ $thumb_gradients = [
       else $status_tag = 'available';
 
       // CTA
-      if ($user_role === 'employee') {
+      if ($is_learner_role) {
         if ($pct >= 100)  { $cta_text = 'Review';   $cta_class = 'cat-cta-review'; }
         elseif ($is_enr)     { $cta_text = 'Continue'; $cta_class = 'cat-cta-continue'; }
         elseif ($est === 'pending') { $cta_text = 'Waiting for approval'; $cta_class = 'cat-cta-view'; }
@@ -440,7 +441,7 @@ $thumb_gradients = [
             'size'               => 'sm',
             'course_id'          => (int) $course->id,
             'variant'            => 'catalog_overlay',
-            'sync_live'          => ($user_role === 'employee'),
+            'sync_live'          => $is_learner_role,
         ]); ?>
         <?php endif; ?>
       </div>
@@ -470,7 +471,7 @@ $thumb_gradients = [
         </div>
 
         <!-- Progress bar for enrolled employee -->
-        <?php if ($is_enr && $user_role === 'employee' && $modules > 0): ?>
+        <?php if ($is_enr && $is_learner_role && $modules > 0): ?>
         <div class="cat-inline-progress">
           <?php $this->load->view('components/progress_bar', [
               'progress_percent' => (int) $course->progress_pct,
@@ -484,13 +485,13 @@ $thumb_gradients = [
         <?php endif; ?>
 
         <div class="cat-card-footer">
-          <?php if ($user_role === 'employee' && ! $is_enr && $est === 'pending'): ?>
+          <?php if ($is_learner_role && ! $is_enr && $est === 'pending'): ?>
             <a href="<?= base_url('courses/view/'.$course->id) ?>"
                class="cat-cta <?= $cta_class ?>">
               <?= htmlspecialchars($cta_text) ?>
             </a>
-          <?php elseif ($user_role === 'employee' && ! $is_enr): ?>
-            <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
+          <?php elseif ($is_learner_role && ! $is_enr): ?>
+            <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
                class="cat-cta <?= $cta_class ?>"
                onclick="event.preventDefault(); KA.enrollConfirm(this.href, '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')">
               <?= htmlspecialchars($cta_text) ?>
@@ -576,7 +577,7 @@ $thumb_gradients = [
         </div>
       </div>
 
-      <?php if ($is_enr && $user_role === 'employee' && $modules > 0): ?>
+      <?php if ($is_enr && $is_learner_role && $modules > 0): ?>
       <?php $this->load->view('components/progress_bar', [
           'progress_percent' => (int) $course->progress_pct,
           'size'               => 'sm',
@@ -587,14 +588,14 @@ $thumb_gradients = [
       <?php endif; ?>
 
       <div class="cat-list-actions">
-        <?php if ($user_role === 'employee' && ! $is_enr && $est === 'pending'): ?>
+        <?php if ($is_learner_role && ! $is_enr && $est === 'pending'): ?>
           <a href="<?= base_url('courses/view/'.$course->id) ?>"
              class="cat-list-btn"
              style="background:var(--ka-bg,#f8fafc);color:var(--ka-text,#1e293b);border:1px solid var(--ka-border,#e2e8f0);">
             Waiting for approval
           </a>
-        <?php elseif ($user_role === 'employee' && ! $is_enr): ?>
-          <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
+        <?php elseif ($is_learner_role && ! $is_enr): ?>
+          <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
              class="cat-list-btn"
              style="background:var(--ka-navy,#1a3a5c);color:#fff;"
              onclick="event.preventDefault(); KA.enrollConfirm(this.href, '<?= htmlspecialchars(addslashes($course->title ?? 'this course'), ENT_QUOTES) ?>')">

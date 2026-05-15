@@ -51,9 +51,11 @@ class Notification_service {
         );
     }
 
-    public function enrollment_requested($request_id)
+    public function enrollment_requested($request_id, $user_id = 0, $course_id = 0)
     {
         $rid = (int) $request_id;
+        $uid = (int) $user_id;
+        $cid = (int) $course_id;
         log_message('debug', 'NOTIFICATION EVENT: enrollment_requested');
         if ($rid < 1) {
             return false;
@@ -67,20 +69,23 @@ class Notification_service {
             return false;
         }
 
-        $course = $course_model->get_course_any((int) $row->course_id);
-        $requester = $user_model->get_user((int) $row->user_id);
+        $uid = $uid > 0 ? $uid : (int) ($row->user_id ?? 0);
+        $cid = $cid > 0 ? $cid : (int) ($row->course_id ?? 0);
+
+        $course = $course_model->get_course_any($cid);
+        $requester = $user_model->get_user($uid);
         $requester_name = (string) ($requester->fullname ?? 'A learner');
         $course_title = (string) ($course->title ?? 'a course');
 
         $recipient_map = [];
-        $mgr_rows = $db
+        $admin_result = $db
             ->select('id')
             ->from('aauth_users')
             ->where('DELETED', 0)
             ->where('status', 'active')
-            ->where_in('role', ['admin', 'teacher', 'instructor'])
-            ->get()
-            ->result();
+            ->where('role', 'admin')
+            ->get();
+        $mgr_rows = ($admin_result && $admin_result->num_rows() > 0) ? $admin_result->result() : [];
         foreach ($mgr_rows as $r) {
             $id = (int) ($r->id ?? 0);
             if ($id > 0) {
@@ -98,11 +103,11 @@ class Notification_service {
 
         return $this->send_database_once(
             $recipient_ids,
-            Notification_model::TYPE_COURSE_UPDATE,
+            Notification_model::TYPE_ENROLLMENT,
             $rid,
-            'New Course Enrollment Request',
-            $requester_name . ' requested access to ' . $course_title . '.',
-            (int) ($row->user_id ?? 0),
+            'New Enrollment Request',
+            $requester_name . ' has requested to enroll in your course: ' . $course_title . '.',
+            $uid,
             Notification_types::REQUEST,
             base_url('index.php/enrollments/requests')
         );

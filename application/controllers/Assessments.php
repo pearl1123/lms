@@ -263,6 +263,28 @@ class Assessments extends CI_Controller {
 
         $questions = $this->assessment_model->get_questions($id);
         if (empty($questions)) {
+            log_message('debug', 'ASSESSMENT ID: ' . $id);
+            log_message('debug', 'QUESTIONS COUNT: 0');
+
+            $fallback = null;
+            if (in_array((string) ($assessment->type ?? ''), ['pre', 'post'], true)
+                && (int) ($assessment->module_id ?? 0) > 0) {
+                $fallback = $this->assessment_model->get_assessment_with_questions_for_module(
+                    (int) $assessment->module_id,
+                    (string) $assessment->type
+                );
+            }
+
+            if ($fallback && (int) $fallback->id !== $id) {
+                log_message('debug', 'ASSESSMENT EMPTY FALLBACK: ' . json_encode([
+                    'from_assessment_id' => $id,
+                    'to_assessment_id'   => (int) $fallback->id,
+                    'module_id'          => (int) $assessment->module_id,
+                    'type'               => (string) $assessment->type,
+                ]));
+                redirect('assessments/take/' . (int) $fallback->id);
+            }
+
             $this->session->set_flashdata(
                 'info', 'This assessment has no questions yet.'
             );

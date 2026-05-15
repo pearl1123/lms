@@ -87,7 +87,8 @@ class Enrollments extends KA_Controller {
         }
 
         $user = $this->auth_user;
-        if ($user->role === 'teacher' && (int) $course->created_by !== (int) $user->id) {
+        if (in_array((string) $user->role, ['teacher', 'instructor'], true)
+            && (int) $course->created_by !== (int) $user->id) {
             $this->flash('error', 'You can only manage requests for your own courses.');
             redirect('enrollments/requests');
         }

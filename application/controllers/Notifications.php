@@ -103,18 +103,8 @@ class Notifications extends KA_Controller {
     {
         $title = strtolower((string) ($n->title ?? ''));
         $type_id = (int) ($n->type_id ?? 0);
-        if ($type_id === (int) Notification_model::TYPE_ENROLLMENT) {
-            return Notification_types::APPROVAL;
-        }
-        if ($type_id === (int) Notification_model::TYPE_COURSE_UPDATE && strpos($title, 'request') !== false) {
+        if (strpos($title, 'request') !== false) {
             return Notification_types::REQUEST;
-        }
-        if ($type_id === (int) Notification_model::TYPE_REMOVAL
-            && (strpos($title, 'declined') !== false || strpos($title, 'rejected') !== false)) {
-            return Notification_types::REJECTION;
-        }
-        if (strpos($title, 'certificate') !== false) {
-            return Notification_types::CERTIFICATE;
         }
         if (strpos($title, 'approved') !== false) {
             return Notification_types::APPROVAL;
@@ -122,8 +112,15 @@ class Notifications extends KA_Controller {
         if (strpos($title, 'declined') !== false || strpos($title, 'rejected') !== false) {
             return Notification_types::REJECTION;
         }
-        if (strpos($title, 'request') !== false) {
-            return Notification_types::REQUEST;
+        if ($type_id === (int) Notification_model::TYPE_ENROLLMENT) {
+            return Notification_types::APPROVAL;
+        }
+        if ($type_id === (int) Notification_model::TYPE_REMOVAL
+            && (strpos($title, 'declined') !== false || strpos($title, 'rejected') !== false)) {
+            return Notification_types::REJECTION;
+        }
+        if (strpos($title, 'certificate') !== false) {
+            return Notification_types::CERTIFICATE;
         }
 
         return Notification_types::SYSTEM;

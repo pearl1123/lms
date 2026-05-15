@@ -283,14 +283,20 @@ class Courses extends CI_Controller {
         $user = $this->user;
         $id   = (int) $id;
 
-        // Only employees can self-enroll
-        if ($user->role !== 'employee') {
+        // Only learner roles can self-enroll
+        if ( ! in_array((string) $user->role, ['employee', 'student'], true)) {
             redirect('courses/view/' . $id);
         }
 
         // Course must exist and be published (archived = 0)
         $course = $this->course_model->get_course($id);
         if ( ! $course) show_404();
+
+        log_message('debug', 'ENROLL REQUEST HIT: ' . json_encode([
+            'user_id'   => (int) $user->id,
+            'course_id' => (int) $id,
+            'role'      => (string) $user->role,
+        ]));
 
         $ok = $this->course_model->request_enrollment($user->id, $id);
 
@@ -300,6 +306,9 @@ class Courses extends CI_Controller {
                 $this->load->library('event_dispatcher');
                 $this->event_dispatcher->dispatch('enrollment.requested', [
                     'request_id' => (int) $row->id,
+                    'student_id' => (int) $user->id,
+                    'user_id'    => (int) $user->id,
+                    'course_id'  => (int) $id,
                 ]);
             }
 
@@ -345,7 +354,7 @@ class Courses extends CI_Controller {
             redirect('courses');
         }
 
-        if ($user->role !== 'employee') {
+        if ( ! in_array((string) $user->role, ['employee', 'student'], true)) {
             redirect('courses/view/' . $cid);
         }
 

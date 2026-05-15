@@ -111,7 +111,7 @@ $content_colors = [
           ← Back to My Courses
         </a>
 
-      <?php elseif ($user_role === 'employee' && $enrollment_status === 'pending'): ?>
+      <?php elseif (in_array($user_role, ['employee', 'student'], true) && $enrollment_status === 'pending'): ?>
         <p class="cd-enroll-title">Waiting for approval</p>
         <p class="cd-enroll-muted">
           Your enrollment request is pending. You will be able to start modules after an instructor approves it.
@@ -120,12 +120,12 @@ $content_colors = [
           ← Back to Catalog
         </a>
 
-      <?php elseif ($user_role === 'employee' && $enrollment_status === 'rejected'): ?>
+      <?php elseif (in_array($user_role, ['employee', 'student'], true) && $enrollment_status === 'rejected'): ?>
         <p class="cd-enroll-title">Request rejected</p>
         <p class="cd-enroll-muted">
           Your enrollment request was not approved. You may submit a new request if you still wish to join this course.
         </p>
-        <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
+        <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
            class="cd-enroll-btn cd-enroll-btn-primary"
            onclick="return confirm('Submit a new enrollment request?')">
           Request enrollment again
@@ -134,7 +134,7 @@ $content_colors = [
           ← Back to Catalog
         </a>
 
-      <?php elseif ($user_role === 'employee'): ?>
+      <?php elseif (in_array($user_role, ['employee', 'student'], true)): ?>
         <p class="cd-enroll-title">Ready to get started?</p>
         <div class="cd-enroll-stats">
           <div class="cd-enroll-stat">
@@ -146,7 +146,7 @@ $content_colors = [
             <div class="cd-enroll-stat-lbl">Enrolled</div>
           </div>
         </div>
-        <a href="<?= base_url('courses/enroll/'.$course->id) ?>"
+        <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
            class="cd-enroll-btn cd-enroll-btn-primary"
            onclick="return confirm('Request enrollment in this course?')">
           Request enrollment

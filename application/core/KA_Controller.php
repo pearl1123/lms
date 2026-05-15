@@ -106,11 +106,11 @@ class KA_Controller extends CI_Controller {
     }
 
     /**
-     * Alias: only admin and teacher allowed.
+     * Alias: only admin and instructor/teacher managers allowed.
      */
     protected function require_manager()
     {
-        $this->require_role(['admin', 'teacher'], 'my_courses');
+        $this->require_role(['admin', 'teacher', 'instructor'], 'my_courses');
     }
 
     // =========================================================

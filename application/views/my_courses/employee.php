@@ -224,7 +224,7 @@ $thumb_gradients = [
           </p>
           <?php endif; ?>
           <div class="ec-card-footer">
-            <a href="<?= base_url('courses/enroll/'.$course->id) ?>" class="ec-card-cta ec-cta-start">Enroll Now</a>
+            <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>" class="ec-card-cta ec-cta-start">Enroll Now</a>
             <a href="<?= base_url('courses/view/'.$course->id) ?>" class="ec-card-details-link">
               Details
             </a>
