@@ -9,6 +9,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   POST index.php/manage_courses/create       → save new course
  *   GET  index.php/manage_courses/edit/{id}    → edit course + module builder
  *   POST index.php/manage_courses/edit/{id}    → save course details
+ *   GET  index.php/manage_courses/modules/{id} → module builder (course_id)
  *   GET  index.php/manage_courses/delete/{id}  → soft-delete course
  *   POST index.php/manage_courses/save_module  → AJAX: create/update module
  *   POST index.php/manage_courses/delete_module→ AJAX: soft-delete module
@@ -22,6 +23,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property User_model           $user_model
  * @property Course_model         $course_model
  * @property Assessment_model     $assessment_model
+ * @property Course_phase2_model  $course_phase2
+ * @property Notification_service $notification_service
  */
 class Manage_courses extends CI_Controller {
 
@@ -35,6 +38,7 @@ class Manage_courses extends CI_Controller {
         $this->load->model('User_model',        'user_model');
         $this->load->model('Course_model',      'course_model');
         $this->load->model('Assessment_model',  'assessment_model');
+        $this->load->model('Course_phase2_model', 'course_phase2');
         $this->load->helper(['url', 'form']);
 
         $user_id = $this->session->userdata('user_id');
@@ -120,7 +124,7 @@ class Manage_courses extends CI_Controller {
                     'description'    => $this->input->post('description'),
                     'category_id'    => $this->input->post('category_id'),
                     'modality_id'    => $this->input->post('modality_id'),
-                    'access_type_id' => $this->input->post('access_type_id'),
+                    'access_type'    => $this->input->post('access_type'),
                     'expiry_days'    => $this->input->post('expiry_days'),
                     'certificate_prefix' => $this->input->post('certificate_prefix'),
                     'signatory_name'     => $this->input->post('signatory_name'),
@@ -128,17 +132,20 @@ class Manage_courses extends CI_Controller {
                     'created_by'     => $created_by,
                 ], $user->id);
 
+                if ($id > 0) {
+                    $this->course_phase2->save_course_meta_from_post($id, $_POST, (int) $user->id);
+                }
+
                 $this->session->set_flashdata('success', 'Course created! Now add your modules.');
                 redirect('manage_courses/edit/' . $id);
             }
         }
 
-        $data = [
+        $data = array_merge([
             'user'         => $user,
             'page_title'   => 'Create Course',
             'categories'   => $this->course_model->get_categories(),
             'modalities'   => $this->course_model->get_modalities(),
-            'access_types' => $this->course_model->get_access_types(),
             'teachers'     => $user->role === 'admin' ? $this->course_model->get_teachers() : [],
             'breadcrumbs'  => [
                 ['label' => 'Dashboard',       'url' => 'dashboard'],
@@ -146,7 +153,7 @@ class Manage_courses extends CI_Controller {
                 ['label' => 'Create'],
             ],
             'view' => 'manage_courses/create',
-        ];
+        ], $this->_phase2_view_data(0));
 
         $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
@@ -163,7 +170,21 @@ class Manage_courses extends CI_Controller {
         if ( ! $course) show_404();
         $this->_check_ownership($course);
 
+        $edit_rt_suffix = function () {
+            $src = $this->input->post('return_url');
+            if ($src === null || $src === '') {
+                $src = $this->input->get('return_url');
+            }
+            $q = ka_lms_return_q(ka_lms_resolve_return_target($this->user, $src));
+
+            return $q !== '' ? '?' . $q : '';
+        };
+
         if ($this->input->method() === 'post') {
+            if ($this->input->post('invite_submit')) {
+                $this->_handle_course_invitations($id);
+                redirect('manage_courses/edit/' . $id . $edit_rt_suffix());
+            }
 
             $this->form_validation
                 ->set_rules('title',       'Course Title', 'required|max_length[255]')
@@ -174,52 +195,66 @@ class Manage_courses extends CI_Controller {
                 ->set_rules('signatory_title', 'Signatory Title', 'trim|max_length[120]');
 
             if ($this->form_validation->run()) {
+                $total_weight = round((float) $this->course_model->sum_module_weights($id), 2);
+                if (abs($total_weight - 100.0) > 0.01) {
+                    $this->session->set_flashdata('error', 'Module weights must total exactly 100% before saving course details. Current total: ' . number_format($total_weight, 2) . '%.');
+                    redirect('manage_courses/edit/' . $id . $edit_rt_suffix());
+                }
+
                 $this->course_model->update_course($id, [
                     'title'          => $this->input->post('title'),
                     'description'    => $this->input->post('description'),
                     'category_id'    => $this->input->post('category_id'),
                     'modality_id'    => $this->input->post('modality_id'),
-                    'access_type_id' => $this->input->post('access_type_id'),
+                    'access_type'    => $this->input->post('access_type'),
                     'expiry_days'    => $this->input->post('expiry_days'),
                     'certificate_prefix' => $this->input->post('certificate_prefix'),
                     'signatory_name'     => $this->input->post('signatory_name'),
                     'signatory_title'    => $this->input->post('signatory_title'),
                 ], $this->user->id);
 
+                $this->course_phase2->save_course_meta_from_post($id, $_POST, (int) $this->user->id);
+
                 $this->session->set_flashdata('success', 'Course details updated.');
-                redirect('manage_courses/edit/' . $id);
+                redirect('manage_courses/edit/' . $id . $edit_rt_suffix());
             }
         }
 
-        $modules = $this->course_model->get_modules($id, 0);
+        $this->_render_course_edit_page($id, $course);
+    }
 
-        // Attach pre/post assessment counts to each module
-        foreach ($modules as $mod) {
-            $pre  = $this->assessment_model->get_assessments($mod->id, 'pre');
-            $post = $this->assessment_model->get_assessments($mod->id, 'post');
-            $mod->pre_count  = count($pre);
-            $mod->post_count = count($post);
+    // =========================================================
+    // modules($course_id) — GET: module builder (course ID, not module ID)
+    // =========================================================
+    public function modules($id = null)
+    {
+        if ( ! $id) {
+            redirect('manage_courses');
+        }
+        $id = (int) $id;
+
+        $course = $this->course_model->get_course_any($id);
+        if ( ! $course) {
+            log_message('debug', 'MODULE PAGE 404: ' . json_encode([
+                'id'           => $id,
+                'course_found' => false,
+                'module_found' => false,
+                'user_role'    => (string) ($this->user->role ?? ''),
+            ]));
+            show_404();
         }
 
-        $data = [
-            'user'         => $this->user,
-            'page_title'   => 'Edit: ' . $course->title,
-            'course'       => $course,
-            'modules'      => $modules,
-            'categories'   => $this->course_model->get_categories(),
-            'modalities'   => $this->course_model->get_modalities(),
-            'access_types' => $this->course_model->get_access_types(),
-            'teachers'     => $this->user->role === 'admin'
-                              ? $this->course_model->get_teachers() : [],
-            'breadcrumbs'  => [
-                ['label' => 'Dashboard',      'url' => 'dashboard'],
-                ['label' => 'Manage Courses', 'url' => 'manage_courses'],
-                ['label' => 'Edit: ' . $course->title],
-            ],
-            'view' => 'manage_courses/edit',
-        ];
+        $this->_check_ownership($course);
 
-        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
+        if ($this->input->method() === 'post') {
+            redirect('manage_courses/edit/' . $id);
+        }
+
+        $this->_render_course_edit_page($id, $course, [
+            'page_title'     => 'Modules: ' . $course->title,
+            'breadcrumb_label' => 'Modules: ' . $course->title,
+            'focus_modules'  => true,
+        ]);
     }
 
     // =========================================================
@@ -237,6 +272,16 @@ class Manage_courses extends CI_Controller {
         $this->course_model->delete_course($id, $this->user->id);
         $this->session->set_flashdata('success', '"' . $course->title . '" has been archived.');
         redirect('manage_courses');
+    }
+
+    public function publish($id = null)
+    {
+        $this->_set_publish_status_action($id, 'published');
+    }
+
+    public function unpublish($id = null)
+    {
+        $this->_set_publish_status_action($id, 'unpublished');
     }
 
     // =========================================================
@@ -270,13 +315,32 @@ class Manage_courses extends CI_Controller {
             return;
         }
 
+        // Multiple modules may share the same content_type; only total weight is restricted.
+
+        $weight = (float) $this->input->post('weight_percentage');
+        if ($weight < 0 || $weight > 100) {
+            echo json_encode(['success' => false, 'message' => 'Module weight must be between 0 and 100%.']);
+
+            return;
+        }
+
+        $total_weight = round($this->course_model->sum_module_weights($course_id, $module_id) + $weight, 2);
+        if ($total_weight > 100.0) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Module weights cannot exceed 100%. Current save would total ' . number_format($total_weight, 2) . '%.',
+            ]);
+
+            return;
+        }
+
         $m_data = [
             'course_id'         => $course_id,
             'title'             => $title,
             'description'       => $this->input->post('description'),
             'content_type'      => $content_type,
             'content_path'      => $this->input->post('content_path'),
-            'weight_percentage' => $this->input->post('weight_percentage'),
+            'weight_percentage' => $weight,
         ];
 
         if ($module_id > 0) {
@@ -289,6 +353,11 @@ class Manage_courses extends CI_Controller {
         }
 
         $module = $this->course_model->get_module($mid);
+        if ($module && ($module->content_type ?? '') === 'video') {
+            $module->checkpoint_count = count($this->assessment_model->get_assessments($mid, 'checkpoint'));
+        } elseif ($module) {
+            $module->checkpoint_count = 0;
+        }
 
         echo json_encode([
             'success'   => true,
@@ -367,8 +436,201 @@ class Manage_courses extends CI_Controller {
     // =========================================================
 
     /**
+     * Load manage_courses/edit view with modules for a course.
+     *
+     * @param int    $id
+     * @param object $course
+     * @param array  $overrides page_title, breadcrumb_label, focus_modules
+     * @return void
+     */
+    private function _render_course_edit_page($id, $course, array $overrides = [])
+    {
+        $id = (int) $id;
+        $modules = $this->course_model->get_modules($id, 0);
+
+        foreach ($modules as $mod) {
+            $pre  = $this->assessment_model->get_assessments($mod->id, 'pre');
+            $post = $this->assessment_model->get_assessments($mod->id, 'post');
+            $mod->pre_count  = count($pre);
+            $mod->post_count = count($post);
+            if (ka_module_is_video_content($mod)) {
+                $mod->checkpoint_count = count($this->assessment_model->get_assessments($mod->id, 'checkpoint'));
+            } else {
+                $mod->checkpoint_count = 0;
+            }
+        }
+
+        $crumb_label = $overrides['breadcrumb_label'] ?? ('Edit: ' . $course->title);
+
+        $lms_rt = ka_lms_resolve_return_target($this->user, $this->input->get('return_url'));
+
+        $data = array_merge([
+            'user'         => $this->user,
+            'page_title'   => $overrides['page_title'] ?? $crumb_label,
+            'course'       => $course,
+            'modules'      => $modules,
+            'categories'   => $this->course_model->get_categories(),
+            'modalities'   => $this->course_model->get_modalities(),
+            'teachers'     => $this->user->role === 'admin'
+                              ? $this->course_model->get_teachers() : [],
+            'focus_modules' => ! empty($overrides['focus_modules']),
+            'checkpoint_schema_ready' => $this->assessment_model->assessments_checkpoint_schema_ready(),
+            'lms_return_target' => $lms_rt,
+            'lms_return_q'      => ka_lms_return_q($lms_rt),
+            'lms_edit_back_href'=> base_url('index.php/' . $lms_rt),
+            'breadcrumbs'  => [
+                ['label' => 'Dashboard',      'url' => 'dashboard'],
+                ['label' => 'Manage Courses', 'url' => 'manage_courses'],
+                ['label' => $crumb_label],
+            ],
+            'view' => 'manage_courses/edit',
+        ], $this->_phase2_view_data($id));
+
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
+    }
+
+    /**
+     * Phase 2 form variables for create/edit views.
+     *
+     * @param int $course_id 0 = create form defaults
+     * @return array
+     */
+    private function _phase2_view_data($course_id = 0)
+    {
+        $user = $this->user;
+        $cid  = (int) $course_id;
+
+        $instructor_options = $user->role === 'admin'
+            ? $this->course_model->get_teachers()
+            : [(object) ['id' => (int) $user->id, 'fullname' => (string) $user->fullname]];
+
+        $out = [
+            'phase2_schema_ready'  => $this->course_phase2->schema_ready(),
+            'hrmis_connection_ok'  => $this->course_phase2->hrmis_connection_ok(),
+            'hrmis_ready'          => $this->course_phase2->hrmis_ready(),
+            'departments'          => $this->course_phase2->get_departments(),
+            'professions'          => $this->course_phase2->get_professions(),
+            'instructor_options'   => $instructor_options,
+            'is_edit_form'         => $cid > 0,
+        ];
+
+        if ($cid > 0) {
+            $out['course_phase2'] = $this->course_phase2->load_course_phase2_form_data($cid);
+            $out['invitable_users'] = $this->course_phase2->get_invitable_users($cid);
+        } else {
+            $out['course_phase2'] = (object) [
+                'category_ids'   => [],
+                'instructor_ids' => [(int) $user->id],
+                'department_ids' => [],
+                'profession_ids' => [],
+                'access_type'    => 'approval_required',
+                'publish_status' => 'draft',
+                'invitations'    => [],
+            ];
+        }
+
+        return $out;
+    }
+
+    private function _set_publish_status_action($id, $status)
+    {
+        $cid = (int) $id;
+        if ($cid < 1) {
+            redirect('manage_courses');
+        }
+
+        $course = $this->course_model->get_course_any($cid);
+        if ( ! $course) {
+            show_404();
+        }
+        $this->_check_ownership($course);
+
+        $ok = $status === 'published'
+            ? $this->course_model->publish_course($cid, (int) $this->user->id)
+            : $this->course_model->unpublish_course($cid, (int) $this->user->id);
+
+        $this->session->set_flashdata(
+            $ok ? 'success' : 'error',
+            $ok ? ('Course ' . ($status === 'published' ? 'published.' : 'unpublished.')) : 'Could not update publish status.'
+        );
+
+        redirect('manage_courses/edit/' . $cid);
+    }
+
+    private function _handle_course_invitations($course_id)
+    {
+        $cid = (int) $course_id;
+        if ($cid < 1) {
+            $this->session->set_flashdata('error', 'Invalid course.');
+            return;
+        }
+
+        $user_ids = course_phase2_normalize_ids($this->input->post('invite_user_ids') ?? []);
+        $dept_ids = course_phase2_normalize_ids($this->input->post('invite_department_ids') ?? []);
+        if ( ! empty($dept_ids)) {
+            foreach ($this->course_phase2->get_invitable_users($cid, $dept_ids) as $u) {
+                $user_ids[] = (int) $u->id;
+            }
+        }
+        $user_ids = array_values(array_unique(array_filter(array_map('intval', $user_ids))));
+
+        $email = strtolower(trim((string) $this->input->post('invite_email')));
+        $email_uid = 0;
+        if ($email !== '') {
+            if ( ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $this->session->set_flashdata('error', 'Enter a valid invitation email.');
+                return;
+            }
+            $match = $this->db
+                ->select('id')
+                ->where('DELETED', 0)
+                ->where('LOWER(email) = ' . $this->db->escape($email), null, false)
+                ->get('aauth_users', 1)
+                ->row();
+            if ($match) {
+                $email_uid = (int) $match->id;
+                $user_ids[] = $email_uid;
+                $user_ids = array_values(array_unique($user_ids));
+            }
+        }
+
+        if (empty($user_ids) && $email === '') {
+            $this->session->set_flashdata('error', 'Select users, departments, or enter an email to invite.');
+            return;
+        }
+
+        $this->load->library('notification_service');
+        $sent = 0;
+        $skipped = 0;
+        foreach ($user_ids as $uid) {
+            $res = $this->course_phase2->create_invitation($cid, (int) $this->user->id, '', (int) $uid);
+            if ( ! empty($res['ok'])) {
+                if (empty($res['duplicate']) && (int) ($res['id'] ?? 0) > 0) {
+                    $sent++;
+                    $this->notification_service->course_invitation_created((int) $uid, $cid, (int) $res['id']);
+                } else {
+                    $skipped++;
+                }
+            } else {
+                $skipped++;
+            }
+        }
+
+        if ($email !== '' && $email_uid < 1) {
+            $res = $this->course_phase2->create_invitation($cid, (int) $this->user->id, $email, 0);
+            ! empty($res['ok']) && empty($res['duplicate']) ? $sent++ : $skipped++;
+        }
+
+        $msg = $sent . ' invitation' . ($sent === 1 ? '' : 's') . ' sent.';
+        if ($skipped > 0) {
+            $msg .= ' ' . $skipped . ' skipped or already invited.';
+        }
+        $this->session->set_flashdata($sent > 0 ? 'success' : 'info', $msg);
+    }
+
+    /**
      * Redirect if the current user doesn't own the course.
-     * Admins always pass. Teachers must match created_by.
+     * Admins always pass. Teachers must be in course_instructors.
      *
      * @param object $course
      * @param bool   $json  If true, return JSON instead of redirect
@@ -377,13 +639,15 @@ class Manage_courses extends CI_Controller {
     {
         if ($this->user->role === 'admin') return;
 
-        if ((int) $course->created_by !== (int) $this->user->id) {
-            if ($json) {
-                echo json_encode(['success' => false, 'message' => 'You can only manage your own courses.']);
-                exit;
-            }
-            $this->session->set_flashdata('error', 'You can only manage your own courses.');
-            redirect('manage_courses');
+        if ($this->course_phase2->user_manages_course((int) $this->user->id, (int) $course->id)) {
+            return;
         }
+
+        if ($json) {
+            echo json_encode(['success' => false, 'message' => 'You are not assigned to manage this course.']);
+            exit;
+        }
+        $this->session->set_flashdata('error', 'You are not assigned to manage this course.');
+        redirect('manage_courses');
     }
 }

@@ -10,6 +10,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property CI_DB_mysqli_driver $db
  * @property Assessment_service $assessment_service
  * @property Course_model       $course_model
+ * @property Course_phase2_model $course_phase2
  */
 class dashboard_model extends CI_Model {
 
@@ -18,6 +19,7 @@ class dashboard_model extends CI_Model {
         parent::__construct();
         $this->load->database();
         $this->load->model('Course_model', 'course_model');
+        $this->load->model('Course_phase2_model', 'course_phase2');
         $this->load->library('assessment_service');
     }
 
@@ -307,33 +309,7 @@ class dashboard_model extends CI_Model {
      */
     public function get_teacher_courses($teacher_id)
     {
-        $r = $this->db
-            ->select('c.id, c.title, c.archived, c.created_at', false)
-            ->from('courses c')
-            ->where('c.created_by', (int) $teacher_id)
-            ->where('c.archived',   0)
-            ->order_by('c.created_at', 'DESC')
-            ->get();
-
-        if ( ! $r || $r->num_rows() === 0) return [];
-
-        $courses = $r->result();
-        foreach ($courses as $course) {
-            $course->enrolled_count = (int) $this->db
-                ->where('course_id', $course->id)
-                ->where('status', 'approved')
-                ->count_all_results('enrollments');
-
-            $course->module_count = (int) $this->db
-                ->where('course_id', $course->id)
-                ->where('archived',  0)
-                ->count_all_results('course_modules');
-
-            $course->avg_progress   = $this->_avg_enrollment_pct_for_course((int) $course->id);
-            $course->status_label   = 'Published';
-        }
-
-        return $courses;
+        return $this->course_model->get_courses_by_instructor((int) $teacher_id, false);
     }
 
     /**
@@ -391,13 +367,15 @@ class dashboard_model extends CI_Model {
 
         $r = $this->db
             ->select('e.course_id, e.enrolled_at, c.title', false)
-            ->select('creator.fullname AS instructor_name', false)
             ->from('enrollments e')
             ->join('courses c', 'c.id = e.course_id', 'left')
-            ->join('aauth_users creator', 'creator.id = c.created_by', 'left')
             ->where('e.user_id', $uid)
             ->where('e.status', 'approved')
-            ->where('c.archived', 0)
+            ->where('c.archived', 0);
+        if ($this->db->field_exists('publish_status', 'courses')) {
+            $this->db->where('c.publish_status', 'published');
+        }
+        $r = $this->db
             ->order_by('e.enrolled_at', 'DESC')
             ->get();
 
@@ -438,7 +416,12 @@ class dashboard_model extends CI_Model {
 
             $c->thumb_tone = abs(crc32((string) $cid)) % 8;
 
-            $c->instructor_name = (string) ($c->instructor_name ?? '');
+            $instructor_ids = $this->course_phase2->get_course_instructor_ids($cid);
+            $c->instructor_name = '';
+            if ( ! empty($instructor_ids)) {
+                $inst = $this->db->select('fullname')->where('id', (int) $instructor_ids[0])->get('aauth_users', 1)->row();
+                $c->instructor_name = ($inst && ! empty($inst->fullname)) ? (string) $inst->fullname : '';
+            }
         }
 
         usort($courses, [$this, '_compare_student_dashboard_courses']);
@@ -637,45 +620,48 @@ class dashboard_model extends CI_Model {
         $course_ids = array_values(array_filter(array_map('intval', $course_ids)));
         if (empty($course_ids)) return [];
 
-        $ids      = implode(',', $course_ids);
-        $safe_lim = max(1, (int) $limit);
-        $sql      = "
-            SELECT agg.enrollment_id, agg.user_id, agg.course_id, agg.fullname, agg.course_title, agg.progress_pct
-            FROM (
-                SELECT
-                    e.id AS enrollment_id,
-                    e.user_id,
-                    e.course_id,
-                    u.fullname,
-                    c.title AS course_title,
-                    ROUND(IFNULL(SUM(CASE WHEN mp.status = 'completed' THEN 1 ELSE 0 END), 0) / NULLIF(COUNT(DISTINCT cm.id), 0) * 100) AS progress_pct
-                FROM enrollments e
-                INNER JOIN courses c ON c.id = e.course_id AND c.archived = 0
-                INNER JOIN course_modules cm ON cm.course_id = e.course_id AND cm.archived = 0
-                LEFT JOIN module_progress mp ON mp.module_id = cm.id AND mp.user_id = e.user_id
-                INNER JOIN aauth_users u ON u.id = e.user_id AND u.DELETED = 0
-                WHERE e.status = 'approved'
-                  AND e.course_id IN ({$ids})
-                GROUP BY e.id, e.user_id, e.course_id, u.fullname, c.title
-            ) agg
-            WHERE agg.progress_pct < 100
-            ORDER BY agg.progress_pct ASC, agg.enrollment_id ASC
-            LIMIT {$safe_lim}
-        ";
-        $rows = $this->_safe_query_array($sql);
-        $out  = [];
-        foreach ($rows as $row) {
+        $r = $this->db
+            ->select('e.id AS enrollment_id, e.user_id, e.course_id, u.fullname, c.title AS course_title', false)
+            ->from('enrollments e')
+            ->join('courses c', 'c.id = e.course_id', 'inner')
+            ->join('aauth_users u', 'u.id = e.user_id', 'inner')
+            ->where('e.status', 'approved')
+            ->where('c.archived', 0)
+            ->where('u.DELETED', 0)
+            ->where_in('e.course_id', $course_ids)
+            ->get();
+
+        if ( ! $r || $r->num_rows() === 0) return [];
+
+        $candidates = [];
+        foreach ($r->result() as $row) {
+            $uid     = (int) $row->user_id;
+            $cid     = (int) $row->course_id;
+            $modules = $this->course_model->get_modules($cid, $uid);
+            if (empty($modules)) continue;
+
+            $pct = $this->_enrollment_progress_pct($uid, $cid);
+            if ($pct >= 100) continue;
+
             $o                = new stdClass();
-            $o->enrollment_id = (int) ($row['enrollment_id'] ?? 0);
-            $o->user_id       = (int) ($row['user_id'] ?? 0);
-            $o->course_id     = (int) ($row['course_id'] ?? 0);
-            $o->fullname      = (string) ($row['fullname'] ?? '');
-            $o->course_title  = (string) ($row['course_title'] ?? '');
-            $o->progress_pct  = (int) ($row['progress_pct'] ?? 0);
-            $out[]            = $o;
+            $o->enrollment_id = (int) $row->enrollment_id;
+            $o->user_id       = $uid;
+            $o->course_id     = $cid;
+            $o->fullname      = (string) ($row->fullname ?? '');
+            $o->course_title  = (string) ($row->course_title ?? '');
+            $o->progress_pct  = $pct;
+            $candidates[]     = $o;
         }
 
-        return $out;
+        usort($candidates, static function ($a, $b) {
+            if ($a->progress_pct === $b->progress_pct) {
+                return $a->enrollment_id <=> $b->enrollment_id;
+            }
+
+            return $a->progress_pct <=> $b->progress_pct;
+        });
+
+        return array_slice($candidates, 0, max(1, (int) $limit));
     }
 
     /**
@@ -885,25 +871,32 @@ class dashboard_model extends CI_Model {
 
     public function chart_admin_course_completion_overview()
     {
-        $sql = "SELECT
-                    SUM(CASE WHEN agg.pct < 50 THEN 1 ELSE 0 END) AS b1,
-                    SUM(CASE WHEN agg.pct >= 50 AND agg.pct < 80 THEN 1 ELSE 0 END) AS b2,
-                    SUM(CASE WHEN agg.pct >= 80 THEN 1 ELSE 0 END) AS b3
-                FROM (
-                    SELECT ROUND(100 * SUM(CASE WHEN mp.status = 'completed' THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT cm.id), 0)) AS pct
-                    FROM enrollments e
-                    INNER JOIN courses c ON c.id = e.course_id AND c.archived = 0
-                    INNER JOIN course_modules cm ON cm.course_id = e.course_id AND cm.archived = 0
-                    LEFT JOIN module_progress mp ON mp.module_id = cm.id AND mp.user_id = e.user_id
-                    WHERE e.status = 'approved'
-                    GROUP BY e.id
-                    HAVING COUNT(DISTINCT cm.id) > 0
-                ) agg";
-        $rows = $this->_safe_query_array($sql);
-        $row  = ! empty($rows) ? $rows[0] : ['b1' => 0, 'b2' => 0, 'b3' => 0];
-        log_message('debug', 'ADMIN COMPLETION DEBUG (chart_course_completion_overview): ' . json_encode($row));
+        $pairs = $this->_fetch_approved_enrollment_pairs(null);
+        $b1    = 0;
+        $b2    = 0;
+        $b3    = 0;
 
-        return $this->_chart_payload('admin.course_completion_overview', ['0-49%', '50-79%', '80-100%'], [(int) ($row['b1'] ?? 0), (int) ($row['b2'] ?? 0), (int) ($row['b3'] ?? 0)], $sql);
+        foreach ($pairs as $pair) {
+            $uid     = (int) $pair->user_id;
+            $cid     = (int) $pair->course_id;
+            $modules = $this->course_model->get_modules($cid, $uid);
+            if (empty($modules)) continue;
+
+            $pct = $this->_enrollment_progress_pct($uid, $cid);
+            if ($pct < 50) {
+                $b1++;
+            } elseif ($pct < 80) {
+                $b2++;
+            } else {
+                $b3++;
+            }
+        }
+
+        log_message('debug', 'ADMIN COMPLETION DEBUG (chart_course_completion_overview): ' . json_encode([
+            'b1' => $b1, 'b2' => $b2, 'b3' => $b3,
+        ]));
+
+        return $this->_chart_payload('admin.course_completion_overview', ['0-49%', '50-79%', '80-100%'], [$b1, $b2, $b3]);
     }
 
     public function chart_admin_enrollment_trends($months = 12)
@@ -937,30 +930,28 @@ class dashboard_model extends CI_Model {
         $course_ids = array_values(array_filter(array_map('intval', $course_ids)));
         if (empty($course_ids)) return $this->_chart_payload('instructor.course_progress_distribution', [], [], 'NO_COURSE_IDS');
 
-        $ids       = implode(',', $course_ids);
-        $safe_lim  = max(1, (int) $limit);
-        $sql       = "
-            SELECT c.title, IFNULL(ROUND(AVG(seg.pct)), 0) AS pct
-            FROM courses c
-            INNER JOIN (
-                SELECT e.course_id,
-                       ROUND(100 * SUM(CASE WHEN mp.status = 'completed' THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT cm.id), 0)) AS pct
-                FROM enrollments e
-                INNER JOIN course_modules cm ON cm.course_id = e.course_id AND cm.archived = 0
-                LEFT JOIN module_progress mp ON mp.module_id = cm.id AND mp.user_id = e.user_id
-                WHERE e.status = 'approved'
-                GROUP BY e.id, e.course_id
-                HAVING COUNT(DISTINCT cm.id) > 0
-            ) seg ON seg.course_id = c.id
-            WHERE c.id IN ({$ids})
-            GROUP BY c.id, c.title
-            ORDER BY pct DESC
-            LIMIT {$safe_lim}
-        ";
-        $rows = $this->_safe_query_array($sql);
+        $rows = [];
+        foreach ($course_ids as $cid) {
+            $course = $this->course_model->get_course($cid);
+            if ( ! $course) continue;
+            $rows[] = [
+                'title' => (string) ($course->title ?? ''),
+                'pct'   => $this->course_model->get_avg_progress($cid),
+            ];
+        }
+
+        usort($rows, static function ($a, $b) {
+            return $b['pct'] <=> $a['pct'];
+        });
+
+        $rows = array_slice($rows, 0, max(1, (int) $limit));
         log_message('debug', 'INSTRUCTOR COMPLETION DEBUG (chart_course_progress): ' . json_encode(array_slice($rows, 0, 5)));
 
-        return $this->_chart_payload('instructor.course_progress_distribution', array_column($rows, 'title'), array_map('intval', array_column($rows, 'pct')), $sql);
+        return $this->_chart_payload(
+            'instructor.course_progress_distribution',
+            array_column($rows, 'title'),
+            array_map('intval', array_column($rows, 'pct'))
+        );
     }
 
     public function chart_instructor_student_performance(array $course_ids, $limit = 10)
@@ -1018,35 +1009,34 @@ class dashboard_model extends CI_Model {
         $course_ids = array_values(array_filter(array_map('intval', $course_ids)));
         if (empty($course_ids)) return $this->_chart_payload('instructor.completion_distribution', [], [], 'NO_COURSE_IDS');
 
-        $ids = implode(',', $course_ids);
-        $sql = "
-            SELECT
-                SUM(CASE WHEN t.pct < 50 THEN 1 ELSE 0 END) AS b1,
-                SUM(CASE WHEN t.pct >= 50 AND t.pct < 80 THEN 1 ELSE 0 END) AS b2,
-                SUM(CASE WHEN t.pct >= 80 AND t.pct < 100 THEN 1 ELSE 0 END) AS b3,
-                SUM(CASE WHEN t.pct >= 100 THEN 1 ELSE 0 END) AS b4
-            FROM (
-                SELECT ROUND(IFNULL(SUM(CASE WHEN mp.status='completed' THEN 1 ELSE 0 END), 0) / NULLIF(COUNT(DISTINCT cm.id), 0) * 100) AS pct
-                FROM enrollments e
-                INNER JOIN course_modules cm ON cm.course_id = e.course_id AND cm.archived = 0
-                LEFT JOIN module_progress mp ON mp.module_id = cm.id AND mp.user_id = e.user_id
-                WHERE e.status = 'approved' AND e.course_id IN ({$ids})
-                GROUP BY e.id
-            ) t
-        ";
-        $rows = $this->_safe_query_array($sql);
-        $row  = ! empty($rows) ? $rows[0] : ['b1' => 0, 'b2' => 0, 'b3' => 0, 'b4' => 0];
+        $pairs = $this->_fetch_approved_enrollment_pairs($course_ids);
+        $b1    = 0;
+        $b2    = 0;
+        $b3    = 0;
+        $b4    = 0;
+
+        foreach ($pairs as $pair) {
+            $uid     = (int) $pair->user_id;
+            $cid     = (int) $pair->course_id;
+            $modules = $this->course_model->get_modules($cid, $uid);
+            if (empty($modules)) continue;
+
+            $pct = $this->_enrollment_progress_pct($uid, $cid);
+            if ($pct < 50) {
+                $b1++;
+            } elseif ($pct < 80) {
+                $b2++;
+            } elseif ($pct < 100) {
+                $b3++;
+            } else {
+                $b4++;
+            }
+        }
 
         return $this->_chart_payload(
             'instructor.completion_distribution',
             ['0-49%', '50-79%', '80-99%', 'Completed'],
-            [
-                (int) ($row['b1'] ?? 0),
-                (int) ($row['b2'] ?? 0),
-                (int) ($row['b3'] ?? 0),
-                (int) ($row['b4'] ?? 0),
-            ],
-            $sql
+            [$b1, $b2, $b3, $b4]
         );
     }
 
@@ -1177,9 +1167,56 @@ class dashboard_model extends CI_Model {
     }
 
     /**
-     * Per-approved-enrollment progress using only module_progress.status + course_modules counts.
+     * Approved enrollments with course context for progress aggregation.
      *
-     * pct = 100 * completed_modules / total_course_modules (same basis as module-level truth in DB).
+     * @param int[]|null $course_ids null = all courses; empty array = none
+     * @return object[]
+     */
+    private function _fetch_approved_enrollment_pairs($course_ids = null)
+    {
+        if (is_array($course_ids) && empty($course_ids)) {
+            return [];
+        }
+
+        $this->db
+            ->select('e.user_id, e.course_id, e.id AS enrollment_id', false)
+            ->from('enrollments e')
+            ->join('courses c', 'c.id = e.course_id', 'inner')
+            ->where('e.status', 'approved')
+            ->where('c.archived', 0);
+
+        if (is_array($course_ids)) {
+            $this->db->where_in('e.course_id', array_map('intval', $course_ids));
+        }
+
+        $r = $this->db->get();
+
+        return ($r && $r->num_rows() > 0) ? $r->result() : [];
+    }
+
+    /**
+     * Progress % for one enrollment via Assessment_service.
+     *
+     * @param int $user_id
+     * @param int $course_id
+     * @return int
+     */
+    private function _enrollment_progress_pct($user_id, $course_id)
+    {
+        $uid     = (int) $user_id;
+        $cid     = (int) $course_id;
+        $modules = $this->course_model->get_modules($cid, $uid);
+        if (empty($modules)) {
+            return 0;
+        }
+
+        $agg = $this->assessment_service->get_course_progress_aggregate($uid, $cid, $modules);
+
+        return (int) ($agg['course_progress_percent'] ?? 0);
+    }
+
+    /**
+     * Cohort progress stats for approved enrollments (Assessment_service-driven).
      *
      * @param int[]|null $course_ids null = all instructor courses / platform; empty array = zeroed result
      * @return array{total:int, fully_completed:int, avg_pct:int}
@@ -1190,76 +1227,47 @@ class dashboard_model extends CI_Model {
             return ['total' => 0, 'fully_completed' => 0, 'avg_pct' => 0];
         }
 
-        $course_filter = '';
-        if (is_array($course_ids)) {
-            $course_filter = ' AND e.course_id IN (' . implode(',', array_map('intval', $course_ids)) . ') ';
-        }
-
-        $sql = "
-            SELECT
-                COUNT(*) AS total,
-                IFNULL(SUM(CASE WHEN agg.pct >= 100 THEN 1 ELSE 0 END), 0) AS fully_completed,
-                IFNULL(ROUND(AVG(agg.pct)), 0) AS avg_pct
-            FROM (
-                SELECT
-                    ROUND(100 * SUM(CASE WHEN mp.status = 'completed' THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT cm.id), 0)) AS pct
-                FROM enrollments e
-                INNER JOIN courses c ON c.id = e.course_id AND c.archived = 0
-                INNER JOIN course_modules cm ON cm.course_id = e.course_id AND cm.archived = 0
-                LEFT JOIN module_progress mp ON mp.module_id = cm.id AND mp.user_id = e.user_id
-                WHERE e.status = 'approved' {$course_filter}
-                GROUP BY e.id
-                HAVING COUNT(DISTINCT cm.id) > 0
-            ) agg
-        ";
-
-        $q = $this->db->query($sql);
-        if ( ! $q) {
-            log_message('debug', 'ENROLLMENT MODULE PROGRESS STATS QUERY FAILED: ' . $sql);
-
+        $pairs = $this->_fetch_approved_enrollment_pairs($course_ids);
+        if (empty($pairs)) {
             return ['total' => 0, 'fully_completed' => 0, 'avg_pct' => 0];
         }
 
-        $rows = $q->result_array();
-        $row  = ! empty($rows) ? $rows[0] : [];
+        $total = 0;
+        $fully = 0;
+        $sum   = 0;
+
+        foreach ($pairs as $pair) {
+            $uid     = (int) $pair->user_id;
+            $cid     = (int) $pair->course_id;
+            $modules = $this->course_model->get_modules($cid, $uid);
+            if (empty($modules)) {
+                continue;
+            }
+
+            $pct = $this->_enrollment_progress_pct($uid, $cid);
+            $total++;
+            $sum += $pct;
+            if ($pct >= 100) {
+                $fully++;
+            }
+        }
 
         return [
-            'total'             => (int) ($row['total'] ?? 0),
-            'fully_completed'   => (int) ($row['fully_completed'] ?? 0),
-            'avg_pct'           => (int) ($row['avg_pct'] ?? 0),
+            'total'           => $total,
+            'fully_completed' => $fully,
+            'avg_pct'         => $total > 0 ? (int) round($sum / $total) : 0,
         ];
     }
 
     /**
-     * Average learner progress % for one course (approved enrollments only; module_progress-driven).
+     * Average learner progress % for one course (approved enrollments only).
      *
      * @param int $course_id
      * @return int
      */
     private function _avg_enrollment_pct_for_course($course_id)
     {
-        $cid = (int) $course_id;
-        if ($cid < 1) return 0;
-
-        $sql = "
-            SELECT IFNULL(ROUND(AVG(x.pct)), 0) AS avg_pct
-            FROM (
-                SELECT
-                    ROUND(100 * SUM(CASE WHEN mp.status = 'completed' THEN 1 ELSE 0 END) / NULLIF(COUNT(DISTINCT cm.id), 0)) AS pct
-                FROM enrollments e
-                INNER JOIN course_modules cm ON cm.course_id = e.course_id AND cm.archived = 0
-                LEFT JOIN module_progress mp ON mp.module_id = cm.id AND mp.user_id = e.user_id
-                WHERE e.status = 'approved' AND e.course_id = {$cid}
-                GROUP BY e.id
-                HAVING COUNT(DISTINCT cm.id) > 0
-            ) x
-        ";
-
-        $q = $this->db->query($sql);
-        if ( ! $q) return 0;
-        $r = $q->row();
-
-        return $r ? (int) ($r->avg_pct ?? 0) : 0;
+        return $this->course_model->get_avg_progress((int) $course_id);
     }
 
     /**
@@ -1387,22 +1395,14 @@ class dashboard_model extends CI_Model {
     }
 
     /**
-     * Get IDs of all active courses owned by a teacher.
+     * Get IDs of all active courses assigned to a teacher via course_instructors.
      *
      * @param  int   $teacher_id
      * @return int[]
      */
     private function _get_teacher_course_ids($teacher_id)
     {
-        $r = $this->db
-            ->select('id')
-            ->where('created_by', (int) $teacher_id)
-            ->where('archived',   0)
-            ->get('courses');
-
-        if ( ! $r || $r->num_rows() === 0) return [];
-
-        return array_column($r->result_array(), 'id');
+        return $this->course_phase2->get_instructor_course_ids((int) $teacher_id);
     }
 
     /**
@@ -1414,24 +1414,6 @@ class dashboard_model extends CI_Model {
      */
     private function _calc_user_progress($user_id, $course_id)
     {
-        $total = (int) $this->db
-            ->where('course_id', (int) $course_id)
-            ->where('archived',  0)
-            ->count_all_results('course_modules');
-
-        if ($total === 0) return 0;
-
-        $row = $this->db
-            ->select('COUNT(*) AS cnt', false)
-            ->from('module_progress mp')
-            ->join('course_modules cm', 'cm.id = mp.module_id', 'inner')
-            ->where('cm.course_id', (int) $course_id)
-            ->where('mp.user_id',   (int) $user_id)
-            ->where('mp.status',    'completed')
-            ->get()
-            ->row();
-
-        $done = $row ? (int) $row->cnt : 0;
-        return (int) round(($done / $total) * 100);
+        return $this->_enrollment_progress_pct((int) $user_id, (int) $course_id);
     }
 }

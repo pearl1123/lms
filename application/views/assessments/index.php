@@ -93,7 +93,8 @@ $type_colors = [
     ?>
     <div class="asx-card animate__animated animate__fadeInUp asx-stagger-<?= (int)($i % 8) ?>"
          data-title="<?= htmlspecialchars(strtolower($a->title ?? '')) ?>"
-         data-type="<?= $a->type ?>">
+         data-type="<?= $a->type ?>"
+         data-module-id="<?= (int) ($a->module_id ?? 0) ?>">
 
       <div class="asx-card-header">
         <span class="asx-card-type" style="background:<?= $type_color ?>22;color:<?= $type_color ?>;">

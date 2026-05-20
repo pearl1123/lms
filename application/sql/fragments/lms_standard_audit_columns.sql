@@ -1,0 +1,10 @@
+-- LMS standard audit / soft-delete columns (append to every new CREATE TABLE).
+--
+--   `date_encoded` datetime DEFAULT NULL,
+--   `encoded_by` int(11) DEFAULT NULL,
+--   `date_last_modified` datetime DEFAULT NULL,
+--   `modified_by` int(11) DEFAULT NULL,
+--   `archived` tinyint(1) NOT NULL DEFAULT 0,
+--
+-- Application: set date_encoded + encoded_by on INSERT; date_last_modified + modified_by on UPDATE;
+-- use archived = 1 instead of DELETE where rows should be retained.

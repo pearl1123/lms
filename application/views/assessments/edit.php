@@ -114,6 +114,18 @@ $asmt_type_labels = ['pre' => 'Pre-Assessment', 'post' => 'Post-Assessment', 'ch
                      value="<?= htmlspecialchars(set_value('trigger_seconds', $cp_trigger_seconds)) ?>">
             </div>
             <div class="edit-form-group">
+              <label class="edit-label">Whole video duration (seconds)</label>
+              <input type="number" name="video_duration_seconds" id="edit_video_duration_seconds" class="edit-input" min="1" step="1"
+                     placeholder="e.g. 300 — required if timestamp &gt; 0"
+                     value="<?= htmlspecialchars(set_value('video_duration_seconds', '')) ?>">
+              <p class="edit-help" style="font-size:.6875rem;color:var(--ka-text-muted,#64748b);margin:.35rem 0 0;">
+                Enter the full video length so the system can reject timestamps beyond the video. Required whenever the timestamp above is greater than zero.
+              </p>
+              <?php if (form_error('video_duration_seconds')): ?>
+                <div class="crt-error"><?= form_error('video_duration_seconds') ?></div>
+              <?php endif; ?>
+            </div>
+            <div class="edit-form-group">
               <label class="edit-cp-toggle">
                 <input type="checkbox" name="checkpoint_required" value="1" <?= set_checkbox('checkpoint_required', '1', $cp_required) ?>>
                 Required — learner must answer before continuing
@@ -225,6 +237,10 @@ $asmt_type_labels = ['pre' => 'Pre-Assessment', 'post' => 'Post-Assessment', 'ch
     <div class="q-modal-body">
       <input type="hidden" id="modalQuestionId" value="0">
 
+      <div id="questionFormStack">
+      <div class="question-form-block is-active" id="questionFormBlock0" data-q-block="0">
+      <div class="question-block-label" id="activeQuestionLabel" style="display:none;">Question 1</div>
+
       <!-- Question text -->
       <div class="mf-group">
         <label class="mf-label" for="mfQText">Question Text <span style="color:#dc2626;">*</span></label>
@@ -275,12 +291,24 @@ $asmt_type_labels = ['pre' => 'Pre-Assessment', 'post' => 'Post-Assessment', 'ch
       <div id="mfEssayNote" style="display:none;background:#fffbeb;border-radius:8px;padding:.75rem 1rem;font-size:.8125rem;color:#78350f;">
         Essay answers require manual grading. Set a minimum word count if needed.
       </div>
+      </div>
+      </div>
+
+      <div id="batchQueuePanel" class="batch-queue-panel" style="display:none;">
+        <div class="batch-queue-hdr">Queued questions</div>
+        <ul id="batchQueueList" class="batch-queue-list"></ul>
+      </div>
     </div>
     <div class="q-modal-footer">
-      <button type="button" class="q-modal-cancel" onclick="closeModal()">Cancel</button>
-      <button type="button" class="q-modal-save" onclick="saveQuestion()">
-        <span id="modalSaveText">Add Question</span>
-      </button>
+      <span id="batchQueueSummary" class="batch-queue-summary" style="display:none;"></span>
+      <div class="q-modal-footer-actions">
+        <button type="button" class="q-modal-cancel" onclick="closeModal()">Cancel</button>
+        <button type="button" class="q-modal-secondary" id="addAnotherBtn" style="display:none;">Add Another Question</button>
+        <button type="button" class="q-modal-save" id="modalSaveBtn" onclick="saveQuestion()">
+          <span class="q-save-spinner" id="modalSaveSpinner" style="display:none;" aria-hidden="true"></span>
+          <span id="modalSaveText">Add Question</span>
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -320,8 +348,8 @@ function render_q_item($num, $q, $tc, $q_types) {
     <?php if ( ! empty($q->choices)): ?>
     <div class="q-choices-preview">
       <?php foreach ($q->choices as $c): ?>
-        <span class="q-choice-chip <?= $c->is_correct ? 'correct' : 'wrong' ?>">
-          <?= $c->is_correct ? '✓ ' : '' ?><?= htmlspecialchars($c->choice_text) ?>
+        <span class="q-choice-chip <?= (int) $c->is_correct === 1 ? 'correct' : 'wrong' ?>">
+          <?= (int) $c->is_correct === 1 ? '✓ ' : '' ?><?= htmlspecialchars($c->choice_text) ?>
         </span>
       <?php endforeach; ?>
     </div>

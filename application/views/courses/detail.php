@@ -8,10 +8,28 @@ $completed_modules = $completed_modules ?? 0;
 $progress_pct      = $progress_pct      ?? 0;
 $total_enrolled    = $total_enrolled    ?? 0;
 $modules           = is_array($modules) || is_object($modules) ? $modules : [];
+$user              = $user              ?? null;
 $user_role          = strtolower($user->role ?? 'employee');
 $enrollment_status  = $enrollment_status ?? null;
+$access_type        = $access_type ?? 'approval_required';
+$pending_invitation = $pending_invitation ?? null;
+$pending_invitation_id = is_object($pending_invitation) ? (int) ($pending_invitation->id ?? 0) : 0;
+
+$lms_return_target = isset($lms_return_target) ? $lms_return_target : ka_lms_default_return_target_for_role($user);
+$lms_return_q      = isset($lms_return_q) && $lms_return_q !== '' ? $lms_return_q : ka_lms_return_q($lms_return_target);
+$lms_course_qs     = ($lms_return_q !== '') ? ('?' . $lms_return_q) : '';
+$lms_list_back_href = base_url('index.php/' . $lms_return_target);
+$lms_back_secondary_label = '← Back to Catalog';
+if ($lms_return_target === 'manage_courses') {
+    $lms_back_secondary_label = '← Back to Manage Courses';
+} elseif ($lms_return_target === 'my_courses') {
+    $lms_back_secondary_label = '← Back to My Courses';
+}
+$lms_enrolled_back_label = ($lms_return_target === 'manage_courses') ? '← Back to Manage Courses' : '← Back to My Courses';
 
 if ( ! $course) return;
+
+echo $alerts_partial_html ?? '';
 
 $content_icons = [
     'pdf'            => '📄',
@@ -101,14 +119,33 @@ $content_colors = [
             if (($m->status ?? 'not_started') !== 'completed') { $next_module = $m; break; }
           }
           ?>
-          <a href="<?= $next_module ? base_url('courses/module/'.$next_module->id) : '#' ?>"
+          <?php if ($next_module): ?>
+          <a href="<?= base_url('courses/module/'.$next_module->id . $lms_course_qs) ?>"
              class="cd-enroll-btn cd-enroll-btn-continue">
             <?= $completed_modules > 0 ? 'Continue Learning' : 'Start Course' ?>
           </a>
+          <?php endif; ?>
         <?php endif; ?>
 
-        <a href="<?= base_url('my_courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
-          ← Back to My Courses
+        <a href="<?= htmlspecialchars($lms_list_back_href, ENT_QUOTES, 'UTF-8') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
+          <?= htmlspecialchars($lms_enrolled_back_label, ENT_QUOTES, 'UTF-8') ?>
+        </a>
+
+      <?php elseif (in_array($user_role, ['employee', 'student'], true) && $pending_invitation_id > 0):
+          $invite_accept_url = base_url('index.php/courses/accept_invitation/' . $pending_invitation_id);
+          $invite_reject_url = base_url('index.php/courses/reject_invitation/' . $pending_invitation_id);
+        ?>
+        <p class="cd-enroll-title">You're invited</p>
+        <p class="cd-enroll-muted">
+          Accept this invitation to join the course. Enrollment is created automatically after acceptance.
+        </p>
+        <a href="<?= htmlspecialchars($invite_accept_url, ENT_QUOTES, 'UTF-8') ?>"
+           class="cd-enroll-btn cd-enroll-btn-primary js-ka-invite-accept">
+          Accept Invitation
+        </a>
+        <a href="<?= htmlspecialchars($invite_reject_url, ENT_QUOTES, 'UTF-8') ?>"
+           class="cd-enroll-btn cd-enroll-btn-outline js-ka-invite-decline">
+          Decline Invitation
         </a>
 
       <?php elseif (in_array($user_role, ['employee', 'student'], true) && $enrollment_status === 'pending'): ?>
@@ -134,6 +171,15 @@ $content_colors = [
           ← Back to Catalog
         </a>
 
+      <?php elseif (in_array($user_role, ['employee', 'student'], true) && $access_type === 'invitation_only'): ?>
+        <p class="cd-enroll-title">Invitation only</p>
+        <p class="cd-enroll-muted">
+          This course does not allow self enrollment. Please wait for an instructor or administrator invitation.
+        </p>
+        <a href="<?= base_url('courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
+          ← Back to Catalog
+        </a>
+
       <?php elseif (in_array($user_role, ['employee', 'student'], true)): ?>
         <p class="cd-enroll-title">Ready to get started?</p>
         <div class="cd-enroll-stats">
@@ -149,7 +195,7 @@ $content_colors = [
         <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
            class="cd-enroll-btn cd-enroll-btn-primary"
            onclick="return confirm('Request enrollment in this course?')">
-          Request enrollment
+          <?= $access_type === 'open' ? 'Enroll now' : 'Request enrollment' ?>
         </a>
         <a href="<?= base_url('courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
           ← Back to Catalog
@@ -168,12 +214,12 @@ $content_colors = [
             <div class="cd-enroll-stat-lbl">Students</div>
           </div>
         </div>
-        <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>"
+        <a href="<?= base_url('manage_courses/edit/'.$course->id . ($lms_return_q !== '' ? '?'.$lms_return_q : '')) ?>"
            class="cd-enroll-btn cd-enroll-btn-primary">
           Edit Course
         </a>
-        <a href="<?= base_url('courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
-          ← Back to Catalog
+        <a href="<?= htmlspecialchars($lms_list_back_href, ENT_QUOTES, 'UTF-8') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
+          <?= htmlspecialchars($lms_back_secondary_label, ENT_QUOTES, 'UTF-8') ?>
         </a>
       <?php endif; ?>
     </div>
@@ -248,7 +294,7 @@ $content_colors = [
               <?php endif; ?>
             </div>
             <?php if ($status !== 'locked'): ?>
-            <a href="<?= base_url('courses/module/'.$module->id) ?>"
+            <a href="<?= base_url('courses/module/'.$module->id . $lms_course_qs) ?>"
                class="cd-module-action <?= $action_class ?>">
               <?= $action_text ?>
             </a>
@@ -363,6 +409,69 @@ $content_colors = [
 </div>
 <?php $_ka_json = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT; ?>
 <script>
+(function () {
+  function goInvite(url) {
+    if (url) {
+      window.location.href = url;
+    }
+  }
+  function bindInviteConfirm(selector, opts) {
+    document.querySelectorAll(selector).forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        var url = el.getAttribute('href');
+        if (!url) {
+          return;
+        }
+        e.preventDefault();
+        if (window.KA && typeof KA.confirm === 'function') {
+          KA.confirm({
+            title: opts.title,
+            text: opts.text,
+            type: opts.type || 'info',
+            confirmText: opts.confirmText,
+            cancelText: opts.cancelText || 'Cancel',
+            onConfirm: url
+          });
+        } else if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            title: opts.title,
+            html: opts.text,
+            icon: opts.swalIcon || 'question',
+            showCancelButton: true,
+            confirmButtonText: opts.confirmText,
+            cancelButtonText: opts.cancelText || 'Cancel',
+            reverseButtons: true,
+            focusCancel: true
+          }).then(function (r) {
+            if (r.isConfirmed) {
+              goInvite(url);
+            }
+          });
+        } else if (window.confirm(opts.fallbackConfirm)) {
+          goInvite(url);
+        }
+      });
+    });
+  }
+  document.addEventListener('DOMContentLoaded', function () {
+    bindInviteConfirm('.js-ka-invite-accept', {
+      title: 'Accept this invitation?',
+      text: 'You will be enrolled in this course after you confirm.',
+      type: 'info',
+      swalIcon: 'question',
+      confirmText: 'Accept invitation',
+      fallbackConfirm: 'Accept this course invitation?'
+    });
+    bindInviteConfirm('.js-ka-invite-decline', {
+      title: 'Decline this invitation?',
+      text: 'You can ask your instructor to send a new invite if you change your mind.',
+      type: 'danger',
+      swalIcon: 'warning',
+      confirmText: 'Yes, decline',
+      fallbackConfirm: 'Decline this course invitation?'
+    });
+  });
+})();
 kaApplyAppContext(<?= json_encode([
   'catalog' => ['courseProgressUrl' => base_url('index.php/courses/progress_state/')],
 ], $_ka_json) ?>);

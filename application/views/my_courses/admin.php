@@ -373,7 +373,7 @@ $thumb_gradients = [
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" href="<?= base_url('manage_courses/edit/'.$course->id) ?>">
+            <li><a class="dropdown-item" href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               Edit Course
             </a></li>
@@ -410,7 +410,7 @@ $thumb_gradients = [
           <div class="mc-prog-bar"><div class="mc-prog-fill" style="width:<?= $avg_prog ?>%"></div></div>
         </div>
         <div class="mc-card-footer">
-          <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>" class="mc-card-btn mc-card-btn-primary">Edit</a>
+          <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="mc-card-btn mc-card-btn-primary">Edit</a>
           <a href="<?= base_url('manage_courses/view/'.$course->id) ?>" class="mc-card-btn mc-card-btn-primary">View</a>
           <a href="<?= base_url('manage_courses/delete/'.$course->id) ?>" class="mc-card-btn mc-card-btn-danger" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Delete</a>
         </div>
@@ -479,7 +479,7 @@ $thumb_gradients = [
             <td style="color:var(--ka-text-muted,#64748b);font-size:.75rem;white-space:nowrap;"><?= date('M j, Y', strtotime($course->created_at)) ?></td>
             <td>
               <div class="mc-action-row">
-                <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>" class="mc-action-link mc-action-edit">Edit</a>
+                <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="mc-action-link mc-action-edit">Edit</a>
                 <a href="<?= base_url('manage_courses/delete/'.$course->id) ?>" class="mc-action-link mc-action-delete" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Delete</a>
               </div>
             </td>
@@ -493,26 +493,9 @@ $thumb_gradients = [
   </div>
 </div>
 
+<script src="<?= base_url('assets/js/manage_courses.js') ?>" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-
-  // ── View toggle ──────────────────────────────────────────
-  const gridView  = document.getElementById('mcGridView');
-  const tableView = document.getElementById('mcTableView');
-
-  document.querySelectorAll('.mc-toggle-btn').forEach(btn => {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('.mc-toggle-btn').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      if (this.dataset.view === 'grid') {
-        gridView.style.display  = '';
-        tableView.style.display = 'none';
-      } else {
-        gridView.style.display  = 'none';
-        tableView.style.display = '';
-      }
-    });
-  });
 
   // ── Live filter ──────────────────────────────────────────
   function applyFilters() {
@@ -543,5 +526,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('mcSearch').addEventListener('input', applyFilters);
   document.getElementById('mcFilterCat').addEventListener('change', applyFilters);
   document.getElementById('mcFilterStatus').addEventListener('change', applyFilters);
+  document.addEventListener('ka-mc-view-applied', applyFilters);
+  applyFilters();
 });
 </script>

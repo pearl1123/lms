@@ -145,3 +145,153 @@ if ( ! function_exists('ka_collect_flash_messages')) {
         return $flash_messages;
     }
 }
+
+if ( ! function_exists('ka_lms_allowed_return_targets')) {
+    /**
+     * Whitelist for ?return_url=… on course / edit navigation (path keys, not full URLs).
+     *
+     * @return string[]
+     */
+    function ka_lms_allowed_return_targets()
+    {
+        return ['my_courses', 'manage_courses', 'courses'];
+    }
+}
+
+if ( ! function_exists('ka_lms_normalize_return_target')) {
+    /**
+     * @param mixed $raw
+     * @return string  one of allowed targets, or '' if invalid
+     */
+    function ka_lms_normalize_return_target($raw)
+    {
+        $v = strtolower(trim((string) $raw));
+
+        return in_array($v, ka_lms_allowed_return_targets(), true) ? $v : '';
+    }
+}
+
+if ( ! function_exists('ka_lms_default_return_target_for_role')) {
+    /**
+     * Default list landing when return_url is absent.
+     *
+     * @param object|null $user
+     * @return string
+     */
+    function ka_lms_default_return_target_for_role($user)
+    {
+        $role = strtolower(is_object($user) ? ($user->role ?? '') : '');
+
+        return in_array($role, ['admin', 'teacher'], true) ? 'manage_courses' : 'my_courses';
+    }
+}
+
+if ( ! function_exists('ka_lms_resolve_return_target')) {
+    /**
+     * Resolve return_url from query/post with role safety, then role default.
+     *
+     * @param object|null $user
+     * @param mixed       $raw
+     * @return string
+     */
+    function ka_lms_resolve_return_target($user, $raw)
+    {
+        $n = ka_lms_normalize_return_target($raw);
+        $role = strtolower(is_object($user) ? ($user->role ?? '') : '');
+
+        if ($n === '') {
+            return ka_lms_default_return_target_for_role($user);
+        }
+
+        if ($n === 'manage_courses' && ! in_array($role, ['admin', 'teacher'], true)) {
+            return 'my_courses';
+        }
+
+        return $n;
+    }
+}
+
+if ( ! function_exists('ka_lms_return_q')) {
+    /**
+     * Query fragment for links (no leading "?").
+     *
+     * @param string $target
+     * @return string  e.g. return_url=my_courses, or '' if invalid
+     */
+    function ka_lms_return_q($target)
+    {
+        $t = ka_lms_normalize_return_target($target);
+        if ($t === '') {
+            return '';
+        }
+
+        return 'return_url=' . rawurlencode($t);
+    }
+}
+
+if ( ! function_exists('ka_lms_append_return_to_url')) {
+    /**
+     * Append return_url to a URL that may already have a query string.
+     *
+     * @param string $url
+     * @param string $target
+     * @return string
+     */
+    function ka_lms_append_return_to_url($url, $target)
+    {
+        $q = ka_lms_return_q($target);
+        if ($q === '') {
+            return $url;
+        }
+        $sep = (strpos($url, '?') !== false) ? '&' : '?';
+
+        return $url . $sep . $q;
+    }
+}
+
+if ( ! function_exists('ka_module_is_video_content')) {
+    /**
+     * Whether a course module supports in-video checkpoints (manage UI + validation).
+     *
+     * Accepts canonical content_type "video" and legacy/alternate labels; also treats
+     * YouTube or direct video file URLs in content_path as video when type was saved differently.
+     *
+     * @param object|array|null $module Row with content_type and optional content_path
+     */
+    function ka_module_is_video_content($module)
+    {
+        if ($module === null) {
+            return false;
+        }
+
+        $type = '';
+        $path = '';
+        if (is_object($module)) {
+            $type = (string) ($module->content_type ?? '');
+            $path = (string) ($module->content_path ?? '');
+        } elseif (is_array($module)) {
+            $type = (string) ($module['content_type'] ?? '');
+            $path = (string) ($module['content_path'] ?? '');
+        }
+
+        $type = strtolower(trim($type));
+        if (in_array($type, ['video', 'youtube', 'mp4', 'yt'], true)) {
+            return true;
+        }
+
+        $path = trim($path);
+        if ($path === '') {
+            return false;
+        }
+
+        if (preg_match('#(?:youtube\.com|youtu\.be)#i', $path)) {
+            return true;
+        }
+
+        if (preg_match('#\.(?:mp4|webm|m4v|mov|ogv)(?:\?|$)#i', $path)) {
+            return true;
+        }
+
+        return false;
+    }
+}

@@ -244,6 +244,11 @@ class Auth extends CI_Controller {
             'created_at'  => date('Y-m-d H:i:s'),
         ]);
 
+        $new_user = $this->db->where('employee_id', $emp_id)->get('aauth_users', 1)->row();
+        if ($new_user) {
+            $this->user_model->apply_hrmis_profile((int) $new_user->id, $emp_id);
+        }
+
         $this->session->set_flashdata('success', 'Registration successful! You can now log in.');
         redirect('auth/login');
     }

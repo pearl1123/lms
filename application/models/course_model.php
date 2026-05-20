@@ -9,7 +9,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * ─────────────────────────────────────────────────────────────
  * courses
  *   id, title, description, created_by, created_at,
- *   category_id, modality_id, access_type_id,
+ *   category_id, modality_id, access_type, publish_status,
  *   date_encoded, encoded_by, date_last_modified, modified_by,
  *   archived, expiry_days
  *
@@ -32,10 +32,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * lib_course_modality
  *   modality_id, modality_desc, archived
  *
- * lib_course_access_type
- *   access_type_id, access_type_desc, archived
- *
  * @property CI_DB_mysqli_driver $db
+ * @property Course_phase2_model $course_phase2
+ * @property User_model          $user_model
  */
 class Course_model extends CI_Model {
 
@@ -51,7 +50,7 @@ class Course_model extends CI_Model {
 
     /**
      * Get all published courses for the catalog page.
-     * Joins: category, modality, access_type, creator, module count,
+     * Joins: category, modality, creator, module count,
      *        enrollment count.
      *
      * @param  string $keyword    Search against title / description / category name
@@ -69,10 +68,10 @@ class Course_model extends CI_Model {
                 c.expiry_days,
                 c.category_id,
                 c.modality_id,
-                c.access_type_id,
+                c.access_type,
+                c.publish_status,
                 cc.name              AS category_name,
                 lm.modality_desc     AS modality_name,
-                lat.access_type_desc AS access_type_name,
                 creator.fullname     AS creator_name,
                 COALESCE(cm_cnt.total_modules, 0)   AS total_modules,
                 COALESCE(en_cnt.total_enrolled, 0)  AS total_enrolled
@@ -82,8 +81,6 @@ class Course_model extends CI_Model {
                    'cc.id = c.category_id', 'left')
             ->join('lib_course_modality lm',
                    'lm.modality_id = c.modality_id', 'left')
-            ->join('lib_course_access_type lat',
-                   'lat.access_type_id = c.access_type_id', 'left')
             ->join('aauth_users creator',
                    'creator.id = c.created_by', 'left')
             ->join(
@@ -102,6 +99,22 @@ class Course_model extends CI_Model {
             )
             ->where('c.archived', 0);
 
+        $CI =& get_instance();
+        $CI->load->model('Course_phase2_model', 'course_phase2');
+        /** @var Course_phase2_model $course_phase2 */
+        $course_phase2 = $CI->{'course_phase2'};
+        if ($course_phase2->schema_ready()) {
+            $this->db
+                ->where('c.publish_status', 'published')
+                ->group_start()
+                    ->where('c.access_type !=', 'hidden')
+                    ->or_where('c.access_type IS NULL', null, false)
+                ->group_end();
+        }
+        if (isset($GLOBALS['ka_catalog_viewer'])) {
+            $course_phase2->apply_catalog_filters_for_viewer($GLOBALS['ka_catalog_viewer']);
+        }
+
         if ($keyword !== '') {
             $this->db
                 ->group_start()
@@ -112,14 +125,19 @@ class Course_model extends CI_Model {
         }
 
         if ((int) $filter_cat > 0) {
-            $this->db->where('c.category_id', (int) $filter_cat);
+            $course_phase2->apply_category_filter((int) $filter_cat);
         }
 
         $result = $this->db->order_by('c.created_at', 'DESC')->get();
 
-        return ($result && $result->num_rows() > 0)
-            ? $result->result()
-            : [];
+        if ( ! $result || $result->num_rows() === 0) {
+            return [];
+        }
+
+        $rows = $result->result();
+        $this->_hydrate_access_type_names($rows);
+
+        return $rows;
     }
 
     /**
@@ -204,7 +222,6 @@ class Course_model extends CI_Model {
                 c.*,
                 cc.name              AS category_name,
                 lm.modality_desc     AS modality_name,
-                lat.access_type_desc AS access_type_name,
                 creator.fullname     AS creator_name
             ', false)
             ->from('courses c')
@@ -212,17 +229,20 @@ class Course_model extends CI_Model {
                    'cc.id = c.category_id', 'left')
             ->join('lib_course_modality lm',
                    'lm.modality_id = c.modality_id', 'left')
-            ->join('lib_course_access_type lat',
-                   'lat.access_type_id = c.access_type_id', 'left')
             ->join('aauth_users creator',
                    'creator.id = c.created_by', 'left')
             ->where('c.id',       (int) $course_id)
             ->where('c.archived', 0)
             ->get();
 
-        return ($result && $result->num_rows() > 0)
-            ? $result->row()
-            : null;
+        if ( ! $result || $result->num_rows() === 0) {
+            return null;
+        }
+
+        $row = $result->row();
+        $this->_hydrate_access_type_names($row);
+
+        return $row;
     }
 
     /**
@@ -238,7 +258,6 @@ class Course_model extends CI_Model {
                 c.*,
                 cc.name              AS category_name,
                 lm.modality_desc     AS modality_name,
-                lat.access_type_desc AS access_type_name,
                 creator.fullname     AS creator_name
             ', false)
             ->from('courses c')
@@ -246,16 +265,19 @@ class Course_model extends CI_Model {
                    'cc.id = c.category_id', 'left')
             ->join('lib_course_modality lm',
                    'lm.modality_id = c.modality_id', 'left')
-            ->join('lib_course_access_type lat',
-                   'lat.access_type_id = c.access_type_id', 'left')
             ->join('aauth_users creator',
                    'creator.id = c.created_by', 'left')
             ->where('c.id', (int) $course_id)
             ->get();
 
-        return ($result && $result->num_rows() > 0)
-            ? $result->row()
-            : null;
+        if ( ! $result || $result->num_rows() === 0) {
+            return null;
+        }
+
+        $row = $result->row();
+        $this->_hydrate_access_type_names($row);
+
+        return $row;
     }
 
     // =========================================================
@@ -392,6 +414,28 @@ class Course_model extends CI_Model {
      */
     public function request_enrollment($user_id, $course_id)
     {
+        $CI =& get_instance();
+        $CI->load->model('Course_phase2_model', 'course_phase2');
+        $CI->load->model('User_model', 'user_model');
+        /** @var Course_phase2_model $course_phase2 */
+        $course_phase2 = $CI->{'course_phase2'};
+        /** @var User_model $user_model */
+        $user_model = $CI->{'user_model'};
+
+        $course = $this->get_course((int) $course_id);
+        $viewer = $user_model->get_user((int) $user_id);
+        $vis    = $course_phase2->employee_may_view_course((int) $course_id, $viewer);
+        if ( ! $vis['allowed']) {
+            return false;
+        }
+
+        $access = $course_phase2->get_course_access_type($course);
+        if ($access === 'invitation_only') {
+            return false;
+        }
+
+        $target_status = $course_phase2->enrollment_status_for_request($course);
+
         $row = $this->get_enrollment($user_id, $course_id);
         if ($row) {
             $st = isset($row->status) ? (string) $row->status : 'approved';
@@ -400,7 +444,7 @@ class Course_model extends CI_Model {
             }
             if ($st === 'rejected') {
                 $data = [
-                    'status'       => 'pending',
+                    'status'       => $target_status,
                     'enrolled_at'  => date('Y-m-d H:i:s'),
                 ];
                 log_message('debug', 'ENROLL REQUEST DATA: ' . json_encode([
@@ -422,7 +466,7 @@ class Course_model extends CI_Model {
         $data = [
             'user_id'     => (int) $user_id,
             'course_id'   => (int) $course_id,
-            'status'      => 'pending',
+            'status'      => $target_status,
             'enrolled_at' => date('Y-m-d H:i:s'),
         ];
         log_message('debug', 'ENROLL REQUEST DATA: ' . json_encode([
@@ -541,7 +585,13 @@ class Course_model extends CI_Model {
      */
     public function get_pending_enrollments_for_instructor($instructor_user_id)
     {
-        $result = $this->db
+        $uid = (int) $instructor_user_id;
+        $CI =& get_instance();
+        $CI->load->model('Course_phase2_model', 'course_phase2');
+        /** @var Course_phase2_model $course_phase2 */
+        $course_phase2 = $CI->{'course_phase2'};
+
+        $this->db
             ->select('
                 e.id AS enrollment_id,
                 e.user_id,
@@ -554,8 +604,11 @@ class Course_model extends CI_Model {
             ', false)
             ->from('enrollments e')
             ->join('courses c', 'c.id = e.course_id', 'inner')
-            ->join('aauth_users u', 'u.id = e.user_id', 'left')
-            ->where('c.created_by', (int) $instructor_user_id)
+            ->join('aauth_users u', 'u.id = e.user_id', 'left');
+
+        $course_phase2->restrict_query_to_instructor_courses($uid);
+
+        $result = $this->db
             ->where('c.archived', 0)
             ->where('e.status', 'pending')
             ->where('u.DELETED', 0)
@@ -765,21 +818,21 @@ class Course_model extends CI_Model {
     }
 
     /**
-     * Get all non-archived access types.
-     * Table: lib_course_access_type (access_type_id, access_type_desc, archived)
-     *
-     * @return object[]
+     * @deprecated Use course_phase2_access_types() / course_phase2_access_label() in views.
+     * @return object[] { code, label }
      */
     public function get_access_types()
     {
-        $result = $this->db
-            ->where('archived', 0)
-            ->order_by('access_type_desc', 'ASC')
-            ->get('lib_course_access_type');
+        $this->load->helper('course_phase2');
+        $out = [];
+        foreach (course_phase2_access_types() as $code) {
+            $out[] = (object) [
+                'code'  => $code,
+                'label' => course_phase2_access_label($code),
+            ];
+        }
 
-        return ($result && $result->num_rows() > 0)
-            ? $result->result()
-            : [];
+        return $out;
     }
 
     // =========================================================
@@ -797,11 +850,11 @@ class Course_model extends CI_Model {
         $this->db
             ->select('
                 c.id, c.title, c.description, c.archived,
-                c.created_at, c.category_id, c.modality_id, c.access_type_id,
+                c.created_at, c.category_id, c.modality_id,
+                c.access_type, c.publish_status,
                 c.expiry_days,
                 cc.name              AS category_name,
                 lm.modality_desc     AS modality_name,
-                lat.access_type_desc AS access_type_name,
                 creator.fullname     AS creator_name
             ', false)
             ->from('courses c')
@@ -809,8 +862,6 @@ class Course_model extends CI_Model {
                    'cc.id = c.category_id', 'left')
             ->join('lib_course_modality lm',
                    'lm.modality_id = c.modality_id', 'left')
-            ->join('lib_course_access_type lat',
-                   'lat.access_type_id = c.access_type_id', 'left')
             ->join('aauth_users creator',
                    'creator.id = c.created_by', 'left');
 
@@ -823,6 +874,7 @@ class Course_model extends CI_Model {
         if ( ! $result || $result->num_rows() === 0) return [];
 
         $courses = $result->result();
+        $this->_hydrate_access_type_names($courses);
         foreach ($courses as $course) {
             $course->module_count   = $this->count_modules($course->id);
             $course->enrolled_count = $this->count_enrollments($course->id);
@@ -844,20 +896,23 @@ class Course_model extends CI_Model {
         $this->db
             ->select('
                 c.id, c.title, c.description, c.archived,
-                c.created_at, c.category_id, c.modality_id, c.access_type_id,
+                c.created_at, c.category_id, c.modality_id,
+                c.access_type, c.publish_status,
                 c.expiry_days,
                 cc.name              AS category_name,
-                lm.modality_desc     AS modality_name,
-                lat.access_type_desc AS access_type_name
+                lm.modality_desc     AS modality_name
             ', false)
             ->from('courses c')
             ->join('course_categories cc',
                    'cc.id = c.category_id', 'left')
             ->join('lib_course_modality lm',
-                   'lm.modality_id = c.modality_id', 'left')
-            ->join('lib_course_access_type lat',
-                   'lat.access_type_id = c.access_type_id', 'left')
-            ->where('c.created_by', (int) $user_id);
+                   'lm.modality_id = c.modality_id', 'left');
+
+        $CI =& get_instance();
+        $CI->load->model('Course_phase2_model', 'course_phase2');
+        /** @var Course_phase2_model $course_phase2 */
+        $course_phase2 = $CI->{'course_phase2'};
+        $course_phase2->restrict_query_to_instructor_courses((int) $user_id);
 
         if ( ! $include_archived) {
             $this->db->where('c.archived', 0);
@@ -868,6 +923,7 @@ class Course_model extends CI_Model {
         if ( ! $result || $result->num_rows() === 0) return [];
 
         $courses = $result->result();
+        $this->_hydrate_access_type_names($courses);
         foreach ($courses as $course) {
             $course->module_count   = $this->count_modules($course->id);
             $course->enrolled_count = $this->count_enrollments($course->id);
@@ -878,6 +934,30 @@ class Course_model extends CI_Model {
     }
 
     /**
+     * Set access_type_name from courses.access_type (Phase 2 single source).
+     *
+     * @param object|object[]|null $rows
+     */
+    private function _hydrate_access_type_names($rows)
+    {
+        if ($rows === null) {
+            return;
+        }
+
+        $this->load->helper('course_phase2');
+        $list = is_array($rows) ? $rows : [$rows];
+        foreach ($list as $row) {
+            if ( ! is_object($row)) {
+                continue;
+            }
+            $key = isset($row->access_type) ? strtolower(trim((string) $row->access_type)) : '';
+            $row->access_type_name = $key !== ''
+                ? course_phase2_access_label($key)
+                : '';
+        }
+    }
+
+    /**
      * Average completion % across ALL enrolled students for a course.
      *
      * @param  int $course_id
@@ -885,25 +965,41 @@ class Course_model extends CI_Model {
      */
     public function get_avg_progress($course_id)
     {
-        $total_modules  = $this->count_modules($course_id);
-        $total_students = $this->count_enrollments($course_id);
+        $cid = (int) $course_id;
+        if ($cid < 1) {
+            return 0;
+        }
 
-        if ($total_modules === 0 || $total_students === 0) return 0;
+        $enrollments = $this->db
+            ->select('user_id')
+            ->from('enrollments')
+            ->where('course_id', $cid)
+            ->where('status', 'approved')
+            ->get();
 
-        $total_possible = $total_modules * $total_students;
+        if ( ! $enrollments || $enrollments->num_rows() === 0) {
+            return 0;
+        }
 
-        $row = $this->db
-            ->select('COUNT(*) AS cnt')
-            ->from('module_progress mp')
-            ->join('course_modules cm', 'cm.id = mp.module_id', 'inner')
-            ->where('cm.course_id', (int) $course_id)
-            ->where('cm.archived',  0)
-            ->where('mp.status',    'completed')
-            ->get()
-            ->row();
+        if ( ! class_exists('Assessment_service', false)) {
+            require_once APPPATH . 'services/Assessment_service.php';
+        }
+        $service = new Assessment_service();
 
-        $done = $row ? (int) $row->cnt : 0;
-        return (int) round(($done / $total_possible) * 100);
+        $sum = 0;
+        $cnt = 0;
+        foreach ($enrollments->result() as $enrollment) {
+            $uid     = (int) $enrollment->user_id;
+            $modules = $this->get_modules($cid, $uid);
+            if (empty($modules)) {
+                continue;
+            }
+            $agg = $service->get_course_progress_aggregate($uid, $cid, $modules);
+            $sum += (int) ($agg['course_progress_percent'] ?? 0);
+            $cnt++;
+        }
+
+        return $cnt > 0 ? (int) round($sum / $cnt) : 0;
     }
 
     /**
@@ -1045,7 +1141,6 @@ class Course_model extends CI_Model {
             'created_by'     => (int) ($data['created_by'] ?? $user_id),
             'category_id'    => ! empty($data['category_id'])    ? (int) $data['category_id']    : null,
             'modality_id'    => ! empty($data['modality_id'])    ? (int) $data['modality_id']    : null,
-            'access_type_id' => ! empty($data['access_type_id']) ? (int) $data['access_type_id'] : null,
             'expiry_days'    => ! empty($data['expiry_days'])    ? (int) $data['expiry_days']    : null,
             'certificate_prefix'  => isset($data['certificate_prefix']) ? strtoupper(trim((string) $data['certificate_prefix'])) : null,
             'signatory_name'      => isset($data['signatory_name']) ? trim((string) $data['signatory_name']) : null,
@@ -1055,7 +1150,20 @@ class Course_model extends CI_Model {
             'date_encoded'   => $now,
             'encoded_by'     => (int) $user_id,
         ]);
-        return (int) $this->db->insert_id();
+
+        $new_id = (int) $this->db->insert_id();
+        if ($new_id > 0 && $this->db->field_exists('access_type', 'courses')) {
+            $access = strtolower(trim((string) ($data['access_type'] ?? 'approval_required')));
+            if ( ! in_array($access, ['open', 'approval_required', 'invitation_only', 'hidden'], true)) {
+                $access = 'approval_required';
+            }
+            $this->db->where('id', $new_id)->update('courses', [
+                'access_type'    => $access,
+                'publish_status' => 'draft',
+            ]);
+        }
+
+        return $new_id;
     }
 
     /**
@@ -1068,20 +1176,59 @@ class Course_model extends CI_Model {
      */
     public function update_course($course_id, $data, $user_id)
     {
-        return (bool) $this->db
+        $ok = (bool) $this->db
             ->where('id', (int) $course_id)
             ->update('courses', [
                 'title'              => trim($data['title']),
                 'description'        => isset($data['description']) ? trim($data['description']) : null,
                 'category_id'        => ! empty($data['category_id'])    ? (int) $data['category_id']    : null,
                 'modality_id'        => ! empty($data['modality_id'])    ? (int) $data['modality_id']    : null,
-                'access_type_id'     => ! empty($data['access_type_id']) ? (int) $data['access_type_id'] : null,
                 'expiry_days'        => ! empty($data['expiry_days'])    ? (int) $data['expiry_days']    : null,
                 'certificate_prefix' => isset($data['certificate_prefix']) ? strtoupper(trim((string) $data['certificate_prefix'])) : null,
                 'signatory_name'     => isset($data['signatory_name']) ? trim((string) $data['signatory_name']) : null,
                 'signatory_title'    => isset($data['signatory_title']) ? trim((string) $data['signatory_title']) : null,
                 'date_last_modified' => date('Y-m-d H:i:s'),
                 'modified_by'        => (int) $user_id,
+            ]);
+
+        if ($ok && $this->db->field_exists('access_type', 'courses')) {
+            if (array_key_exists('access_type', $data)) {
+                $access = strtolower(trim((string) $data['access_type']));
+                if (in_array($access, ['open', 'approval_required', 'invitation_only', 'hidden'], true)) {
+                    $this->db->where('id', (int) $course_id)->update('courses', ['access_type' => $access]);
+                }
+            }
+        }
+
+        return $ok;
+    }
+
+    public function publish_course($course_id, $user_id)
+    {
+        return $this->_set_publish_status((int) $course_id, 'published', (int) $user_id);
+    }
+
+    public function unpublish_course($course_id, $user_id)
+    {
+        return $this->_set_publish_status((int) $course_id, 'unpublished', (int) $user_id);
+    }
+
+    private function _set_publish_status($course_id, $status, $user_id)
+    {
+        if ($course_id < 1 || ! in_array($status, ['draft', 'published', 'unpublished'], true)) {
+            return false;
+        }
+        if ( ! $this->db->field_exists('publish_status', 'courses')) {
+            return false;
+        }
+
+        return (bool) $this->db
+            ->where('id', $course_id)
+            ->where('archived', 0)
+            ->update('courses', [
+                'publish_status'      => $status,
+                'date_last_modified'  => date('Y-m-d H:i:s'),
+                'modified_by'         => (int) $user_id,
             ]);
     }
 
@@ -1132,7 +1279,7 @@ class Course_model extends CI_Model {
     }
 
     /**
-     * Check whether a user owns a course (created_by = user_id).
+     * Whether the user may manage this course (course_instructors pivot).
      * Admin role check is done at controller level.
      *
      * @param  int $course_id
@@ -1141,11 +1288,10 @@ class Course_model extends CI_Model {
      */
     public function owns_course($course_id, $user_id)
     {
-        return (bool) $this->db
-            ->where('id',         (int) $course_id)
-            ->where('created_by', (int) $user_id)
-            ->where('archived',   0)
-            ->count_all_results('courses');
+        $CI =& get_instance();
+        $CI->load->model('Course_phase2_model', 'course_phase2');
+
+        return $CI->course_phase2->user_manages_course((int) $user_id, (int) $course_id);
     }
 
     // =========================================================
@@ -1210,6 +1356,34 @@ class Course_model extends CI_Model {
                 'date_last_modified' => date('Y-m-d H:i:s'),
                 'modified_by'        => (int) $user_id,
             ]);
+    }
+
+    /**
+     * Sum active module weights for a course, optionally excluding one module.
+     *
+     * @param  int $course_id
+     * @param  int $exclude_module_id
+     * @return float
+     */
+    public function sum_module_weights($course_id, $exclude_module_id = 0)
+    {
+        $this->db
+            ->select_sum('weight_percentage', 'total_weight')
+            ->from('course_modules')
+            ->where('course_id', (int) $course_id)
+            ->where('archived', 0);
+
+        if ((int) $exclude_module_id > 0) {
+            $this->db->where('id !=', (int) $exclude_module_id);
+        }
+
+        $result = $this->db->get();
+        if ( ! $result || $result->num_rows() === 0) {
+            return 0.0;
+        }
+
+        $row = $result->row();
+        return (float) ($row->total_weight ?? 0);
     }
 
     /**

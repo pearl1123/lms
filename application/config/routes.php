@@ -64,7 +64,12 @@ $route['auth/forgot_password_process'] = 'Auth/forgot_password_process';
 $route['courses'] = 'Courses/index';
 $route['course/(:num)'] = 'Courses/view/$1';
 $route['courses/enroll/(:num)'] = 'Courses/enroll/$1';
+$route['courses/accept_invitation/(:num)'] = 'courses/accept_invitation/$1';
+$route['courses/reject_invitation/(:num)'] = 'courses/reject_invitation/$1';
 $route['courses/complete_module/(:num)'] = 'courses/complete_module/$1';
+$route['manage_courses/modules/(:num)'] = 'manage_courses/modules/$1';
+$route['manage_courses/publish/(:num)'] = 'manage_courses/publish/$1';
+$route['manage_courses/unpublish/(:num)'] = 'manage_courses/unpublish/$1';
 // Legacy / mistaken URL from older My Learning cards → same as courses/view
 $route['my_courses/view/(:num)'] = 'courses/view/$1';
 

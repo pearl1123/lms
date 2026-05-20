@@ -510,6 +510,13 @@ class certificate_model extends CI_Model {
      */
     public function get_certificates_by_instructor($instructor_id)
     {
+        $CI =& get_instance();
+        $CI->load->model('Course_phase2_model', 'course_phase2');
+        $course_ids = $CI->course_phase2->get_instructor_course_ids((int) $instructor_id);
+        if (empty($course_ids)) {
+            return [];
+        }
+
         $r = $this->db
             ->select('
                 lc.id, lc.certificate_code, lc.issued_at, lc.file_path,
@@ -523,7 +530,7 @@ class certificate_model extends CI_Model {
             ->join('aauth_users u',       'u.id  = lc.user_id',   'left')
             ->join('courses c',            'c.id  = lc.course_id', 'left')
             ->join('course_categories cc','cc.id = c.category_id','left')
-            ->where('c.created_by', (int) $instructor_id)
+            ->where_in('c.id', $course_ids)
             ->where('lc.archived',  0)
             ->order_by('lc.issued_at', 'DESC')
             ->get();

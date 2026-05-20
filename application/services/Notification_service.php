@@ -66,6 +66,7 @@ class Notification_service {
         $db           = $this->CI->{'db'};
         $row = $course_model->get_enrollment_by_id($rid);
         if ( ! $row) {
+            log_message('debug', 'NOTIFICATION SKIPPED: enrollment row not found ' . $rid);
             return false;
         }
 
@@ -74,8 +75,8 @@ class Notification_service {
 
         $course = $course_model->get_course_any($cid);
         $requester = $user_model->get_user($uid);
-        $requester_name = (string) ($requester->fullname ?? 'A learner');
-        $course_title = (string) ($course->title ?? 'a course');
+        $requester_name = ($requester && ! empty($requester->fullname)) ? (string) $requester->fullname : 'A learner';
+        $course_title = ($course && ! empty($course->title)) ? (string) $course->title : 'a course';
 
         $recipient_map = [];
         $admin_result = $db
@@ -92,8 +93,73 @@ class Notification_service {
                 $recipient_map[$id] = true;
             }
         }
-        if ((int) ($course->created_by ?? 0) > 0) {
-            $recipient_map[(int) $course->created_by] = true;
+        $this->CI->load->model('Course_phase2_model', 'course_phase2');
+        if ($this->CI->course_phase2->schema_ready() && $cid > 0) {
+            foreach ($this->CI->course_phase2->get_course_instructor_ids($cid) as $iid) {
+                if ($iid > 0) {
+                    $recipient_map[$iid] = true;
+                }
+            }
+        }
+
+        $recipient_ids = array_values(array_map('intval', array_keys($recipient_map)));
+        if (empty($recipient_ids)) {
+            log_message('debug', 'NOTIFICATION SKIPPED: no enrollment request recipients ' . json_encode([
+                'request_id' => $rid,
+                'user_id'    => $uid,
+                'course_id'  => $cid,
+            ]));
+            return false;
+        }
+
+        return $this->send_database_once(
+            $recipient_ids,
+            Notification_model::TYPE_ENROLLMENT,
+            $rid,
+            'New Enrollment Request',
+            $requester_name . ' has requested to enroll in the course: ' . $course_title . '.',
+            $uid,
+            Notification_types::REQUEST,
+            base_url('index.php/enrollments/requests'),
+            false
+        );
+    }
+
+    /**
+     * Notify instructors when a learner is auto-enrolled (open access).
+     */
+    public function enrollment_enrolled($enrollment_id, $user_id = 0, $course_id = 0)
+    {
+        $eid = (int) $enrollment_id;
+        $uid = (int) $user_id;
+        $cid = (int) $course_id;
+        if ($eid < 1) {
+            return false;
+        }
+
+        $course_model = $this->CI->{'course_model'};
+        $user_model   = $this->CI->{'user_model'};
+        $row = $course_model->get_enrollment_by_id($eid);
+        if ( ! $row) {
+            return false;
+        }
+
+        $uid = $uid > 0 ? $uid : (int) ($row->user_id ?? 0);
+        $cid = $cid > 0 ? $cid : (int) ($row->course_id ?? 0);
+
+        $course = $course_model->get_course_any($cid);
+        $requester = $user_model->get_user($uid);
+        $requester_name = ($requester && ! empty($requester->fullname)) ? (string) $requester->fullname : 'A learner';
+        $course_title = ($course && ! empty($course->title)) ? (string) $course->title : 'a course';
+
+        $recipient_map = [];
+        $this->CI->load->model('Course_phase2_model', 'course_phase2');
+        if ($this->CI->course_phase2->schema_ready() && $cid > 0) {
+            foreach ($this->CI->course_phase2->get_course_instructor_ids($cid) as $iid) {
+                if ($iid > 0) {
+                    $recipient_map[$iid] = true;
+                }
+            }
         }
 
         $recipient_ids = array_values(array_map('intval', array_keys($recipient_map)));
@@ -104,12 +170,43 @@ class Notification_service {
         return $this->send_database_once(
             $recipient_ids,
             Notification_model::TYPE_ENROLLMENT,
-            $rid,
-            'New Enrollment Request',
-            $requester_name . ' has requested to enroll in your course: ' . $course_title . '.',
+            $eid,
+            'New course enrollment',
+            $requester_name . ' enrolled in ' . $course_title . '.',
             $uid,
             Notification_types::REQUEST,
-            base_url('index.php/enrollments/requests')
+            base_url('index.php/enrollments/requests'),
+            false
+        );
+    }
+
+    public function course_invitation_created($user_id, $course_id, $invitation_id = 0)
+    {
+        $uid = (int) $user_id;
+        $cid = (int) $course_id;
+        $iid = (int) $invitation_id;
+        if ($uid < 1 || $cid < 1) {
+            return false;
+        }
+
+        $course_model = $this->CI->{'course_model'};
+        $course = $course_model->get_course_any($cid);
+        $title = ($course && ! empty($course->title)) ? (string) $course->title : 'a course';
+        $url = base_url('index.php/courses/accept_invitation/' . ($iid > 0 ? $iid : 0));
+        if ($iid < 1) {
+            $url = base_url('index.php/courses/view/' . $cid);
+        }
+
+        return $this->send_database_once(
+            [$uid],
+            Notification_model::TYPE_ENROLLMENT,
+            $iid > 0 ? $iid : $cid,
+            'Course invitation',
+            'You are invited to join ' . $title . '.',
+            0,
+            Notification_types::REQUEST,
+            $url,
+            false
         );
     }
 
@@ -223,7 +320,7 @@ class Notification_service {
     // public function send_push(...) {}
     // public function broadcast_websocket(...) {}
 
-    private function send_database_once(array $user_ids, $type_id, $reference_id, $title, $message, $encoded_by, $type_key, $url)
+    private function send_database_once(array $user_ids, $type_id, $reference_id, $title, $message, $encoded_by, $type_key, $url, $dedupe = true)
     {
         $m = $this->CI->{'notification_model'};
         $sent_any = false;
@@ -231,10 +328,16 @@ class Notification_service {
             $uid = (int) $uid;
             if ($uid < 1) continue;
 
-            $exists = $m->exists_for_user_reference_type($uid, (int) $reference_id, (int) $type_id);
-            if ($exists) {
-                log_message('debug', 'NOTIFICATION SKIPPED (duplicate)');
-                continue;
+            if ($dedupe) {
+                $exists = $m->exists_for_user_reference_type($uid, (int) $reference_id, (int) $type_id);
+                if ($exists) {
+                    log_message('debug', 'NOTIFICATION SKIPPED (duplicate): ' . json_encode([
+                        'user_id'      => $uid,
+                        'reference_id' => (int) $reference_id,
+                        'type_id'      => (int) $type_id,
+                    ]));
+                    continue;
+                }
             }
 
             $id = $m->send([
@@ -254,7 +357,12 @@ class Notification_service {
                     'reference_id'    => (int) $reference_id,
                     'url'             => (string) $url,
                 ]);
-                log_message('debug', 'NOTIFICATION SENT');
+                log_message('debug', 'NOTIFICATION SENT: ' . json_encode([
+                    'notification_id' => (int) $id,
+                    'user_id'         => (int) $uid,
+                    'reference_id'    => (int) $reference_id,
+                    'type_key'        => (string) $type_key,
+                ]));
                 $sent_any = true;
             }
         }

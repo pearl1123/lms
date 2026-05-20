@@ -23,7 +23,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
     <!-- Page Content -->
     <main>
-        <?php $this->load->view($view, isset($data) ? $data : []); ?>
+        <?php $this->load->view($view); ?>
     </main>
 
 <?php $this->load->view('layouts/footer'); ?>

@@ -147,7 +147,8 @@ class Assessment_service {
         $pre_assessment = ! empty($pre_list) ? $pre_list[0] : null;
         $pre_blocked    = false;
         $is_video       = ($module && ($module->content_type ?? '') === 'video');
-        if ($pre_assessment && $role === 'employee' && ! $is_video) {
+        $pre_required = ! $is_video || ! empty($pre_assessment->is_required);
+        if ($pre_assessment && in_array($role, ['employee', 'student'], true) && $pre_required) {
             $pre_blocked = ! $this->CI->assessment_model->has_answered($uid, (int) $pre_assessment->id);
         }
 
@@ -229,7 +230,7 @@ class Assessment_service {
      * Flat progress state for video learning flow (checkpoints via Module_video_checkpoint_model; no schema changes).
      *
      * Rules:
-     * - Pre-assessment is optional, but when present requires first attempt to unlock video.
+     * - Pre-assessment is optional unless the assessment row is marked required.
      *   Passing pre is not required for unlock/completion.
      * - Video completion is derived from required checkpoints:
      *   - no required checkpoints => completed
@@ -278,8 +279,7 @@ class Assessment_service {
             return $empty;
         }
 
-        // `can_take === true` iff a pre-assessment row exists (see _resolve_module_flow_state).
-        $pre_required = ! empty($flow['pre_assessment']['can_take']);
+        $pre_required = ! empty($flow['pre_assessment']['required']);
 
         return [
             'pre_assessment_required'  => $pre_required,
@@ -428,7 +428,8 @@ class Assessment_service {
     }
 
     /**
-     * Course-level mean of per-module progress (from {@see get_module_progress_summary()} only).
+     * Course-level progress from {@see get_module_progress_summary()} only.
+     * Uses module weights when active weights total 100%; otherwise falls back to the legacy mean.
      * Controllers must not reimplement this average.
      *
      * @param int $user_id
@@ -457,9 +458,11 @@ class Assessment_service {
         }
 
         $summaries  = [];
-        $sum_pct    = 0;
-        $completed  = 0;
-        $n          = is_array($modules) ? count($modules) : 0;
+        $sum_pct      = 0;
+        $weighted_pct = 0;
+        $weight_total = 0;
+        $completed    = 0;
+        $n            = is_array($modules) ? count($modules) : 0;
 
         foreach ($modules as $m) {
             $mid = (int) $m->id;
@@ -472,14 +475,20 @@ class Assessment_service {
                 $s['post_assessment_passed'] = true;
             }
             $summaries[$mid] = $s;
-            $sum_pct += (int) ($s['progress_percent'] ?? 0);
-            if ((int) ($s['progress_percent'] ?? 0) >= 100) {
+            $progress = (int) ($s['progress_percent'] ?? 0);
+            $weight   = max(0, (float) ($m->weight_percentage ?? 0));
+            $sum_pct += $progress;
+            $weighted_pct += $progress * $weight;
+            $weight_total += $weight;
+            if ($progress >= 100) {
                 $completed++;
             }
         }
 
         if ($n === 0) {
             $course_pct = 0;
+        } elseif (abs($weight_total - 100.0) <= 0.01) {
+            $course_pct = (int) round($weighted_pct / 100);
         } elseif ($sum_pct === 0) {
             $course_pct = 0;
         } else {
@@ -637,11 +646,12 @@ class Assessment_service {
 
         $video_completed = ($chk_total === 0) || ($chk_done >= $chk_total);
 
-        // Video unlock: video modules are never blocked by pre; non-video keeps legacy pre gate.
+        // Video unlock: video modules are blocked only when the pre-assessment is explicitly required.
         $video_unlocked = true;
-        if ($content_video) {
-            $video_unlocked = true;
-        } elseif ($pre) {
+        $pre_required = ! $content_video || ! empty($pre->is_required);
+        if ($content_video && $pre && $pre_required) {
+            $video_unlocked = $pre_attempted;
+        } elseif ( ! $content_video && $pre) {
             $video_unlocked = $pre_attempted;
         }
 
@@ -688,6 +698,7 @@ class Assessment_service {
                 'attempted' => $pre_attempted,
                 'passed'    => $pre_passed,
                 'can_take'  => $pre_can_take,
+                'required'  => ! empty($pre) && ! empty($pre_required),
             ],
             'video' => [
                 'unlocked'  => $video_unlocked,

@@ -12,6 +12,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property CI_Input             $input
  * @property User_model           $user_model
  * @property Course_model         $course_model
+ * @property Course_phase2_model  $course_phase2
  * @property Assessment_service   $assessment_service
  */
 class My_courses extends CI_Controller {
@@ -25,6 +26,7 @@ class My_courses extends CI_Controller {
         $this->load->library('session');
         $this->load->model('User_model',   'user_model');
         $this->load->model('Course_model', 'course_model');
+        $this->load->model('Course_phase2_model', 'course_phase2');
         $this->load->library('assessment_service');
         $this->load->helper('url');
 
@@ -104,21 +106,7 @@ class My_courses extends CI_Controller {
                     ->where('status', 'approved')
                     ->count_all_results('enrollments');
 
-                $total_possible = $course->enrolled_count * $course->module_count;
-                if ($total_possible > 0) {
-                    $done = $this->db
-                        ->select('COUNT(*) AS cnt')
-                        ->from('module_progress mp')
-                        ->join('course_modules cm', 'cm.id = mp.module_id', 'inner')
-                        ->where('cm.course_id', $course->id)
-                        ->where('mp.status', 'completed')
-                        ->get()->row();
-                    $course->avg_progress = $done
-                        ? round(((int) $done->cnt / $total_possible) * 100)
-                        : 0;
-                } else {
-                    $course->avg_progress = 0;
-                }
+                $course->avg_progress = $this->course_model->get_avg_progress((int) $course->id);
 
                 $courses[] = $course;
             }
@@ -155,11 +143,12 @@ class My_courses extends CI_Controller {
 
         $courses_result = $this->db
             ->select('c.id, c.title, c.description, c.archived,
-                      c.created_at, c.category_id,
+                      c.created_at, c.category_id, c.access_type, c.publish_status,
                       cc.name AS category_name')
             ->from('courses c')
-            ->join('course_categories cc', 'cc.id = c.category_id', 'left')
-            ->where('c.created_by', $user->id)
+            ->join('course_categories cc', 'cc.id = c.category_id', 'left');
+        $this->course_phase2->restrict_query_to_instructor_courses((int) $user->id);
+        $courses_result = $this->db
             ->order_by('c.created_at', 'DESC')
             ->get();
 
@@ -177,21 +166,7 @@ class My_courses extends CI_Controller {
                     ->where('status', 'approved')
                     ->count_all_results('enrollments');
 
-                $total_possible = $course->enrolled_count * $course->module_count;
-                if ($total_possible > 0) {
-                    $done = $this->db
-                        ->select('COUNT(*) AS cnt')
-                        ->from('module_progress mp')
-                        ->join('course_modules cm', 'cm.id = mp.module_id', 'inner')
-                        ->where('cm.course_id', $course->id)
-                        ->where('mp.status', 'completed')
-                        ->get()->row();
-                    $course->avg_progress = $done
-                        ? round(((int) $done->cnt / $total_possible) * 100)
-                        : 0;
-                } else {
-                    $course->avg_progress = 0;
-                }
+                $course->avg_progress = $this->course_model->get_avg_progress((int) $course->id);
 
                 $my_courses_list[] = $course;
             }
@@ -236,6 +211,7 @@ class My_courses extends CI_Controller {
             ->where('e.user_id',  $user->id)
             ->where('e.status',   'pending')
             ->where('c.archived', 0)
+            ->where('c.publish_status', 'published')
             ->order_by('e.enrolled_at', 'DESC')
             ->get();
         if ($pending_result && $pending_result->num_rows() > 0) {
@@ -259,6 +235,7 @@ class My_courses extends CI_Controller {
             ->where('e.user_id',  $user->id)
             ->where('e.status',   'rejected')
             ->where('c.archived', 0)
+            ->where('c.publish_status', 'published')
             ->order_by('e.enrolled_at', 'DESC')
             ->get();
         if ($rejected_result && $rejected_result->num_rows() > 0) {
@@ -282,6 +259,7 @@ class My_courses extends CI_Controller {
             ->where('e.user_id',  $user->id)
             ->where('e.status',   'approved')
             ->where('c.archived', 0)
+            ->where('c.publish_status', 'published')
             ->order_by('e.enrolled_at', 'DESC')
             ->get();
 
@@ -317,27 +295,21 @@ class My_courses extends CI_Controller {
             }
         }
 
-        $avail_query = $this->db
-            ->select('c.id, c.title, c.description, c.category_id,
-                      cc.name AS category_name')
-            ->from('courses c')
-            ->join('course_categories cc', 'cc.id = c.category_id', 'left')
-            ->where('c.archived', 0);
+        $invited_courses = $this->course_phase2->get_invited_courses_for_user((int) $user->id);
+        $invited_ids = array_map(static function ($row) {
+            return (int) ($row->course_id ?? 0);
+        }, $invited_courses);
 
-        if ( ! empty($blocked_ids)) {
-            $avail_query->where_not_in('c.id', $blocked_ids);
-        }
-
-        $avail_result      = $avail_query->order_by('c.created_at', 'DESC')->get();
+        $GLOBALS['ka_catalog_viewer'] = $user;
+        $avail_rows = $this->course_model->get_catalog('', 0);
         $available_courses = [];
-        if ($avail_result && $avail_result->num_rows() > 0) {
-            foreach ($avail_result->result() as $ac) {
-                $ac->module_count = $this->db
-                    ->where('course_id', $ac->id)
-                    ->where('archived', 0)
-                    ->count_all_results('course_modules');
-                $available_courses[] = $ac;
+        foreach ($avail_rows as $ac) {
+            $cid = (int) $ac->id;
+            if (in_array($cid, $blocked_ids, true) || in_array($cid, $invited_ids, true)) {
+                continue;
             }
+            $ac->module_count = (int) ($ac->total_modules ?? 0);
+            $available_courses[] = $ac;
         }
 
         $categories = $this->db
@@ -350,6 +322,7 @@ class My_courses extends CI_Controller {
             'user'                 => $user,
             'page_title'           => 'My Learning',
             'enrolled_courses'     => $enrolled_courses,
+            'invited_courses'      => $invited_courses,
             'pending_enrollments'  => $pending_enrollments,
             'rejected_enrollments' => $rejected_enrollments,
             'available_courses'    => $available_courses,

@@ -11,6 +11,8 @@ $pre_assessment   = $pre_assessment   ?? null;
 $post_assessments = $post_assessments ?? [];
 $user_role        = strtolower($user->role ?? 'employee');
 $is_completed     = ($my_progress && $my_progress->status === 'completed');
+$lms_return_q     = isset($lms_return_q) ? (string) $lms_return_q : '';
+$lms_course_qs    = ($lms_return_q !== '') ? ('?' . $lms_return_q) : '';
 
 $youtube_video_id                = $youtube_video_id ?? null;
 $video_checkpoint_payload        = $video_checkpoint_payload ?? [];
@@ -31,7 +33,8 @@ $mcs_post_passed                 = ! empty($module_completion_state['post_assess
 $can_start_post_assessment       = ! empty($can_start_post_assessment);
 
 $is_video_module        = (($module->content_type ?? '') === 'video');
-$video_optional_pre     = ($is_video_module && $pre_assessment);
+$pre_assessment_required = $pre_assessment && ( ! $is_video_module || ! empty($pre_assessment->is_required));
+$video_optional_pre     = ($is_video_module && $pre_assessment && ! $pre_assessment_required);
 $content_gated          = ($pre_blocked && $pre_assessment && ! $video_optional_pre);
 $pre_assessment_passed = ! empty($module_completion_state['pre_assessment_passed']);
 $video_completed_init   = ! empty($module_completion_state['video_completed']);
@@ -174,7 +177,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
 
 <!-- Breadcrumb back link -->
 <div class="mv-breadcrumb-row animate__animated animate__fadeIn animate__fast">
-  <a href="<?= base_url('index.php/courses/view/'.$module->course_id) ?>" class="mv-breadcrumb-back">
+  <a href="<?= base_url('index.php/courses/view/'.$module->course_id . $lms_course_qs) ?>" class="mv-breadcrumb-back">
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
     <?= htmlspecialchars($module->course_title) ?>
   </a>
@@ -388,22 +391,22 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
     <!-- ── Navigation ── -->
     <div class="mv-nav mv-nav-spaced">
       <?php if ($prev_module): ?>
-      <a href="<?= base_url('index.php/courses/module/'.$prev_module->id) ?>" class="mv-nav-btn">
+      <a href="<?= base_url('index.php/courses/module/'.$prev_module->id . $lms_course_qs) ?>" class="mv-nav-btn">
         ← <?= htmlspecialchars(mb_strimwidth($prev_module->title, 0, 28, '…')) ?>
       </a>
       <?php else: ?>
-      <a href="<?= base_url('index.php/courses/view/'.$module->course_id) ?>" class="mv-nav-btn">
+      <a href="<?= base_url('index.php/courses/view/'.$module->course_id . $lms_course_qs) ?>" class="mv-nav-btn">
         ← Back to Course
       </a>
       <?php endif; ?>
 
       <?php if ($next_module): ?>
-      <a href="<?= base_url('index.php/courses/module/'.$next_module->id) ?>"
+      <a href="<?= base_url('index.php/courses/module/'.$next_module->id . $lms_course_qs) ?>"
          class="mv-nav-btn primary <?= ! $is_completed ? 'mv-next-locked' : 'mv-next-unlocked' ?>" id="mvNextBtn">
         <?= htmlspecialchars(mb_strimwidth($next_module->title, 0, 28, '…')) ?> →
       </a>
       <?php else: ?>
-      <a href="<?= base_url('index.php/courses/view/'.$module->course_id) ?>" class="mv-nav-btn primary">
+      <a href="<?= base_url('index.php/courses/view/'.$module->course_id . $lms_course_qs) ?>" class="mv-nav-btn primary">
         Back to Course →
       </a>
       <?php endif; ?>
@@ -485,7 +488,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
         $m_done = ($m_status === 'completed');
         $num_class = $m_done ? 'completed' : ($is_cur ? 'current' : 'pending');
       ?>
-      <a href="<?= base_url('index.php/courses/module/'.$m->id) ?>"
+      <a href="<?= base_url('index.php/courses/module/'.$m->id . $lms_course_qs) ?>"
          class="mv-mod-item <?= $is_cur ? 'current' : '' ?>"
          <?= $is_cur ? 'aria-current="page"' : '' ?>>
         <div class="mv-mod-num <?= $num_class ?>">
@@ -502,7 +505,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
     </div>
 
     <!-- Back to course -->
-    <a href="<?= base_url('index.php/courses/view/'.$module->course_id) ?>" class="mv-back-course-outline">
+    <a href="<?= base_url('index.php/courses/view/'.$module->course_id . $lms_course_qs) ?>" class="mv-back-course-outline">
       ← Back to Course Overview
     </a>
 

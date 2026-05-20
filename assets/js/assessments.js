@@ -19,6 +19,50 @@
     return ctx.assessments.ui;
   }
 
+  var ASSESSMENT_UI_GLOBALS = [
+    'openModal',
+    'closeModal',
+    'closeModalOutside',
+    'onTypeChange',
+    'addChoice',
+    'saveQuestion',
+    'addAnotherQuestion',
+    'deleteQuestion',
+    'onEditAssessmentTypeChange',
+  ];
+
+  /** Stubs available before DOMContentLoaded / initEdit (inline onclick-safe). */
+  function kaBindAssessmentGlobals() {
+    ASSESSMENT_UI_GLOBALS.forEach(function(name) {
+      window[name] = function() {
+        var ui = window.APP_CONTEXT && window.APP_CONTEXT.assessments && window.APP_CONTEXT.assessments.ui;
+        var fn = ui && ui[name];
+        if (typeof fn === 'function') {
+          return fn.apply(null, arguments);
+        }
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[assessments] ' + name + ' is not ready yet.');
+        }
+        if (window.KA && window.KA.toast) {
+          window.KA.toast('error', 'Assessment editor is still loading. Please try again.');
+        }
+      };
+    });
+
+    window.editQuestion = function(qid) {
+      var ax = window.APP_CONTEXT && window.APP_CONTEXT.assessments && window.APP_CONTEXT.assessments.actions;
+      var fn = ax && ax.editQuestion;
+      if (typeof fn === 'function') {
+        return fn(qid);
+      }
+      if (window.KA && window.KA.toast) {
+        window.KA.toast('error', 'Assessment editor is still loading. Please try again.');
+      }
+    };
+  }
+
+  kaBindAssessmentGlobals();
+
   function initIndex() {
     var search = document.getElementById('asxSearch');
     var typeEl = document.getElementById('asxFilterType');
@@ -27,6 +71,13 @@
     var cards = document.querySelectorAll('.asx-card');
     if (!cards.length) return;
 
+    var params = new URLSearchParams(window.location.search || '');
+    var urlModuleId = parseInt(params.get('module_id') || '0', 10) || 0;
+    var urlType = params.get('type') || '';
+    if (urlType) {
+      typeEl.value = urlType;
+    }
+
     function filter() {
       var kw = search.value.toLowerCase().trim();
       var type = typeEl.value;
@@ -34,7 +85,10 @@
       cards.forEach(function(c) {
         var title = c.dataset.title || '';
         var ctype = c.dataset.type || '';
-        var show = (!kw || title.indexOf(kw) !== -1) && (!type || ctype === type);
+        var mid = parseInt(c.dataset.moduleId || '0', 10) || 0;
+        var show = (!kw || title.indexOf(kw) !== -1)
+          && (!type || ctype === type)
+          && (!urlModuleId || mid === urlModuleId);
         c.style.display = show ? '' : 'none';
         if (show) vis++;
       });
@@ -43,6 +97,7 @@
 
     search.addEventListener('input', filter);
     typeEl.addEventListener('change', filter);
+    filter();
   }
 
   function initTake() {
@@ -125,9 +180,7 @@
     if (!document.getElementById('createForm')) return;
 
     function toggleCheckpointAuto(on) {
-      var d = document.getElementById('checkpointDurationWrap');
       var m = document.getElementById('checkpointManualTriggerWrap');
-      if (d) d.style.display = on ? 'block' : 'none';
       if (m) m.style.display = on ? 'none' : 'block';
     }
 
@@ -172,6 +225,32 @@
       ag.addEventListener('change', function() {
         var t = document.querySelector('input[name="type"]:checked');
         if (t && t.value === 'checkpoint') selectType('checkpoint');
+      });
+    }
+
+    var createForm = document.getElementById('createForm');
+    if (createForm && createForm.getAttribute('data-cp-duration-bound') !== '1') {
+      createForm.setAttribute('data-cp-duration-bound', '1');
+      createForm.addEventListener('submit', function(ev) {
+        var type = document.querySelector('input[name="type"]:checked');
+        if (!type || type.value !== 'checkpoint') return;
+        var vdEl = document.getElementById('video_duration_seconds');
+        var vd = vdEl ? parseInt(String(vdEl.value).trim(), 10) : NaN;
+        if (!(vd > 0)) return;
+        var auto = document.getElementById('checkpoint_auto_generate');
+        if (auto && auto.checked) return;
+        var tsEl = document.getElementById('trigger_seconds');
+        var tsRaw = tsEl ? String(tsEl.value).trim() : '';
+        var ts = tsRaw === '' ? 0 : parseInt(tsRaw, 10);
+        if (isNaN(ts) || ts < 0) return;
+        if (ts > vd) {
+          ev.preventDefault();
+          if (window.KA && typeof window.KA.toast === 'function') {
+            window.KA.toast('error', 'Checkpoint exceeds video length (' + vd + 's)');
+          } else {
+            alert('Checkpoint exceeds video length (' + vd + 's)');
+          }
+        }
       });
     }
   }
@@ -305,9 +384,15 @@
       });
     }
 
+    var pendingBatch = [];
+
     function isCheckpointMode() {
       var sel = document.getElementById('editAssessmentType');
       return sel && sel.value === 'checkpoint';
+    }
+
+    function isChoiceCorrect(val) {
+      return val === true || val === 1 || val === '1';
     }
 
     function onEditAssessmentTypeChange() {
@@ -328,6 +413,126 @@
       }
     }
 
+    function resetModalForm() {
+      document.getElementById('mfQText').value = '';
+      document.getElementById('mfQType').value = 'multiple_choice';
+      document.getElementById('mfRequired').checked = true;
+      document.getElementById('mfMinWords').value = '';
+      document.getElementById('choicesList').innerHTML = '';
+      addChoice();
+      addChoice();
+      onTypeChange();
+    }
+
+    function syncModalFooter() {
+      var qid = parseInt(document.getElementById('modalQuestionId').value, 10) || 0;
+      var addBtn = document.getElementById('addAnotherBtn');
+      var saveText = document.getElementById('modalSaveText');
+      var summary = document.getElementById('batchQueueSummary');
+      var isEdit = qid > 0;
+      var queued = pendingBatch.length;
+      var canBatch = !isEdit && !isCheckpointMode();
+
+      if (addBtn) {
+        addBtn.style.display = canBatch ? '' : 'none';
+      }
+
+      if (summary) {
+        if (canBatch && queued > 0) {
+          summary.style.display = '';
+          summary.textContent = queued + ' queued';
+        } else {
+          summary.style.display = 'none';
+          summary.textContent = '';
+        }
+      }
+
+      if (saveText) {
+        if (isEdit) {
+          saveText.textContent = 'Update Question';
+        } else if (canBatch && queued > 0) {
+          saveText.textContent = 'Save All Questions';
+        } else {
+          saveText.textContent = 'Add Question';
+        }
+      }
+    }
+
+    function updateActiveQuestionLabel() {
+      var label = document.getElementById('activeQuestionLabel');
+      if (!label) return;
+      var n = pendingBatch.length + 1;
+      if (pendingBatch.length > 0) {
+        label.style.display = '';
+        label.textContent = 'Question ' + n;
+      } else {
+        label.style.display = 'none';
+        label.textContent = 'Question 1';
+      }
+    }
+
+    function renderQueuedFormBlocks() {
+      var stack = document.getElementById('questionFormStack');
+      var activeBlock = document.getElementById('questionFormBlock0');
+      if (!stack || !activeBlock) return;
+
+      stack.querySelectorAll('.question-form-block--queued').forEach(function(el) {
+        el.remove();
+      });
+
+      pendingBatch.forEach(function(q, i) {
+        var block = document.createElement('div');
+        block.className = 'question-form-block question-form-block--queued';
+        block.setAttribute('data-q-block', String(i + 1));
+        var typeLabel = TYPE_LABELS[q.question_type] || q.question_type;
+        var preview = q.question_text.length > 90
+          ? q.question_text.substring(0, 90) + '…'
+          : q.question_text;
+        block.innerHTML = '<div class="question-block-label">Question ' + (i + 1) + '</div>'
+          + '<div class="batch-queued-preview">' + escHtml(preview)
+          + ' <span class="batch-queued-type">(' + escHtml(typeLabel) + ')</span></div>'
+          + '<button type="button" class="batch-remove-btn" data-index="' + i + '">Remove</button>';
+        stack.insertBefore(block, activeBlock);
+
+        block.querySelector('.batch-remove-btn').addEventListener('click', function() {
+          var idx = parseInt(this.getAttribute('data-index'), 10);
+          if (idx >= 0 && idx < pendingBatch.length) {
+            pendingBatch.splice(idx, 1);
+            renderQueuedFormBlocks();
+            updateBatchQueueUi();
+            updateActiveQuestionLabel();
+            syncModalFooter();
+          }
+        });
+      });
+
+      updateActiveQuestionLabel();
+    }
+
+    function updateBatchQueueUi() {
+      var panel = document.getElementById('batchQueuePanel');
+      var list = document.getElementById('batchQueueList');
+      if (!panel || !list) return;
+
+      if (pendingBatch.length === 0) {
+        panel.style.display = 'none';
+        list.innerHTML = '';
+        syncModalFooter();
+        return;
+      }
+
+      panel.style.display = '';
+      list.innerHTML = pendingBatch.map(function(q, i) {
+        var label = TYPE_LABELS[q.question_type] || q.question_type;
+        var preview = q.question_text.length > 72
+          ? q.question_text.substring(0, 72) + '…'
+          : q.question_text;
+        return '<li><strong>' + (i + 1) + '.</strong> ' + escHtml(preview)
+          + ' <span style="color:#64748b;">(' + escHtml(label) + ')</span></li>';
+      }).join('');
+      syncModalFooter();
+    }
+
     function openModal(qid) {
       if (isCheckpointMode() && !qid && document.querySelectorAll('.q-item').length >= 1) {
         window.KA.toast('error', 'This video checkpoint already has a question.');
@@ -336,17 +541,12 @@
       document.getElementById('qModalOverlay').classList.add('open');
       document.getElementById('modalQuestionId').value = qid || 0;
       document.getElementById('modalTitle').textContent = qid ? 'Edit Question' : 'Add Question';
-      document.getElementById('modalSaveText').textContent = qid ? 'Update Question' : 'Add Question';
 
       if (!qid) {
-        document.getElementById('mfQText').value = '';
-        document.getElementById('mfQType').value = 'multiple_choice';
-        document.getElementById('mfRequired').checked = true;
-        document.getElementById('mfMinWords').value = '';
-        document.getElementById('choicesList').innerHTML = '';
-        addChoice();
-        addChoice();
-        onTypeChange();
+        pendingBatch = [];
+        resetModalForm();
+        renderQueuedFormBlocks();
+        updateBatchQueueUi();
       }
       var typeRow = document.getElementById('mfQTypeRow');
       if (typeRow) typeRow.style.display = isCheckpointMode() ? 'none' : '';
@@ -354,6 +554,7 @@
         document.getElementById('mfQType').value = 'multiple_choice';
         onTypeChange();
       }
+      syncModalFooter();
     }
 
     function editQuestion(qid) {
@@ -365,7 +566,14 @@
       document.getElementById('mfRequired').checked = el.dataset.required === '1';
       document.getElementById('mfMinWords').value = el.dataset.minwords || '';
 
-      var choices = JSON.parse(el.dataset.choices || '[]');
+      var choices = [];
+      try {
+        choices = JSON.parse(el.dataset.choices || '[]');
+      } catch (e) {
+        if (window.KA && window.KA.toast) {
+          window.KA.toast('error', 'Could not load saved choices for this question.');
+        }
+      }
       document.getElementById('choicesList').innerHTML = '';
       if (choices.length > 0) {
         choices.forEach(function(c) { addChoice(c.text, c.is_correct); });
@@ -380,6 +588,10 @@
 
     function closeModal() {
       document.getElementById('qModalOverlay').classList.remove('open');
+      pendingBatch = [];
+      renderQueuedFormBlocks();
+      updateBatchQueueUi();
+      setSaveBusy(false);
     }
 
     function closeModalOutside(e) {
@@ -429,12 +641,14 @@
 
       var correctBtn = document.createElement('button');
       correctBtn.type = 'button';
-      correctBtn.className = 'choice-correct-btn' + (isCorrect ? ' active' : '');
+      correctBtn.className = 'choice-correct-btn' + (isChoiceCorrect(isCorrect) ? ' active' : '');
       correctBtn.title = 'Mark as correct';
       correctBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>';
       correctBtn.onclick = function() {
         if (document.getElementById('mfQType').value === 'multiple_choice') {
           list.querySelectorAll('.choice-correct-btn').forEach(function(b) { b.classList.remove('active'); });
+          correctBtn.classList.add('active');
+          return;
         }
         correctBtn.classList.toggle('active');
       };
@@ -452,6 +666,297 @@
       inp.focus();
     }
 
+    function assessmentToast(type, message, durationMs) {
+      if (typeof Swal === 'undefined') {
+        if (window.KA && window.KA.toast) {
+          window.KA.toast(type === 'loading' ? 'info' : type, message);
+        }
+        return;
+      }
+      if (typeof Swal.isVisible === 'function' && Swal.isVisible()) {
+        Swal.close();
+      }
+      var iconColors = {
+        success: '#22c55e',
+        error: '#dc2626',
+        warning: '#f59f00',
+        info: '#6dabcf',
+      };
+      var icon = type === 'loading' ? 'info' : type;
+      var timer = durationMs;
+      if (timer === undefined) {
+        timer = type === 'success' ? 1500 : (type === 'error' ? 3800 : 0);
+      }
+      var mixinOpts = {
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+      };
+      if (timer > 0) {
+        mixinOpts.timer = timer;
+        mixinOpts.timerProgressBar = true;
+        mixinOpts.didOpen = function(t) {
+          t.addEventListener('mouseenter', Swal.stopTimer);
+          t.addEventListener('mouseleave', Swal.resumeTimer);
+        };
+      }
+      Swal.mixin(mixinOpts).fire({
+        icon: icon,
+        title: message,
+        iconColor: iconColors[icon] || '#6dabcf',
+        background: '#fff',
+        color: '#1e293b',
+      });
+    }
+
+    function getSaveToastCopy(qid, count) {
+      if (qid > 0) {
+        return { loading: 'Saving question…', success: 'Question updated.' };
+      }
+      if (count > 1) {
+        return { loading: 'Saving questions…', success: 'Questions saved.' };
+      }
+      return { loading: 'Saving question…', success: 'Question added.' };
+    }
+
+    function cloneQuestionPayload(p) {
+      return {
+        question_text: p.question_text,
+        question_type: p.question_type,
+        is_required: p.is_required,
+        min_words: p.min_words,
+        choices: (p.choices || []).map(function(c) {
+          return { text: c.text, is_correct: c.is_correct };
+        }),
+      };
+    }
+
+    function applyPayloadToForm(p) {
+      document.getElementById('mfQText').value = p.question_text || '';
+      document.getElementById('mfQType').value = p.question_type || 'multiple_choice';
+      document.getElementById('mfRequired').checked = !!p.is_required;
+      document.getElementById('mfMinWords').value = p.min_words || '';
+      document.getElementById('choicesList').innerHTML = '';
+      var choices = p.choices || [];
+      if (choices.length > 0) {
+        choices.forEach(function(c) { addChoice(c.text, c.is_correct); });
+      } else {
+        addChoice();
+        addChoice();
+      }
+      onTypeChange();
+    }
+
+    function stashModalForRestore(qid) {
+      var current = collectFormQuestion();
+      return {
+        qid: qid,
+        pendingBatch: pendingBatch.map(cloneQuestionPayload),
+        formPayload: current.ok ? cloneQuestionPayload(current.payload) : null,
+      };
+    }
+
+    function restoreModalFromStash(stash) {
+      if (!stash) return;
+      openModal(stash.qid || 0);
+      pendingBatch = (stash.pendingBatch || []).map(cloneQuestionPayload);
+      if (stash.formPayload) {
+        applyPayloadToForm(stash.formPayload);
+      } else if (!stash.qid) {
+        resetModalForm();
+      }
+      renderQueuedFormBlocks();
+      updateBatchQueueUi();
+    }
+
+    function setSaveBusy(busy) {
+      var saveBtn = document.getElementById('modalSaveBtn') || document.querySelector('.q-modal-save');
+      var spinner = document.getElementById('modalSaveSpinner');
+      var addBtn = document.getElementById('addAnotherBtn');
+      var cancelBtn = document.querySelector('.q-modal-cancel');
+      if (saveBtn) {
+        saveBtn.disabled = !!busy;
+        saveBtn.classList.toggle('is-busy', !!busy);
+      }
+      if (addBtn) addBtn.disabled = !!busy;
+      if (cancelBtn) cancelBtn.disabled = !!busy;
+      if (spinner) spinner.style.display = busy ? '' : 'none';
+      if (busy) {
+        var saveText = document.getElementById('modalSaveText');
+        if (saveText) saveText.textContent = 'Saving…';
+      } else {
+        syncModalFooter();
+      }
+    }
+
+    function collectFormQuestion() {
+      var text = document.getElementById('mfQText').value.trim();
+      var type = document.getElementById('mfQType').value;
+      var choices = [];
+
+      document.querySelectorAll('#choicesList .choice-row').forEach(function(row) {
+        var t = row.querySelector('.choice-text-input').value.trim();
+        var ok = row.querySelector('.choice-correct-btn').classList.contains('active');
+        if (t) choices.push({ text: t, is_correct: ok ? 1 : 0 });
+      });
+
+      if (!text) {
+        return { ok: false, message: 'Please enter the question text.' };
+      }
+      if (type === 'multiple_choice') {
+        if (choices.length < 2) {
+          return { ok: false, message: 'Add at least 2 choices.' };
+        }
+        if (!choices.some(function(c) { return c.is_correct; })) {
+          return { ok: false, message: 'Mark one choice as the correct answer.' };
+        }
+      }
+      if (isCheckpointMode() && type !== 'multiple_choice') {
+        return { ok: false, message: 'Video checkpoints only support multiple choice.' };
+      }
+      if (type === 'fill_blank' && choices.length === 0) {
+        return { ok: false, message: 'Add at least one accepted answer.' };
+      }
+
+      return {
+        ok: true,
+        payload: {
+          question_text: text,
+          question_type: type,
+          is_required: document.getElementById('mfRequired').checked ? 1 : 0,
+          min_words: parseInt(document.getElementById('mfMinWords').value, 10) || 0,
+          choices: choices,
+        },
+      };
+    }
+
+    function buildOptimisticQuestion(payload, tempId) {
+      return {
+        id: tempId,
+        question_text: payload.question_text,
+        question_type: payload.question_type,
+        is_required: payload.is_required,
+        min_words: payload.min_words || null,
+        choices: (payload.choices || []).map(function(c, i) {
+          return {
+            id: 'tmp-' + tempId + '-' + i,
+            choice_text: c.text,
+            is_correct: c.is_correct,
+          };
+        }),
+      };
+    }
+
+    function appendCsrf(body) {
+      if (String(CSRF_NAME || '').length > 0) {
+        return String(CSRF_NAME) + '=' + encodeURIComponent(String(CSRF_HASH || '')) + '&' + body;
+      }
+      return body;
+    }
+
+    function encodeSingleQuestionBody(qid, payload) {
+      var body = 'assessment_id=' + encodeURIComponent(ASSESSMENT_ID)
+        + '&question_id=' + encodeURIComponent(qid)
+        + '&question_text=' + encodeURIComponent(payload.question_text)
+        + '&question_type=' + encodeURIComponent(payload.question_type)
+        + '&is_required=' + encodeURIComponent(payload.is_required)
+        + '&min_words=' + encodeURIComponent(payload.min_words);
+
+      (payload.choices || []).forEach(function(c, i) {
+        body += '&choices[' + i + '][text]=' + encodeURIComponent(c.text);
+        body += '&choices[' + i + '][is_correct]=' + encodeURIComponent(c.is_correct);
+      });
+      return appendCsrf(body);
+    }
+
+    function encodeBatchBody(questions) {
+      var body = 'assessment_id=' + encodeURIComponent(ASSESSMENT_ID);
+      questions.forEach(function(q, qi) {
+        body += '&questions[' + qi + '][question_text]=' + encodeURIComponent(q.question_text);
+        body += '&questions[' + qi + '][question_type]=' + encodeURIComponent(q.question_type);
+        body += '&questions[' + qi + '][is_required]=' + encodeURIComponent(q.is_required);
+        body += '&questions[' + qi + '][min_words]=' + encodeURIComponent(q.min_words);
+        (q.choices || []).forEach(function(c, ci) {
+          body += '&questions[' + qi + '][choices][' + ci + '][text]=' + encodeURIComponent(c.text);
+          body += '&questions[' + qi + '][choices][' + ci + '][is_correct]=' + encodeURIComponent(c.is_correct);
+        });
+      });
+      return appendCsrf(body);
+    }
+
+    function rollbackOptimistic(tempIds, rollbackMap) {
+      tempIds.forEach(function(id) {
+        var el = document.getElementById('qitem-' + id);
+        if (el) el.remove();
+        if (rollbackMap && rollbackMap[id]) {
+          document.getElementById('qList').insertAdjacentHTML('beforeend', rollbackMap[id]);
+        }
+      });
+      updateNumbers();
+      updateSummary();
+      syncCheckpointQuestionUi();
+      if (document.querySelectorAll('.q-item').length === 0) {
+        var list = document.getElementById('qList');
+        if (list && !document.getElementById('qEmpty')) {
+          list.insertAdjacentHTML('beforeend',
+            '<div id="qEmpty" class="q-empty-msg">No questions yet. Add your first question below.</div>'
+          );
+        }
+      }
+    }
+
+    function finalizeSavedQuestion(qid, tempId, q) {
+      if (qid > 0) {
+        renderQuestion(q, false, true);
+        return;
+      }
+      if (tempId) {
+        var tempEl = document.getElementById('qitem-' + tempId);
+        if (tempEl) tempEl.remove();
+      }
+      renderQuestion(q, !document.getElementById('qitem-' + q.id), true);
+    }
+
+    function finalizeBatchQuestions(tempIds, savedQuestions) {
+      savedQuestions.forEach(function(q, i) {
+        var tempId = tempIds[i];
+        if (tempId) {
+          var tempEl = document.getElementById('qitem-' + tempId);
+          if (tempEl) tempEl.remove();
+        }
+        renderQuestion(q, !document.getElementById('qitem-' + q.id), true);
+      });
+      updateNumbers();
+      updateSummary();
+      syncCheckpointQuestionUi();
+    }
+
+    function handleSaveFailure(qid, tempIds, rollbackMap, modalStash, message) {
+      if (qid > 0 && rollbackMap[qid]) {
+        var el = document.getElementById('qitem-' + qid);
+        if (el) el.outerHTML = rollbackMap[qid];
+      } else {
+        rollbackOptimistic(tempIds);
+      }
+      restoreModalFromStash(modalStash);
+      assessmentToast('error', message || 'Failed to save question.', 3800);
+    }
+
+    function addAnotherQuestion() {
+      var collected = collectFormQuestion();
+      if (!collected.ok) {
+        window.KA.toast('error', collected.message);
+        return;
+      }
+      pendingBatch.push(collected.payload);
+      renderQueuedFormBlocks();
+      updateBatchQueueUi();
+      resetModalForm();
+      window.KA.toast('success', 'Question added. Fill in the next question below.');
+      var textEl = document.getElementById('mfQText');
+      if (textEl) textEl.focus();
+    }
+
     function saveQuestion() {
       if (!editReady) {
         if (window.KA && window.KA.toast) {
@@ -459,52 +964,56 @@
         }
         return;
       }
+
       var qid = parseInt(document.getElementById('modalQuestionId').value, 10) || 0;
-      var text = document.getElementById('mfQText').value.trim();
-      var type = document.getElementById('mfQType').value;
+      var toSave = pendingBatch.slice();
+      var current = collectFormQuestion();
 
-      if (!text) { window.KA.toast('error', 'Please enter the question text.'); return; }
-
-      var choices = [];
-      document.querySelectorAll('#choicesList .choice-row').forEach(function(row) {
-        var t = row.querySelector('.choice-text-input').value.trim();
-        var ok = row.querySelector('.choice-correct-btn').classList.contains('active');
-        if (t) choices.push({ text: t, is_correct: ok ? 1 : 0 });
-      });
-
-      if (type === 'multiple_choice') {
-        if (choices.length < 2) { window.KA.toast('error', 'Add at least 2 choices.'); return; }
-        if (!choices.some(function(c) { return c.is_correct; })) {
-          window.KA.toast('error', 'Mark one choice as the correct answer.'); return;
-        }
-      }
-      if (isCheckpointMode() && type !== 'multiple_choice') {
-        window.KA.toast('error', 'Video checkpoints only support multiple choice.');
+      if (qid <= 0 && current.ok) {
+        toSave.push(current.payload);
+      } else if (qid <= 0 && pendingBatch.length === 0) {
+        window.KA.toast('error', current.message || 'Please enter the question text.');
         return;
       }
-      if (type === 'fill_blank' && choices.length === 0) {
-        window.KA.toast('error', 'Add at least one accepted answer.'); return;
+
+      if (qid > 0) {
+        if (!current.ok) {
+          window.KA.toast('error', current.message);
+          return;
+        }
+        toSave = [current.payload];
+      } else if (toSave.length === 0) {
+        window.KA.toast('error', 'Add at least one question to save.');
+        return;
       }
 
-      var saveBtn = document.querySelector('.q-modal-save');
-      saveBtn.disabled = true;
-      document.getElementById('modalSaveText').textContent = 'Saving…';
+      var toastCopy = getSaveToastCopy(qid, toSave.length);
+      var modalStash = stashModalForRestore(qid);
+      var tempIds = [];
+      var rollbackMap = {};
+      var isBatch = qid <= 0 && toSave.length > 1;
 
-      var body = '';
-      if (String(CSRF_NAME || '').length > 0) {
-        body = String(CSRF_NAME) + '=' + encodeURIComponent(String(CSRF_HASH || '')) + '&';
-      }
-      body += 'assessment_id=' + encodeURIComponent(ASSESSMENT_ID)
-        + '&question_id=' + encodeURIComponent(qid)
-        + '&question_text=' + encodeURIComponent(text)
-        + '&question_type=' + encodeURIComponent(type)
-        + '&is_required=' + (document.getElementById('mfRequired').checked ? 1 : 0)
-        + '&min_words=' + (parseInt(document.getElementById('mfMinWords').value, 10) || 0);
+      setSaveBusy(true);
+      assessmentToast('loading', toastCopy.loading, 0);
 
-      choices.forEach(function(c, i) {
-        body += '&choices[' + i + '][text]=' + encodeURIComponent(c.text);
-        body += '&choices[' + i + '][is_correct]=' + c.is_correct;
+      toSave.forEach(function(payload, idx) {
+        var tempId = 'tmp-' + Date.now() + '-' + idx;
+        tempIds.push(tempId);
+        if (qid > 0) {
+          var existing = document.getElementById('qitem-' + qid);
+          if (existing) rollbackMap[qid] = existing.outerHTML;
+          renderQuestion(buildOptimisticQuestion(payload, qid), false, true);
+        } else {
+          renderQuestion(buildOptimisticQuestion(payload, tempId), true, true);
+        }
       });
+      updateNumbers();
+      updateSummary();
+      closeModal();
+
+      var body = isBatch
+        ? encodeBatchBody(toSave)
+        : encodeSingleQuestionBody(qid > 0 ? qid : 0, toSave[0]);
 
       fetch(SAVE_Q_URL, {
         method: 'POST',
@@ -516,22 +1025,25 @@
       })
         .then(parseJsonResponse)
         .then(function(data) {
-          saveBtn.disabled = false;
-          document.getElementById('modalSaveText').textContent = qid ? 'Update Question' : 'Add Question';
+          setSaveBusy(false);
 
           if (data.success) {
-            closeModal();
-            window.KA.toast('success', data.message);
-            renderQuestion(data.question, qid === 0);
-            syncCheckpointQuestionUi();
+            if (isBatch && data.questions && data.questions.length) {
+              finalizeBatchQuestions(tempIds, data.questions);
+            } else if (data.question) {
+              finalizeSavedQuestion(qid, tempIds[0], data.question);
+              updateNumbers();
+              updateSummary();
+              syncCheckpointQuestionUi();
+            }
+            assessmentToast('success', data.message || toastCopy.success, 1500);
           } else {
-            window.KA.toast('error', data.message || 'Failed to save question.');
+            handleSaveFailure(qid, tempIds, rollbackMap, modalStash, data.message);
           }
         })
         .catch(function() {
-          saveBtn.disabled = false;
-          document.getElementById('modalSaveText').textContent = qid ? 'Update Question' : 'Add Question';
-          window.KA.toast('error', 'Network error. Please try again.');
+          setSaveBusy(false);
+          handleSaveFailure(qid, tempIds, rollbackMap, modalStash, 'Network error. Please try again.');
         });
     }
 
@@ -542,7 +1054,7 @@
       return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    function renderQuestion(q, isNew) {
+    function renderQuestion(q, isNew, skipCounters) {
       var list = document.getElementById('qList');
       var empty = document.getElementById('qEmpty');
       if (empty) empty.remove();
@@ -555,8 +1067,9 @@
       if (q.choices && q.choices.length > 0) {
         choicesHtml = '<div class="q-choices-preview">';
         q.choices.forEach(function(c) {
-          var cls = c.is_correct ? 'correct' : 'wrong';
-          var prefix = c.is_correct ? '✓ ' : '';
+          var correct = isChoiceCorrect(c.is_correct);
+          var cls = correct ? 'correct' : 'wrong';
+          var prefix = correct ? '✓ ' : '';
           choicesHtml += '<span class="q-choice-chip ' + cls + '">' + prefix + escHtml(c.choice_text) + '</span>';
         });
         choicesHtml += '</div>';
@@ -566,7 +1079,8 @@
         return { id: c.id, text: c.choice_text, is_correct: c.is_correct };
       }));
 
-      var html = '<div class="q-item" id="qitem-' + q.id + '"'
+      var optimisticCls = String(q.id).indexOf('tmp-') === 0 ? ' optimistic' : '';
+      var html = '<div class="q-item' + optimisticCls + '" id="qitem-' + q.id + '"'
         + ' data-id="' + q.id + '"'
         + ' data-text="' + escAttr(q.question_text) + '"'
         + ' data-type="' + q.question_type + '"'
@@ -595,8 +1109,10 @@
         list.insertAdjacentHTML('beforeend', html);
       }
 
-      updateNumbers();
-      updateSummary();
+      if (!skipCounters) {
+        updateNumbers();
+        updateSummary();
+      }
     }
 
     function updateNumbers() {
@@ -683,20 +1199,25 @@
     ui.onTypeChange = onTypeChange;
     ui.addChoice = addChoice;
     ui.saveQuestion = saveQuestion;
+    ui.addAnotherQuestion = addAnotherQuestion;
     ui.deleteQuestion = deleteQuestion;
     ui.onEditAssessmentTypeChange = onEditAssessmentTypeChange;
-    window.openModal = ui.openModal;
-    window.closeModal = ui.closeModal;
-    window.closeModalOutside = ui.closeModalOutside;
-    window.onTypeChange = ui.onTypeChange;
-    window.addChoice = ui.addChoice;
-    window.saveQuestion = ui.saveQuestion;
-    window.deleteQuestion = ui.deleteQuestion;
-    window.onEditAssessmentTypeChange = ui.onEditAssessmentTypeChange;
+    ASSESSMENT_UI_GLOBALS.forEach(function(name) {
+      window[name] = ui[name];
+    });
 
     var ax = kaEnsureAssessmentsActions();
     ax.editQuestion = editQuestion;
     window.editQuestion = ax.editQuestion;
+
+    var addAnotherBtn = document.getElementById('addAnotherBtn');
+    if (addAnotherBtn && addAnotherBtn.getAttribute('data-bound') !== '1') {
+      addAnotherBtn.setAttribute('data-bound', '1');
+      addAnotherBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        addAnotherQuestion();
+      });
+    }
 
     onTypeChange();
 
@@ -706,6 +1227,38 @@
 
     onEditAssessmentTypeChange();
     syncCheckpointQuestionUi();
+
+    var metaForm = document.getElementById('assessmentMetaForm');
+    if (metaForm && metaForm.getAttribute('data-cp-duration-bound') !== '1') {
+      metaForm.setAttribute('data-cp-duration-bound', '1');
+      metaForm.addEventListener('submit', function(ev) {
+        if (!isCheckpointMode()) return;
+        var tsEl = metaForm.querySelector('input[name="trigger_seconds"]');
+        var durEl = document.getElementById('edit_video_duration_seconds');
+        var tsRaw = tsEl ? String(tsEl.value).trim() : '';
+        var ts = tsRaw === '' ? 0 : parseInt(tsRaw, 10);
+        if (isNaN(ts) || ts < 0) return;
+        if (ts < 1) return;
+        var vd = durEl ? parseInt(String(durEl.value).trim(), 10) : NaN;
+        if (!(vd > 0)) {
+          ev.preventDefault();
+          if (window.KA && typeof window.KA.toast === 'function') {
+            window.KA.toast('error', 'Whole video duration is required when the timestamp is greater than zero.');
+          } else {
+            alert('Whole video duration is required when the timestamp is greater than zero.');
+          }
+          return;
+        }
+        if (ts > vd) {
+          ev.preventDefault();
+          if (window.KA && typeof window.KA.toast === 'function') {
+            window.KA.toast('error', 'Checkpoint exceeds video length (' + vd + 's)');
+          } else {
+            alert('Checkpoint exceeds video length (' + vd + 's)');
+          }
+        }
+      });
+    }
   }
 
   document.addEventListener('DOMContentLoaded', function() {

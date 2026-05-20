@@ -6,6 +6,12 @@ $checkpoint_schema_ready = ! empty($checkpoint_schema_ready);
 $csrf_field_name         = $csrf_field_name ?? '';
 $csrf_hash               = $csrf_hash ?? '';
 $preselect_mod           = (int) ($preselect_mod ?? 0);
+$preselect_course_id     = (int) ($preselect_course_id ?? 0);
+$preselect_type          = (string) ($preselect_type ?? '');
+$type_selected           = set_value('type', $preselect_type);
+if ($type_selected === 'checkpoint' && ! $checkpoint_schema_ready && empty($_POST)) {
+    $type_selected = 'pre';
+}
 $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST['checkpoint_auto_generate'] === '1');
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
@@ -26,6 +32,9 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
 
 <form method="post" action="<?= base_url('index.php/assessments/create') ?>" id="createForm">
   <input type="hidden" name="<?= html_escape($csrf_field_name) ?>" value="<?= html_escape($csrf_hash) ?>">
+  <?php if ($preselect_course_id > 0): ?>
+  <input type="hidden" name="course_id" value="<?= (int) set_value('course_id', (string) $preselect_course_id) ?>">
+  <?php endif; ?>
 
   <div class="crt-layout animate__animated animate__fadeInUp animate__fast">
 
@@ -60,7 +69,7 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
                   $current_course = $m->course_title;
                 endif;
               ?>
-              <option value="<?= $m->id ?>" <?= (set_select('module_id', $m->id) || (!$_POST && $m->id === $preselect_mod)) ? 'selected' : '' ?>>
+              <option value="<?= $m->id ?>" <?= (set_select('module_id', $m->id) || ( ! $_POST && (int) $m->id === $preselect_mod)) ? 'selected' : '' ?>>
                 <?= htmlspecialchars($m->module_title) ?>
               </option>
               <?php endforeach; ?>
@@ -89,25 +98,25 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
         <div class="crt-panel-hdr"><h3 class="crt-panel-title">Assessment Type <span style="color:#dc2626;">*</span></h3></div>
         <div class="crt-panel-body">
           <div class="crt-type-grid">
-            <label class="crt-type-card <?= set_value('type') === 'pre' ? 'selected' : '' ?>" id="card-pre">
+            <label class="crt-type-card <?= $type_selected === 'pre' ? 'selected' : '' ?>" id="card-pre">
               <input type="radio" name="type" value="pre"
-                     <?= set_value('type') === 'pre' ? 'checked' : '' ?>
+                     <?= $type_selected === 'pre' ? 'checked' : '' ?>
                      onchange="selectType('pre')" required>
               <div class="crt-type-icon">⏱️</div>
               <div class="crt-type-label">Pre-Assessment</div>
               <div class="crt-type-sub">Taken before the module to measure baseline knowledge</div>
             </label>
-            <label class="crt-type-card <?= set_value('type') === 'post' ? 'selected' : '' ?>" id="card-post">
+            <label class="crt-type-card <?= $type_selected === 'post' ? 'selected' : '' ?>" id="card-post">
               <input type="radio" name="type" value="post"
-                     <?= set_value('type') === 'post' ? 'checked' : '' ?>
+                     <?= $type_selected === 'post' ? 'checked' : '' ?>
                      onchange="selectType('post')">
               <div class="crt-type-icon">🏆</div>
               <div class="crt-type-label">Post-Assessment</div>
               <div class="crt-type-sub">Taken after the module to evaluate learning outcomes</div>
             </label>
             <?php
-              $sel_cp = (set_value('type') === 'checkpoint')
-                || (empty($_POST) && ($preselect_type ?? '') === 'checkpoint' && $checkpoint_schema_ready);
+              $sel_cp = ($type_selected === 'checkpoint')
+                && ($checkpoint_schema_ready || ! empty($_POST));
             ?>
             <label class="crt-type-card <?= $sel_cp ? 'selected' : '' ?> <?= $checkpoint_schema_ready ? '' : 'disabled' ?>" id="card-checkpoint">
               <input type="radio" name="type" value="checkpoint"
@@ -138,12 +147,12 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
               </label>
               <div class="crt-help">Requires whole-video duration in seconds (e.g. from YouTube studio). Module must have room for 3 checkpoints (max 3 per module total).</div>
             </div>
-            <div class="crt-form-group" id="checkpointDurationWrap" style="display:<?= $checkpoint_auto_checked ? 'block' : 'none' ?>;">
+            <div class="crt-form-group" id="checkpointDurationWrap">
               <label class="crt-label" for="video_duration_seconds">Whole video duration (seconds) <span>*</span></label>
               <input type="number" id="video_duration_seconds" name="video_duration_seconds" class="crt-input" min="1" step="1"
                      placeholder="e.g. 720 for a 12-minute video"
                      value="<?= htmlspecialchars(set_value('video_duration_seconds', '')) ?>">
-              <div class="crt-help">Used only for auto mode. Timestamps are placed at random seconds within 5–30%, 30–70%, and 70–95% of this length.</div>
+              <div class="crt-help">Required for every video checkpoint. Caps the timestamp you set and validates learner submissions against the real player length.</div>
               <?php if (form_error('video_duration_seconds')): ?>
                 <div class="crt-error"><?= form_error('video_duration_seconds') ?></div>
               <?php endif; ?>

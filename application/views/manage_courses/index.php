@@ -69,6 +69,35 @@ $archived = array_filter($courses, fn($c) =>  (int)$c->archived);
 .mc-empty { text-align:center;padding:3rem 1rem; }
 .mc-empty svg { width:44px;height:44px;margin:0 auto .875rem;opacity:.2;display:block; }
 .mc-empty p { font-size:.875rem;color:var(--ka-text-muted,#64748b);margin-bottom:1.25rem; }
+
+/* Grid / list toggle (shared with manage_courses.js) */
+.mc-topbar-right { display:flex;align-items:center;gap:.625rem;flex-wrap:wrap; }
+.mc-view-toggle { display:flex;gap:4px;flex-shrink:0; }
+.mc-toggle-btn {
+  width:32px;height:32px;border-radius:7px;border:1.5px solid var(--ka-border,#e2e8f0);
+  background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  color:var(--ka-text-muted,#64748b);transition:all .15s;
+}
+.mc-toggle-btn.active,
+.mc-toggle-btn:hover { background:var(--ka-navy,#1a3a5c);border-color:var(--ka-navy,#1a3a5c);color:#fff; }
+.mc-toggle-btn svg { width:15px;height:15px; }
+.mc-index-grid-wrap {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:1rem;
+  margin-bottom:1.25rem;
+}
+.mc-index-card {
+  background:#fff;border:1px solid var(--ka-border,#e2e8f0);
+  border-radius:14px;padding:1rem 1.125rem;
+  display:flex;flex-direction:column;gap:.5rem;
+  transition:box-shadow .2s, transform .2s;
+}
+.mc-index-card:hover { box-shadow:0 8px 24px rgba(0,0,0,.08);transform:translateY(-2px); }
+.mc-index-card-title { font-weight:700;font-size:.9rem;color:var(--ka-text,#1e293b);line-height:1.35; }
+.mc-index-card-meta { font-size:.6875rem;color:var(--ka-text-muted,#64748b); }
+.mc-index-card-actions { display:flex;gap:.375rem;margin-top:auto;padding-top:.625rem;border-top:1px solid var(--ka-border,#e2e8f0);flex-wrap:wrap; }
+.mc-index-card .mc-action-btn { flex-shrink:0; }
 </style>
 
 <!-- ══ Topbar ════════════════════════════════════════════════ -->
@@ -77,10 +106,20 @@ $archived = array_filter($courses, fn($c) =>  (int)$c->archived);
     <h2>Manage Courses</h2>
     <p><?= $is_admin ? 'All courses in the system' : 'Courses you have created' ?></p>
   </div>
-  <a href="<?= base_url('manage_courses/create') ?>" class="mc-btn mc-btn-primary">
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    New Course
-  </a>
+  <div class="mc-topbar-right">
+    <div class="mc-view-toggle" id="mcViewToggle">
+      <button type="button" class="mc-toggle-btn active" data-view="grid" title="Grid view">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+      </button>
+      <button type="button" class="mc-toggle-btn" data-view="table" title="List view">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+    </div>
+    <a href="<?= base_url('manage_courses/create') ?>" class="mc-btn mc-btn-primary">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Course
+    </a>
+  </div>
 </div>
 
 <!-- ══ Stats ════════════════════════════════════════════════ -->
@@ -125,6 +164,54 @@ foreach ($courses as $c) {
   <span style="font-size:.8125rem;font-weight:600;color:var(--ka-text-muted,#64748b);" id="mcCount"><?= count($courses) ?> courses</span>
 </div>
 
+<!-- ══ Courses: grid + list ═════════════════════════════════ -->
+<div id="mcGridView" class="mc-index-grid-wrap animate__animated animate__fadeInUp animate__fast" style="animation-delay:.1s;">
+  <?php if ( ! empty($courses)): ?>
+    <?php foreach ($courses as $course): ?>
+    <div class="mc-index-card"
+         data-title="<?= htmlspecialchars(strtolower($course->title)) ?>"
+         data-status="<?= $course->archived ? 'archived' : 'active' ?>">
+      <div class="mc-index-card-title"><?= htmlspecialchars($course->title) ?></div>
+      <div class="mc-index-card-meta">
+        <?= htmlspecialchars($course->category_name ?? '—') ?>
+        <?php if ( ! empty($course->modality_name)): ?> · <?= htmlspecialchars($course->modality_name) ?><?php endif; ?>
+        <?php if ($is_admin && ! empty($course->creator_name)): ?>
+          <br><span style="font-weight:600;">Instructor:</span> <?= htmlspecialchars($course->creator_name) ?>
+        <?php endif; ?>
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+        <span class="mc-badge <?= $course->archived ? 'mc-badge-archived' : 'mc-badge-active' ?>">
+          <?= $course->archived ? 'Archived' : 'Active' ?>
+        </span>
+        <?php $avg = (int)($course->avg_progress ?? 0); ?>
+        <span style="font-size:.6875rem;font-weight:700;color:var(--ka-text-muted,#64748b);"><?= $avg ?>% avg</span>
+      </div>
+      <div class="mc-index-card-actions">
+        <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('manage_courses')) ?>" class="mc-action-btn" title="Edit">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </a>
+        <a href="<?= base_url('courses/view/'.$course->id.'?'.ka_lms_return_q('manage_courses')) ?>" class="mc-action-btn" title="Preview" target="_blank">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </a>
+        <?php if ( ! $course->archived): ?>
+        <button type="button" onclick="KA.deleteConfirm('<?= base_url('manage_courses/delete/'.$course->id) ?>', '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')"
+                class="mc-action-btn danger" title="Archive">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </button>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  <?php else: ?>
+    <div class="mc-empty" data-mc-skip-filter="1" style="grid-column:1/-1;">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+      <p>No courses yet. Create your first course to get started.</p>
+      <a href="<?= base_url('manage_courses/create') ?>" class="mc-btn mc-btn-primary">Create Course</a>
+    </div>
+  <?php endif; ?>
+</div>
+
+<div id="mcTableView" style="display:none;">
 <!-- ══ Courses Table ═════════════════════════════════════════ -->
 <div class="mc-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.1s;">
   <div class="mc-panel-hdr">
@@ -180,11 +267,11 @@ foreach ($courses as $c) {
         </td>
         <td>
           <div class="mc-actions">
-            <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>"
+            <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('manage_courses')) ?>"
                class="mc-action-btn" title="Edit">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             </a>
-            <a href="<?= base_url('courses/view/'.$course->id) ?>"
+            <a href="<?= base_url('courses/view/'.$course->id.'?'.ka_lms_return_q('manage_courses')) ?>"
                class="mc-action-btn" title="Preview" target="_blank">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </a>
@@ -201,35 +288,43 @@ foreach ($courses as $c) {
     </tbody>
   </table>
   <?php else: ?>
-  <div class="mc-empty">
+  <div class="mc-empty" data-mc-skip-filter="1">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
     <p>No courses yet. Create your first course to get started.</p>
     <a href="<?= base_url('manage_courses/create') ?>" class="mc-btn mc-btn-primary">Create Course</a>
   </div>
   <?php endif; ?>
 </div>
+</div>
 
+<script src="<?= base_url('assets/js/manage_courses.js') ?>" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var search = document.getElementById('mcSearch');
   var filter = document.getElementById('mcFilterStatus');
-  var countEl= document.getElementById('mcCount');
-  var rows   = document.querySelectorAll('#mcTable tbody tr');
+  var countEl = document.getElementById('mcCount');
 
   function applyFilter() {
-    var kw  = search.value.toLowerCase().trim();
-    var st  = filter.value;
+    if (!search || !filter || !countEl) return;
+    var kw = search.value.toLowerCase().trim();
+    var st = filter.value;
     var vis = 0;
-    rows.forEach(function(r) {
-      var title  = r.dataset.title  || '';
+    document.querySelectorAll('[data-mc-skip-filter="1"]').forEach(function(el) {
+      el.style.display = '';
+    });
+    document.querySelectorAll('#mcGridView .mc-index-card, #mcTableView #mcTable tbody tr').forEach(function(r) {
+      var title = r.dataset.title || '';
       var status = r.dataset.status || '';
-      var show   = (!kw || title.includes(kw)) && (!st || status === st);
+      var show = (!kw || title.indexOf(kw) !== -1) && (!st || status === st);
       r.style.display = show ? '' : 'none';
       if (show) vis++;
     });
     countEl.textContent = vis + ' course' + (vis !== 1 ? 's' : '');
   }
-  search.addEventListener('input', applyFilter);
-  filter.addEventListener('change', applyFilter);
+
+  document.addEventListener('ka-mc-view-applied', applyFilter);
+  if (search) search.addEventListener('input', applyFilter);
+  if (filter) filter.addEventListener('change', applyFilter);
+  applyFilter();
 });
 </script>

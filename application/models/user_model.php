@@ -22,6 +22,40 @@ class User_model extends CI_Model {
             ->row();
     }
 
+    /**
+     * Sync LMS office label from HRMIS Department (display only; visibility uses live HRMIS lookup).
+     *
+     * @param int         $user_id
+     * @param string|null $employee_id
+     * @return bool
+     */
+    public function apply_hrmis_profile($user_id, $employee_id = null)
+    {
+        $uid = (int) $user_id;
+        if ($uid < 1) {
+            return false;
+        }
+
+        $user = $this->get_user($uid);
+        if ( ! $user) {
+            return false;
+        }
+
+        $emp_id = $employee_id !== null ? trim((string) $employee_id) : trim((string) ($user->employee_id ?? ''));
+        if ($emp_id === '') {
+            return false;
+        }
+
+        $hr = $this->get_hrmis_employee($emp_id);
+        if ( ! $hr) {
+            return false;
+        }
+
+        return (bool) $this->db->where('id', $uid)->update($this->table, [
+            'office' => trim((string) ($hr->Department ?? '')),
+        ]);
+    }
+
     /* ===== CHECK IF REGISTERED ===== */
     public function is_registered($employee_id)
     {

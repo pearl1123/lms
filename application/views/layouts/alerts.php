@@ -237,4 +237,36 @@ KA.enrollConfirm = function(url, courseName) {
     onConfirm:   url,
   });
 };
+
+/**
+ * KA.publishConfirm(url, courseName) — publish course confirmation
+ */
+KA.publishConfirm = function(url, courseName) {
+  KA.confirm({
+    title:       'Publish this course?',
+    text:        courseName
+      ? '<strong>' + courseName + '</strong> will become visible to eligible learners.'
+      : 'Eligible learners will be able to see and enroll in this course.',
+    confirmText: 'Yes, publish',
+    cancelText:  'Cancel',
+    type:        'info',
+    onConfirm:   url,
+  });
+};
+
+/**
+ * KA.unpublishConfirm(url, courseName) — unpublish course confirmation
+ */
+KA.unpublishConfirm = function(url, courseName) {
+  KA.confirm({
+    title:       'Unpublish this course?',
+    text:        courseName
+      ? '<strong>' + courseName + '</strong> will be hidden from the learner catalog until you publish it again.'
+      : 'Learners will no longer see this course in the catalog until you publish it again.',
+    confirmText: 'Yes, unpublish',
+    cancelText:  'Cancel',
+    type:        'warning',
+    onConfirm:   url,
+  });
+};
 </script>

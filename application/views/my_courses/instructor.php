@@ -318,11 +318,11 @@ $thumb_gradients = [
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" href="<?= base_url('manage_courses/edit/'.$course->id) ?>">
+            <li><a class="dropdown-item" href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               Edit Course
             </a></li>
-            <li><a class="dropdown-item" href="<?= base_url('manage_courses/modules/'.$course->id) ?>">
+            <li><a class="dropdown-item" href="<?= base_url('index.php/manage_courses/modules/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
               Manage Modules
             </a></li>
@@ -359,8 +359,8 @@ $thumb_gradients = [
           <div class="ic-prog-bar"><div class="ic-prog-fill" style="width:<?= $avg_prog ?>%"></div></div>
         </div>
         <div class="ic-card-footer">
-          <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>" class="ic-card-btn ic-btn-edit">Edit</a>
-          <a href="<?= base_url('manage_courses/modules/'.$course->id) ?>" class="ic-card-btn ic-btn-manage">Modules</a>
+          <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="ic-card-btn ic-btn-edit">Edit</a>
+          <a href="<?= base_url('index.php/manage_courses/modules/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="ic-card-btn ic-btn-manage">Modules</a>
           <a href="<?= base_url('manage_courses/delete/'.$course->id) ?>" class="ic-card-btn ic-btn-delete" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Del</a>
         </div>
       </div>
@@ -428,8 +428,8 @@ $thumb_gradients = [
             <td style="color:var(--ka-text-muted,#64748b);font-size:.75rem;white-space:nowrap;"><?= date('M j, Y', strtotime($course->created_at)) ?></td>
             <td>
               <div class="ic-action-row">
-                <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>" class="ic-action-link ic-action-edit">Edit</a>
-                <a href="<?= base_url('manage_courses/modules/'.$course->id) ?>" class="ic-action-link ic-action-manage">Modules</a>
+                <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="ic-action-link ic-action-edit">Edit</a>
+                <a href="<?= base_url('index.php/manage_courses/modules/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="ic-action-link ic-action-manage">Modules</a>
                 <a href="<?= base_url('manage_courses/delete/'.$course->id) ?>" class="ic-action-link ic-action-delete" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Delete</a>
               </div>
             </td>
@@ -443,26 +443,9 @@ $thumb_gradients = [
   </div>
 </div>
 
+<script src="<?= base_url('assets/js/manage_courses.js') ?>" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-
-  // ── View toggle ──────────────────────────────────────────
-  const gridView  = document.getElementById('icGridView');
-  const tableView = document.getElementById('icTableView');
-
-  document.querySelectorAll('.ic-toggle-btn').forEach(btn => {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('.ic-toggle-btn').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      if (this.dataset.view === 'grid') {
-        gridView.style.display  = '';
-        tableView.style.display = 'none';
-      } else {
-        gridView.style.display  = 'none';
-        tableView.style.display = '';
-      }
-    });
-  });
 
   // ── Live filter ──────────────────────────────────────────
   function applyFilters() {
@@ -492,5 +475,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('icSearch').addEventListener('input', applyFilters);
   document.getElementById('icFilterCat').addEventListener('change', applyFilters);
   document.getElementById('icFilterStatus').addEventListener('change', applyFilters);
+  document.addEventListener('ka-mc-view-applied', applyFilters);
+  applyFilters();
 });
 </script>

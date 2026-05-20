@@ -509,7 +509,7 @@ $thumb_gradients = [
           </a>
 
           <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
-          <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>"
+          <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('manage_courses')) ?>"
              class="cat-cta cat-cta-manage" style="flex:none;padding:6px 10px;font-size:.6875rem;">
             Edit
           </a>
@@ -615,7 +615,7 @@ $thumb_gradients = [
           </a>
         <?php endif; ?>
         <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
-        <a href="<?= base_url('manage_courses/edit/'.$course->id) ?>"
+        <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('manage_courses')) ?>"
            class="cat-list-btn"
            style="background:#fffbeb;color:#b45309;">
           Edit

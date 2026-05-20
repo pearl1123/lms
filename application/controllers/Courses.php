@@ -17,6 +17,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property Assessment_service    $assessment_service
  * @property Certificate_model     $certificate_model
  * @property Notification_model    $notification_model
+ * @property Course_phase2_model   $course_phase2
  * @property Certificate_service   $certificate_service
  * @property Notification_service  $notification_service
  * @property Event_dispatcher      $event_dispatcher
@@ -142,6 +143,7 @@ class Courses extends CI_Controller {
         // get_catalog() returns courses with:
         //   category_name, modality_name, access_type_name,
         //   creator_name, total_modules, total_enrolled
+        $GLOBALS['ka_catalog_viewer'] = $user;
         $courses = $this->course_model->get_catalog($keyword, $filter_cat);
 
         // ── Approved enrollments only (IDs) + full status map for employee CTAs ──
@@ -213,6 +215,18 @@ class Courses extends CI_Controller {
         $course = $this->course_model->get_course($id);
         if ( ! $course) show_404();
 
+        $this->load->model('Course_phase2_model', 'course_phase2');
+        $is_learner = in_array((string) $user->role, ['employee', 'student'], true);
+        $pending_invitation = null;
+        if ($is_learner) {
+            $vis = $this->course_phase2->employee_may_view_course($id, $user, true);
+            if ( ! $vis['allowed']) {
+                $this->session->set_flashdata('error', $vis['message'] ?: 'This course is not available to you.');
+                redirect('courses');
+            }
+            $pending_invitation = $this->course_phase2->get_pending_invitation_for_user((int) $user->id, $id);
+        }
+
         // ── Modules with user's progress per module ───────────
         // Returns: id, title, description, content_type, content_path,
         //          weight_percentage, module_order,
@@ -249,6 +263,8 @@ class Courses extends CI_Controller {
         // ── Total enrolled students for this course ───────────
         $total_enrolled = $this->course_model->count_enrollments($id);
 
+        $lms_rt = ka_lms_resolve_return_target($user, $this->input->get('return_url'));
+
         $data = [
             'user'              => $user,
             'page_title'        => $course->title,
@@ -257,10 +273,14 @@ class Courses extends CI_Controller {
             'is_enrolled'        => $is_enrolled,
             'enrollment'         => $enrollment,
             'enrollment_status'  => $enrollment_status,
+            'access_type'        => $this->course_phase2->get_course_access_type($course),
+            'pending_invitation' => $pending_invitation,
             'total_modules'     => $total_modules,
             'completed_modules' => $completed_modules,
             'progress_pct'      => $progress_pct,
             'total_enrolled'    => $total_enrolled,
+            'lms_return_target' => $lms_rt,
+            'lms_return_q'      => ka_lms_return_q($lms_rt),
             'breadcrumbs'       => [
                 ['label' => 'Dashboard',      'url' => 'dashboard'],
                 ['label' => 'Course Catalog', 'url' => 'courses'],
@@ -298,26 +318,61 @@ class Courses extends CI_Controller {
             'role'      => (string) $user->role,
         ]));
 
+        $this->load->model('Course_phase2_model', 'course_phase2');
+        $vis = $this->course_phase2->employee_may_view_course($id, $user);
+        if ( ! $vis['allowed']) {
+            $this->session->set_flashdata('error', $vis['message'] ?: 'This course is not available to you.');
+            redirect('courses/view/' . $id);
+        }
+
+        $access = $this->course_phase2->get_course_access_type($course);
+        if ($access === 'invitation_only') {
+            $this->session->set_flashdata(
+                'error',
+                'This course is invitation-only. Accept your course invitation to enroll.'
+            );
+            redirect('courses/view/' . $id);
+        }
+
         $ok = $this->course_model->request_enrollment($user->id, $id);
 
         if ($ok) {
             $row = $this->course_model->get_enrollment((int) $user->id, $id);
             if ($row && (int) ($row->id ?? 0) > 0) {
+                $st = isset($row->status) ? (string) $row->status : '';
                 $this->load->library('event_dispatcher');
-                $this->event_dispatcher->dispatch('enrollment.requested', [
-                    'request_id' => (int) $row->id,
-                    'student_id' => (int) $user->id,
-                    'user_id'    => (int) $user->id,
-                    'course_id'  => (int) $id,
-                ]);
+                if ($st === 'pending') {
+                    $this->event_dispatcher->dispatch('enrollment.requested', [
+                        'request_id' => (int) $row->id,
+                        'student_id' => (int) $user->id,
+                        'user_id'    => (int) $user->id,
+                        'course_id'  => (int) $id,
+                    ]);
+                } elseif ($st === 'approved') {
+                    $this->load->library('notification_service');
+                    $this->notification_service->enrollment_enrolled(
+                        (int) $row->id,
+                        (int) $user->id,
+                        (int) $id
+                    );
+                }
             }
 
-            $this->session->set_flashdata(
-                'success',
-                'Enrollment request submitted for <strong>'
-                . htmlspecialchars($course->title) . '</strong>. '
-                . 'Your instructor will review it shortly.'
-            );
+            $row = $this->course_model->get_enrollment((int) $user->id, $id);
+            $st  = $row && isset($row->status) ? (string) $row->status : '';
+            if ($st === 'approved') {
+                $this->session->set_flashdata(
+                    'success',
+                    'You are now enrolled in <strong>' . htmlspecialchars($course->title) . '</strong>.'
+                );
+            } else {
+                $this->session->set_flashdata(
+                    'success',
+                    'Enrollment request submitted for <strong>'
+                    . htmlspecialchars($course->title) . '</strong>. '
+                    . 'Your instructor will review it shortly.'
+                );
+            }
         } else {
             $row = $this->course_model->get_enrollment($user->id, $id);
             $st  = $row && isset($row->status) ? (string) $row->status : '';
@@ -343,6 +398,49 @@ class Courses extends CI_Controller {
     }
 
     /**
+     * Accept a course invitation (employee/student).
+     * URL: index.php/courses/accept_invitation/{invitation_id}
+     */
+    public function accept_invitation($invitation_id = null)
+    {
+        $user = $this->user;
+        $iid  = (int) $invitation_id;
+        if ($iid < 1) {
+            redirect('courses');
+        }
+
+        if ( ! in_array((string) $user->role, ['employee', 'student'], true)) {
+            redirect('courses');
+        }
+
+        $this->load->model('Course_phase2_model', 'course_phase2');
+        $res = $this->course_phase2->accept_invitation($iid, (int) $user->id);
+        if ( ! empty($res['ok'])) {
+            $cid = (int) ($res['course_id'] ?? 0);
+            $this->session->set_flashdata('success', 'Invitation accepted. You are now enrolled in this course.');
+            redirect($cid > 0 ? 'courses/view/' . $cid : 'courses');
+        }
+
+        $this->session->set_flashdata('error', $res['message'] ?? 'Could not accept invitation.');
+        redirect('courses');
+    }
+
+    public function reject_invitation($invitation_id = null)
+    {
+        $user = $this->user;
+        $iid  = (int) $invitation_id;
+        if ($iid < 1 || ! in_array((string) $user->role, ['employee', 'student'], true)) {
+            redirect('courses');
+        }
+
+        $this->load->model('Course_phase2_model', 'course_phase2');
+        $res = $this->course_phase2->reject_invitation($iid, (int) $user->id);
+        $cid = (int) ($res['course_id'] ?? 0);
+        $this->session->set_flashdata(! empty($res['ok']) ? 'success' : 'error', $res['message'] ?? 'Could not decline invitation.');
+        redirect($cid > 0 ? 'courses/view/' . $cid : 'courses');
+    }
+
+    /**
      * Employee: explain that course access requires approval.
      * URL: index.php/courses/enrollment_pending/{course_id}
      */
@@ -361,6 +459,13 @@ class Courses extends CI_Controller {
         $course = $this->course_model->get_course($cid);
         if ( ! $course) {
             show_404();
+        }
+
+        $this->load->model('Course_phase2_model', 'course_phase2');
+        $vis = $this->course_phase2->employee_may_view_course($cid, $user, true);
+        if ( ! $vis['allowed']) {
+            $this->session->set_flashdata('error', $vis['message'] ?: 'This course is not available to you.');
+            redirect('courses');
         }
 
         if ($this->course_model->has_approved_enrollment($user->id, $cid)) {
@@ -406,7 +511,13 @@ class Courses extends CI_Controller {
             show_404();
         }
 
-        if ($user->role === 'employee') {
+        if (in_array((string) $user->role, ['employee', 'student'], true)) {
+            $this->load->model('Course_phase2_model', 'course_phase2');
+            $vis = $this->course_phase2->employee_may_view_course((int) $module->course_id, $user, true);
+            if ( ! $vis['allowed']) {
+                $this->session->set_flashdata('error', $vis['message'] ?: 'This course is not available to you.');
+                redirect('courses');
+            }
             if ( ! $this->course_model->has_approved_enrollment($user->id, (int) $module->course_id)) {
                 redirect('courses/enrollment_pending/' . (int) $module->course_id);
             }
@@ -442,6 +553,8 @@ class Courses extends CI_Controller {
             $module
         );
 
+        $lms_rt = ka_lms_resolve_return_target($user, $this->input->get('return_url'));
+
         $data = [
             'user'              => $user,
             'page_title'        => $module->title,
@@ -464,10 +577,12 @@ class Courses extends CI_Controller {
             'video_checkpoint_json_url'       => $player['video_checkpoint_json_url'],
             'module_completion_state'         => $player['module_completion_state'] ?? null,
             'can_start_post_assessment'       => $this->assessment_service->can_start_post_assessment((int) $user->id, $mid),
+            'lms_return_target'               => $lms_rt,
+            'lms_return_q'                    => ka_lms_return_q($lms_rt),
             'breadcrumbs'       => [
                 ['label' => 'Dashboard',      'url' => 'dashboard'],
                 ['label' => 'Course Catalog', 'url' => 'courses'],
-                ['label' => $course->title,   'url' => 'courses/view/' . $course->id],
+                ['label' => $course->title,   'url' => 'courses/view/' . $course->id . (ka_lms_return_q($lms_rt) !== '' ? '?' . ka_lms_return_q($lms_rt) : '')],
                 ['label' => $module->title],
             ],
             'view' => 'courses/module',

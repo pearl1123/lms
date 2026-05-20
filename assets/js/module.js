@@ -420,6 +420,40 @@ function ytTriggerProgress01(q, durationSec) {
   return 0.25;
 }
 
+/** Whole video length in seconds from the active player (YouTube IFrame API or HTML5 video). */
+function mvVideoDurationSeconds() {
+  if (IS_YOUTUBE_IFRAME && ytPlayer && ytPlayer.getDuration) {
+    try {
+      var d = ytPlayer.getDuration();
+      if (typeof d === 'number' && d > 0 && isFinite(d)) {
+        return Math.floor(d);
+      }
+    } catch (e) {}
+  }
+  var v = document.getElementById('mvVideo');
+  if (v && typeof v.duration === 'number' && v.duration > 0 && isFinite(v.duration)) {
+    return Math.floor(v.duration);
+  }
+  return 0;
+}
+
+/** Current playback position in whole seconds. */
+function mvVideoPlaybackSeconds() {
+  if (IS_YOUTUBE_IFRAME && ytPlayer && ytPlayer.getCurrentTime) {
+    try {
+      var t = ytPlayer.getCurrentTime();
+      if (typeof t === 'number' && t >= 0 && isFinite(t)) {
+        return Math.floor(t);
+      }
+    } catch (e) {}
+  }
+  var v = document.getElementById('mvVideo');
+  if (v && typeof v.currentTime === 'number' && v.currentTime >= 0 && isFinite(v.currentTime)) {
+    return Math.floor(v.currentTime);
+  }
+  return 0;
+}
+
 function vcSortedCheckpointsByTrigger(durationSec) {
   return (VIDEO_CHECKPOINTS || []).slice().sort(function(a, b) {
     return ytTriggerProgress01(a, durationSec) - ytTriggerProgress01(b, durationSec);
@@ -662,7 +696,7 @@ function onYouTubeIframeAPIReady() {
               }
             } else if (POST_ASSESSMENT_PASSED) {
               if (markBtn) markBtn.disabled = false;
-              markComplete();
+              showToast('Video finished. Click Mark as Complete when ready.');
             } else if (markBtn) {
               markBtn.disabled = true;
               if (!HAS_POST_ASSESSMENTS) {
@@ -763,11 +797,28 @@ document.addEventListener('DOMContentLoaded', function() {
         if (err) { err.textContent = 'Select a valid answer.'; err.classList.add('is-visible'); }
         return;
       }
+      var dur = mvVideoDurationSeconds();
+      var ts = parseInt(vcActiveCheckpoint.trigger_seconds, 10) || 0;
+      if (ts > 0 && dur > 0 && ts > dur) {
+        showToast('Checkpoint exceeds video length (' + dur + 's)');
+        return;
+      }
+      if (ts > 0 && dur < 1) {
+        showToast('Video length is not available yet. Wait for the video to load, then try again.');
+        return;
+      }
+      var playSec = mvVideoPlaybackSeconds();
+      if (dur > 0 && playSec > dur) {
+        showToast('Checkpoint exceeds video length (' + dur + 's)');
+        return;
+      }
       var fd = new FormData();
       fd.append('assessment_id', String(vcActiveCheckpoint.id));
       fd.append('checkpoint_id', String(vcActiveCheckpoint.id));
       fd.append('module_id', String(MODULE_ID));
       fd.append('choice_index', String(idx));
+      fd.append('video_duration_seconds', String(dur));
+      fd.append('checkpoint_time', String(playSec));
       if (CSRF_NAME) {
         fd.append(CSRF_NAME, CSRF_HASH);
       }
@@ -814,8 +865,10 @@ document.addEventListener('DOMContentLoaded', function() {
               mbSync.disabled = false;
             }
           } else {
+            var msg = data.message || 'Incorrect answer. Please try again.';
+            showToast(msg);
             if (err) {
-              err.textContent = data.message || 'Incorrect answer. Please try again.';
+              err.textContent = msg;
               err.classList.add('is-visible');
             }
             if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
@@ -879,7 +932,7 @@ document.addEventListener('DOMContentLoaded', function() {
       video.addEventListener('ended', function() {
         emitModuleFlowUpdated();
         if (markBtn && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
-        if (POST_ASSESSMENT_PASSED) markComplete();
+        if (POST_ASSESSMENT_PASSED) showToast('Video finished. Click Mark as Complete when ready.');
       });
       // Allow manual mark after 80% watched
       video.addEventListener('timeupdate', function() {
@@ -896,7 +949,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (audio) {
       audio.addEventListener('ended', function() {
         if (markBtn && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
-        if (POST_ASSESSMENT_PASSED) markComplete();
+        if (POST_ASSESSMENT_PASSED) showToast('Audio finished. Click Mark as Complete when ready.');
       });
       audio.addEventListener('timeupdate', function() {
         if (POST_ASSESSMENT_PASSED && audio.duration > 0 && (audio.currentTime / audio.duration) >= 0.9) {
@@ -921,7 +974,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('message', function(e) {
       if (e.data && e.data.type === 'pdf-scrolled-end') {
         if (markBtn && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
-        if (POST_ASSESSMENT_PASSED) markComplete();
+        if (POST_ASSESSMENT_PASSED) showToast('Document reviewed. Click Mark as Complete when ready.');
       }
     });
   }

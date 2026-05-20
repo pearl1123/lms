@@ -106,10 +106,13 @@ class assessment_model extends CI_Model {
                    'c.id = cm.course_id',  'left')
             ->join('lib_assessment_questions laq',
                    'laq.assessment_id = la.id AND laq.archived = 0', 'left')
-            ->where('c.created_by', (int) $user_id)
             ->where('la.archived',  0)
             ->group_by('la.id')
             ->order_by('la.created_at', 'DESC');
+
+        $CI =& get_instance();
+        $CI->load->model('Course_phase2_model', 'course_phase2');
+        $CI->course_phase2->restrict_query_to_instructor_courses((int) $user_id);
 
         if ( ! $include_checkpoints) {
             $this->db->where('la.type !=', 'checkpoint');
@@ -178,8 +181,7 @@ class assessment_model extends CI_Model {
                 '.$extra_cols.',
                 cm.title    AS module_title,
                 cm.course_id,
-                c.title     AS course_title,
-                c.created_by AS course_owner
+                c.title     AS course_title
             ', false)
             ->from('lib_assessments la')
             ->join('course_modules cm', 'cm.id = la.module_id', 'left')
@@ -247,6 +249,15 @@ class assessment_model extends CI_Model {
             }
 
             $secs = isset($data['trigger_seconds']) ? (int) $data['trigger_seconds'] : 0;
+            $vd   = isset($data['video_duration_seconds']) ? (int) $data['video_duration_seconds'] : 0;
+            if ($secs > 0 && $vd > 0 && $secs > $vd) {
+                log_message(
+                    'warning',
+                    'create_assessment: video checkpoint trigger_seconds exceeds video duration (' . $secs . ' > ' . $vd . ') module ' . $mid
+                );
+
+                return 0;
+            }
             if ($secs > 0 && $vlim->lib_video_checkpoint_trigger_seconds_is_taken($mid, $secs, 0)) {
                 log_message('warning', 'create_assessment: duplicate video checkpoint trigger_seconds ' . $secs . ' module ' . $mid);
 
@@ -292,6 +303,15 @@ class assessment_model extends CI_Model {
             if ($mod < 1) {
                 $ex = $this->get_assessment($aid);
                 $mod = $ex ? (int) $ex->module_id : 0;
+            }
+            $vd = isset($data['video_duration_seconds']) ? (int) $data['video_duration_seconds'] : 0;
+            if ($secs > 0 && $vd > 0 && $secs > $vd) {
+                log_message(
+                    'warning',
+                    'update_assessment: video checkpoint trigger_seconds exceeds video duration (' . $secs . ' > ' . $vd . ') assessment ' . $aid
+                );
+
+                return false;
             }
             if ($secs > 0 && $mod > 0) {
                 $this->load->model('Module_video_checkpoint_model', '_vchkdup');
@@ -434,6 +454,130 @@ class assessment_model extends CI_Model {
     }
 
     /**
+     * Parse is_correct reliably (avoids empty("0") and truthy string quirks).
+     */
+    public function parse_is_correct($value)
+    {
+        return ($value === true || $value === 1 || $value === '1') ? 1 : 0;
+    }
+
+    /**
+     * Normalize choice rows before save. For multiple_choice, only the first
+     * correct flag is kept.
+     *
+     * @param string $question_type
+     * @param array  $choices [['text'=>'...','is_correct'=>0|1], ...]
+     */
+    public function prepare_choices_for_save($question_type, array $choices)
+    {
+        $out           = [];
+        $first_correct = false;
+
+        foreach ($choices as $c) {
+            $text = trim((string) ($c['text'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+
+            $is_correct = $this->parse_is_correct($c['is_correct'] ?? 0);
+
+            if ($question_type === 'multiple_choice' && $is_correct) {
+                if ($first_correct) {
+                    $is_correct = 0;
+                } else {
+                    $first_correct = true;
+                }
+            }
+
+            $out[] = [
+                'text'       => $text,
+                'is_correct' => $is_correct,
+            ];
+        }
+
+        return $out;
+    }
+
+    /** Whether the same question text already exists on this assessment. */
+    public function question_text_exists($assessment_id, $text, $exclude_id = 0)
+    {
+        $needle = mb_strtolower(trim((string) $text));
+        if ($needle === '') {
+            return false;
+        }
+
+        $r = $this->db
+            ->select('id, question_text')
+            ->where('assessment_id', (int) $assessment_id)
+            ->where('archived', 0)
+            ->where('id !=', (int) $exclude_id)
+            ->get('lib_assessment_questions');
+
+        if ( ! $r || $r->num_rows() === 0) {
+            return false;
+        }
+
+        foreach ($r->result() as $row) {
+            if (mb_strtolower(trim((string) $row->question_text)) === $needle) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Insert multiple questions in one transaction.
+     *
+     * @param int   $assessment_id
+     * @param array $items  validated rows with question_text, question_type, etc.
+     * @return array{success:bool,questions:array,message?:string}
+     */
+    public function create_questions_batch($assessment_id, array $items)
+    {
+        if (empty($items)) {
+            return ['success' => false, 'questions' => [], 'message' => 'No questions to save.'];
+        }
+
+        $this->db->trans_start();
+        $saved_ids = [];
+
+        foreach ($items as $item) {
+            $qid = $this->create_question($item);
+            if ($qid <= 0) {
+                $this->db->trans_rollback();
+
+                return ['success' => false, 'questions' => [], 'message' => 'Failed to save question.'];
+            }
+
+            if (in_array($item['question_type'], ['multiple_choice', 'fill_blank'], true)
+                && ! empty($item['choices'])) {
+                $this->save_choices($qid, $item['choices']);
+            }
+
+            $saved_ids[] = $qid;
+        }
+
+        if ($this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+
+            return ['success' => false, 'questions' => [], 'message' => 'Failed to save questions.'];
+        }
+
+        $this->db->trans_complete();
+
+        $questions = [];
+        foreach ($saved_ids as $qid) {
+            $q = $this->get_question($qid);
+            if ($q) {
+                $questions[] = $q;
+            }
+        }
+
+        return ['success' => true, 'questions' => $questions];
+    }
+
+    /**
      * Replace all choices for a question.
      * Soft-deletes old ones, inserts new set.
      *
@@ -454,7 +598,7 @@ class assessment_model extends CI_Model {
             $this->db->insert('lib_assessment_choices', [
                 'question_id'  => (int) $question_id,
                 'choice_text'  => $text,
-                'is_correct'   => empty($c['is_correct']) ? 0 : 1,
+                'is_correct'   => $this->parse_is_correct($c['is_correct'] ?? 0),
                 'choice_order' => $order++,
                 'archived'     => 0,
             ]);
@@ -539,14 +683,13 @@ class assessment_model extends CI_Model {
                 $auto_scored++;
 
             } elseif ($q->question_type === 'fill_blank') {
-                $correct = '';
+                $accepted = [];
                 foreach ($q->choices as $choice) {
                     if ((int) $choice->is_correct === 1) {
-                        $correct = strtolower(trim($choice->choice_text));
-                        break;
+                        $accepted[] = strtolower(trim($choice->choice_text));
                     }
                 }
-                $score = (strtolower($answer_text) === $correct) ? 100.00 : 0.00;
+                $score = in_array(strtolower($answer_text), $accepted, true) ? 100.00 : 0.00;
                 $auto_scored++;
 
             } else {

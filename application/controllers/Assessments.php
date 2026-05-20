@@ -64,6 +64,7 @@ class Assessments extends CI_Controller {
         $this->load->model('User_model',       'user_model');
         $this->load->model('Assessment_model',          'assessment_model');
         $this->load->model('Course_model',              'course_model');
+        $this->load->model('Course_phase2_model',      'course_phase2');
         $this->load->model('Module_video_checkpoint_model', 'video_checkpoint_model');
         $this->load->library('assessment_service');
         $this->load->helper('url');
@@ -382,7 +383,7 @@ class Assessments extends CI_Controller {
 
         $mod = $this->course_model->get_module($mid);
 
-        return $mod && ($mod->content_type ?? '') === 'video';
+        return $mod && ka_module_is_video_content($mod);
     }
 
     // =========================================================
@@ -547,13 +548,12 @@ class Assessments extends CI_Controller {
             $post_type = (string) $this->input->post('type');
             $checkpoint_auto = ($post_type === 'checkpoint' && $this->input->post('checkpoint_auto_generate'));
             if ($post_type === 'checkpoint') {
-                if ($checkpoint_auto) {
-                    $this->form_validation->set_rules(
-                        'video_duration_seconds',
-                        'Video duration (seconds)',
-                        'required|integer|greater_than[0]'
-                    );
-                } else {
+                $this->form_validation->set_rules(
+                    'video_duration_seconds',
+                    'Whole video duration (seconds)',
+                    'required|integer|greater_than[0]'
+                );
+                if ( ! $checkpoint_auto) {
                     $this->form_validation->set_rules(
                         'trigger_seconds',
                         'Video timestamp (seconds)',
@@ -563,6 +563,34 @@ class Assessments extends CI_Controller {
             }
 
             if ($this->form_validation->run()) {
+                $course_id_post = (int) $this->input->post('course_id');
+                $module_id_post  = (int) $this->input->post('module_id');
+                if ($course_id_post > 0) {
+                    $mod_row = $this->course_model->get_module($module_id_post);
+                    if ( ! $mod_row || (int) $mod_row->course_id !== $course_id_post) {
+                        $this->session->set_flashdata(
+                            'error',
+                            'The selected module does not belong to the course you opened this form from. Pick a module from the correct course.'
+                        );
+                        redirect('assessments/create');
+
+                        return;
+                    }
+                }
+
+                if ($post_type === 'checkpoint') {
+                    $mod_ck = $this->course_model->get_module($module_id_post);
+                    if ( ! $mod_ck || ! ka_module_is_video_content($mod_ck)) {
+                        $this->session->set_flashdata(
+                            'error',
+                            'Video checkpoints can only be created on video modules.'
+                        );
+                        redirect('assessments/create');
+
+                        return;
+                    }
+                }
+
                 if ($post_type === 'checkpoint'
                     && ! $this->assessment_model->assessments_checkpoint_schema_ready()) {
                     $this->session->set_flashdata(
@@ -596,26 +624,54 @@ class Assessments extends CI_Controller {
                         'title'      => $this->input->post('title'),
                         'encoded_by' => $user->id,
                     ];
+                    $skip_insert = false;
+
                     if ($post_type === 'checkpoint') {
-                        $payload['trigger_seconds'] = $this->input->post('trigger_seconds');
-                        $payload['trigger_percent'] = $this->input->post('trigger_percent');
-                        $payload['is_required']    = $this->input->post('checkpoint_required');
-                        $payload['sort_order']     = $this->input->post('sort_order');
+                        $vd = (int) $this->input->post('video_duration_seconds');
+                        if ( ! $checkpoint_auto) {
+                            $ts_val = filter_var(
+                                $this->input->post('trigger_seconds'),
+                                FILTER_VALIDATE_INT,
+                                FILTER_NULL_ON_FAILURE
+                            );
+                            $ts = ($ts_val === null) ? 0 : max(0, (int) $ts_val);
+                            if ($ts > $vd) {
+                                $this->session->set_flashdata(
+                                    'error',
+                                    'Video timestamp cannot exceed whole video duration (' . $vd . 's).'
+                                );
+                                $skip_insert = true;
+                            }
+                        }
+                        if ( ! $skip_insert) {
+                            $payload['video_duration_seconds'] = $vd;
+                            $payload['trigger_seconds']        = $this->input->post('trigger_seconds');
+                            $payload['trigger_percent']        = $this->input->post('trigger_percent');
+                            $payload['is_required']            = $this->input->post('checkpoint_required');
+                            $payload['sort_order']             = $this->input->post('sort_order');
+                        }
                     }
 
-                    $id = $this->assessment_model->create_assessment($payload);
+                    if ( ! $skip_insert) {
+                        $id = $this->assessment_model->create_assessment($payload);
 
-                    if ( ! $id) {
-                        $this->session->set_flashdata(
-                            'error',
-                            'Could not create this video checkpoint. The module may already have the maximum (3), or another checkpoint uses the same timestamp (seconds).'
-                        );
-                    } else {
-                        $msg = $post_type === 'checkpoint'
-                            ? 'Video checkpoint created. Add one multiple-choice question (shown during video playback).'
-                            : 'Assessment created. Now add your questions.';
-                        $this->session->set_flashdata('success', $msg);
-                        redirect('assessments/edit/' . $id);
+                        if ( ! $id) {
+                            $this->session->set_flashdata(
+                                'error',
+                                'Could not create this video checkpoint. The module may already have the maximum (3), another checkpoint uses the same timestamp (seconds), or the timestamp exceeds the video duration.'
+                            );
+                        } else {
+                            $msg = $post_type === 'checkpoint'
+                                ? 'Video checkpoint created. Add one multiple-choice question (shown during video playback).'
+                                : 'Assessment created. Now add your questions.';
+                            $this->session->set_flashdata('success', $msg);
+                            redirect('assessments/edit/' . $id);
+                        }
+                    }
+                    if ($skip_insert) {
+                        redirect('assessments/create');
+
+                        return;
                     }
                 }
             }
@@ -624,13 +680,51 @@ class Assessments extends CI_Controller {
         // Build module list for dropdown
         $modules = $this->_get_available_modules($user);
 
+        $preselect_course_id = (int) ($this->input->get('course_id') ?? 0);
+        $preselect_mod       = (int) ($this->input->get('module_id') ?? 0);
+        if ($this->input->method() === 'post') {
+            $pc = (int) $this->input->post('course_id');
+            $pm = (int) $this->input->post('module_id');
+            if ($pc > 0) {
+                $preselect_course_id = $pc;
+            }
+            if ($pm > 0) {
+                $preselect_mod = $pm;
+            }
+        }
+        if ($preselect_course_id > 0 && $preselect_mod > 0) {
+            $gmod = $this->course_model->get_module($preselect_mod);
+            if ( ! $gmod || (int) $gmod->course_id !== $preselect_course_id) {
+                $this->session->set_flashdata(
+                    'error',
+                    'That module does not belong to the selected course. Open “Add pre/post assessment” again from the course edit page.'
+                );
+                $preselect_course_id = 0;
+                $preselect_mod       = 0;
+            }
+        }
+
+        $preselect_type = (string) ($this->input->get('type') ?? '');
+        if ($preselect_mod > 0 && $preselect_type === 'checkpoint') {
+            $ckmod = $this->course_model->get_module($preselect_mod);
+            if ( ! $ckmod || ! ka_module_is_video_content($ckmod)) {
+                $this->session->set_flashdata(
+                    'error',
+                    'Video checkpoints can only be created on video modules.'
+                );
+                $preselect_mod    = 0;
+                $preselect_type   = '';
+            }
+        }
+
         $data = [
             'user'           => $user,
             'page_title'     => 'Create Assessment',
             'modules'        => $modules,
             'checkpoint_schema_ready' => $this->assessment_model->assessments_checkpoint_schema_ready(),
-            'preselect_mod'  => (int) ($this->input->get('module_id') ?? 0),
-            'preselect_type' => $this->input->get('type') ?? '',
+            'preselect_course_id' => $preselect_course_id,
+            'preselect_mod'  => $preselect_mod,
+            'preselect_type' => $preselect_type,
             'breadcrumbs'    => [
                 ['label' => 'Dashboard',   'url' => 'dashboard'],
                 ['label' => 'Assessments', 'url' => 'assessments'],
@@ -669,6 +763,11 @@ class Assessments extends CI_Controller {
                     'Video timestamp (seconds)',
                     'integer|greater_than_equal_to[0]'
                 );
+                $this->form_validation->set_rules(
+                    'video_duration_seconds',
+                    'Whole video duration (seconds)',
+                    'permit_empty|integer|greater_than[0]'
+                );
             }
 
             if ($this->form_validation->run()) {
@@ -686,17 +785,45 @@ class Assessments extends CI_Controller {
                         'module_id'   => $this->input->post('module_id'),
                     ];
                     if ($post_type === 'checkpoint') {
+                        $vd = (int) $this->input->post('video_duration_seconds');
+                        $ts_val = filter_var(
+                            $this->input->post('trigger_seconds'),
+                            FILTER_VALIDATE_INT,
+                            FILTER_NULL_ON_FAILURE
+                        );
+                        $ts = ($ts_val === null) ? 0 : max(0, (int) $ts_val);
+                        if ($ts > 0 && $vd < 1) {
+                            $this->session->set_flashdata(
+                                'error',
+                                'Whole video duration (seconds) is required when the checkpoint uses a seconds-based timestamp.'
+                            );
+                            redirect('assessments/edit/' . $id);
+
+                            return;
+                        }
+                        if ($ts > 0 && $vd > 0 && $ts > $vd) {
+                            $this->session->set_flashdata(
+                                'error',
+                                'Video timestamp cannot exceed whole video duration (' . $vd . 's).'
+                            );
+                            redirect('assessments/edit/' . $id);
+
+                            return;
+                        }
                         $upd['trigger_seconds'] = $this->input->post('trigger_seconds');
                         $upd['trigger_percent'] = $this->input->post('trigger_percent');
                         $upd['is_required']     = $this->input->post('checkpoint_required');
                         $upd['sort_order']      = $this->input->post('sort_order');
+                        if ($vd > 0) {
+                            $upd['video_duration_seconds'] = $vd;
+                        }
                     }
 
                     $updated = $this->assessment_model->update_assessment($id, $upd);
                     if ( ! $updated) {
                         $this->session->set_flashdata(
                             'error',
-                            'Could not update: another video checkpoint on this module may already use that timestamp (seconds).'
+                            'Could not update: another video checkpoint on this module may already use that timestamp (seconds), or the timestamp exceeds the video duration you entered.'
                         );
                     } else {
                         $this->session->set_flashdata('success', 'Assessment updated.');
@@ -729,6 +856,7 @@ class Assessments extends CI_Controller {
 
     // =========================================================
     // save_question() — AJAX POST: add or update a question
+    // Accepts legacy single fields OR questions[] batch array.
     // =========================================================
     public function save_question()
     {
@@ -744,45 +872,56 @@ class Assessments extends CI_Controller {
         }
         $this->_check_ownership($assessment);
 
-        $question_id     = (int) $this->input->post('question_id'); // 0 = new
-        $question_text   = trim($this->input->post('question_text'));
-        $question_type   = $this->input->post('question_type');
+        $questions_batch = $this->input->post('questions');
+        if (is_array($questions_batch) && count($questions_batch) > 0) {
+            $this->_save_questions_batch($assessment, $questions_batch);
 
-        if (($assessment->type ?? '') === 'checkpoint') {
-            if ($question_type !== 'multiple_choice') {
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Video checkpoints only support a multiple-choice question.',
-                ]);
-
-                return;
-            }
-            if ($question_id <= 0) {
-                $existing = $this->assessment_model->get_questions($assessment_id);
-                if (count($existing) >= 1) {
-                    echo json_encode([
-                        'success' => false,
-                        'message' => 'This video checkpoint already has a question. Edit or delete it before adding another.',
-                    ]);
-
-                    return;
-                }
-            }
+            return;
         }
 
+        $question_id   = (int) $this->input->post('question_id');
+        $question_text = trim((string) $this->input->post('question_text'));
+        $question_type = (string) $this->input->post('question_type');
         $is_required   = (int) $this->input->post('is_required');
         $min_words     = (int) $this->input->post('min_words');
-        $choices_raw   = $this->input->post('choices'); // array of {text, is_correct}
+        $choices_raw   = $this->input->post('choices');
 
-        if ($question_text === '') {
-            echo json_encode(['success' => false, 'message' => 'Question text is required.']);
+        $validated = $this->_validate_question_payload(
+            $assessment,
+            $question_text,
+            $question_type,
+            $choices_raw,
+            $question_id
+        );
+
+        if ( ! $validated['ok']) {
+            echo json_encode(['success' => false, 'message' => $validated['message']]);
+
+            return;
+        }
+
+        if ($question_id > 0
+            && $this->assessment_model->question_text_exists(
+                $assessment_id,
+                $question_text,
+                $question_id
+            )) {
+            echo json_encode(['success' => false, 'message' => 'This question already exists on the assessment.']);
+
+            return;
+        }
+
+        if ($question_id <= 0
+            && $this->assessment_model->question_text_exists($assessment_id, $question_text)) {
+            echo json_encode(['success' => false, 'message' => 'This question already exists on the assessment.']);
+
             return;
         }
 
         $q_data = [
             'assessment_id' => $assessment_id,
             'question_text' => $question_text,
-            'question_type' => $question_type,
+            'question_type' => $validated['question_type'],
             'is_required'   => $is_required,
             'min_words'     => $min_words,
             'encoded_by'    => $this->user->id,
@@ -791,9 +930,9 @@ class Assessments extends CI_Controller {
 
         if ($question_id > 0) {
             $saved = $this->assessment_model->update_question($question_id, $q_data);
-            $qid = $question_id;
+            $qid   = $question_id;
         } else {
-            $qid = $this->assessment_model->create_question($q_data);
+            $qid   = $this->assessment_model->create_question($q_data);
             $saved = $qid > 0;
         }
 
@@ -803,13 +942,11 @@ class Assessments extends CI_Controller {
             return;
         }
 
-        // Save choices if provided
-        if (in_array($question_type, ['multiple_choice', 'fill_blank'])
-            && is_array($choices_raw)) {
-            $this->assessment_model->save_choices($qid, $choices_raw);
+        if (in_array($validated['question_type'], ['multiple_choice', 'fill_blank'], true)
+            && is_array($validated['choices'])) {
+            $this->assessment_model->save_choices($qid, $validated['choices']);
         }
 
-        // Return the updated question with choices for re-rendering
         $q = $this->assessment_model->get_question($qid);
 
         echo json_encode([
@@ -818,6 +955,190 @@ class Assessments extends CI_Controller {
             'question_id' => $qid,
             'question'    => $q,
         ]);
+    }
+
+    /**
+     * Batch-create questions from modal (transactional).
+     */
+    private function _save_questions_batch($assessment, array $batch)
+    {
+        $assessment_id = (int) $assessment->id;
+
+        if (($assessment->type ?? '') === 'checkpoint') {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Video checkpoints support only one question. Save a single question instead.',
+            ]);
+
+            return;
+        }
+
+        $existing_count = count($this->assessment_model->get_questions($assessment_id));
+        if ($existing_count + count($batch) > 500) {
+            echo json_encode(['success' => false, 'message' => 'Too many questions in this request.']);
+
+            return;
+        }
+
+        $to_insert = [];
+        $seen_texts = [];
+
+        foreach ($batch as $idx => $row) {
+            if ( ! is_array($row)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid question at position ' . ($idx + 1) . '.']);
+
+                return;
+            }
+
+            $question_text = trim((string) ($row['question_text'] ?? ''));
+            $question_type   = (string) ($row['question_type'] ?? '');
+            $choices_raw     = $row['choices'] ?? null;
+
+            $validated = $this->_validate_question_payload(
+                $assessment,
+                $question_text,
+                $question_type,
+                $choices_raw,
+                0
+            );
+
+            if ( ! $validated['ok']) {
+                $msg = $validated['message'];
+                if (count($batch) > 1) {
+                    $msg = 'Question ' . ($idx + 1) . ': ' . $msg;
+                }
+                echo json_encode(['success' => false, 'message' => $msg]);
+
+                return;
+            }
+
+            $norm = mb_strtolower($question_text);
+            if (isset($seen_texts[$norm])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Duplicate question in this batch (position ' . ($idx + 1) . ').',
+                ]);
+
+                return;
+            }
+
+            if ($this->assessment_model->question_text_exists($assessment_id, $question_text)) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Question already exists: "' . $question_text . '"',
+                ]);
+
+                return;
+            }
+
+            $seen_texts[$norm] = true;
+
+            $to_insert[] = [
+                'assessment_id' => $assessment_id,
+                'question_text' => $question_text,
+                'question_type' => $validated['question_type'],
+                'is_required'   => (int) ($row['is_required'] ?? 1),
+                'min_words'     => (int) ($row['min_words'] ?? 0),
+                'encoded_by'    => $this->user->id,
+                'modified_by'   => $this->user->id,
+                'choices'       => $validated['choices'],
+            ];
+        }
+
+        $result = $this->assessment_model->create_questions_batch($assessment_id, $to_insert);
+
+        if ( ! $result['success']) {
+            echo json_encode([
+                'success' => false,
+                'message' => $result['message'] ?? 'Failed to save questions.',
+            ]);
+
+            return;
+        }
+
+        $count = count($result['questions']);
+
+        echo json_encode([
+            'success'   => true,
+            'message'   => $count === 1 ? 'Question added.' : $count . ' questions added.',
+            'questions' => $result['questions'],
+        ]);
+    }
+
+    /**
+     * Shared validation for single and batch question saves.
+     *
+     * @return array{ok:bool,message:string,question_type:string,choices:?array}
+     */
+    private function _validate_question_payload(
+        $assessment,
+        $question_text,
+        $question_type,
+        $choices_raw,
+        $question_id = 0
+    ) {
+        $valid_types = ['multiple_choice', 'essay', 'likert', 'fill_blank'];
+
+        if ( ! in_array($question_type, $valid_types, true)) {
+            return ['ok' => false, 'message' => 'Invalid question type.', 'question_type' => '', 'choices' => null];
+        }
+
+        if (($assessment->type ?? '') === 'checkpoint') {
+            if ($question_type !== 'multiple_choice') {
+                return [
+                    'ok'              => false,
+                    'message'         => 'Video checkpoints only support a multiple-choice question.',
+                    'question_type'   => '',
+                    'choices'         => null,
+                ];
+            }
+            if ((int) $question_id <= 0) {
+                $existing = $this->assessment_model->get_questions((int) $assessment->id);
+                if (count($existing) >= 1) {
+                    return [
+                        'ok'            => false,
+                        'message'       => 'This video checkpoint already has a question. Edit or delete it before adding another.',
+                        'question_type' => '',
+                        'choices'       => null,
+                    ];
+                }
+            }
+        }
+
+        if ($question_text === '') {
+            return ['ok' => false, 'message' => 'Question text is required.', 'question_type' => '', 'choices' => null];
+        }
+
+        $choices_out = null;
+
+        if (in_array($question_type, ['multiple_choice', 'fill_blank'], true)) {
+            $raw_list = is_array($choices_raw) ? $choices_raw : [];
+            $choices_out = $this->assessment_model->prepare_choices_for_save($question_type, $raw_list);
+
+            if ($question_type === 'multiple_choice' && count($choices_out) < 2) {
+                return ['ok' => false, 'message' => 'Add at least 2 choices.', 'question_type' => '', 'choices' => null];
+            }
+
+            $correct_count = 0;
+            foreach ($choices_out as $c) {
+                $correct_count += (int) $c['is_correct'];
+            }
+
+            if ($question_type === 'multiple_choice' && $correct_count !== 1) {
+                return ['ok' => false, 'message' => 'Mark exactly one correct answer.', 'question_type' => '', 'choices' => null];
+            }
+
+            if ($question_type === 'fill_blank' && count($choices_out) < 1) {
+                return ['ok' => false, 'message' => 'Add at least one accepted answer.', 'question_type' => '', 'choices' => null];
+            }
+        }
+
+        return [
+            'ok'            => true,
+            'message'       => '',
+            'question_type' => $question_type,
+            'choices'       => $choices_out,
+        ];
     }
 
     // =========================================================
@@ -974,6 +1295,42 @@ class Assessments extends CI_Controller {
                 return $this->_checkpoint_json_response(['success' => false, 'ok' => false, 'message' => 'Access denied.'], 403);
             }
 
+            $trigger_sec = Module_video_checkpoint_model::checkpoint_trigger_seconds_from_row($checkpoint);
+            $dur_raw     = $this->input->post('video_duration_seconds');
+            $dur_val     = filter_var($dur_raw, FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE);
+            $video_dur   = ($dur_val !== null) ? max(0, min((int) $dur_val, 86400)) : 0;
+
+            $raw_cp = $this->input->post('checkpoint_time');
+            if ($raw_cp === null || $raw_cp === '') {
+                $raw_cp = $this->input->post('checkpoint_playback_seconds');
+            }
+            $cp_val = filter_var($raw_cp, FILTER_VALIDATE_FLOAT, FILTER_NULL_ON_FAILURE);
+            $cp_sec = ($cp_val !== null) ? max(0, (int) floor((float) $cp_val)) : null;
+
+            if ($trigger_sec > 0) {
+                if ($video_dur < 1) {
+                    return $this->_checkpoint_json_response([
+                        'success' => false,
+                        'ok'      => false,
+                        'message' => 'Video duration is required to validate this checkpoint. Please reload the page and try again.',
+                    ], 400);
+                }
+                if ($trigger_sec > $video_dur) {
+                    return $this->_checkpoint_json_response([
+                        'success' => false,
+                        'ok'      => false,
+                        'message' => 'Checkpoint exceeds video length (' . $video_dur . 's). Please select a valid timestamp within video duration.',
+                    ], 400);
+                }
+            }
+            if ($cp_sec !== null && $video_dur > 0 && $cp_sec > $video_dur) {
+                return $this->_checkpoint_json_response([
+                    'success' => false,
+                    'ok'      => false,
+                    'message' => 'Checkpoint exceeds video length (' . $video_dur . 's).',
+                ], 400);
+            }
+
             $res = $this->video_checkpoint_model->submit_checkpoint_answer(
                 (int) $user->id,
                 $assessment_id,
@@ -1093,7 +1450,8 @@ class Assessments extends CI_Controller {
     {
         if ($this->user->role === 'admin') return;
 
-        if ((int) $assessment->course_owner !== (int) $this->user->id) {
+        $cid = (int) ($assessment->course_id ?? 0);
+        if ( ! $this->course_phase2->user_manages_course((int) $this->user->id, $cid)) {
             if ($this->_is_ajax()) {
                 $this->_json_error(403, 'You can only manage assessments for your own courses.');
             }
@@ -1120,7 +1478,7 @@ class Assessments extends CI_Controller {
             ->order_by('cm.module_order', 'ASC');
 
         if (in_array($user->role, ['teacher', 'instructor'], true)) {
-            $this->db->where('c.created_by', $user->id);
+            $this->course_phase2->restrict_query_to_instructor_courses((int) $user->id);
         }
 
         $r = $this->db->get();

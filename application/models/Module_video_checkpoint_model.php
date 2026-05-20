@@ -196,6 +196,26 @@ class Module_video_checkpoint_model extends CI_Model {
     }
 
     /**
+     * Seconds-based trigger for a checkpoint row (unified lib_assessments or legacy table).
+     *
+     * @param object|null $checkpoint
+     */
+    public static function checkpoint_trigger_seconds_from_row($checkpoint)
+    {
+        if ( ! $checkpoint) {
+            return 0;
+        }
+        if (isset($checkpoint->trigger_type) && (string) $checkpoint->trigger_type === 'seconds') {
+            return (int) round((float) ($checkpoint->trigger_value ?? 0));
+        }
+        if (isset($checkpoint->trigger_seconds)) {
+            return (int) ($checkpoint->trigger_seconds ?? 0);
+        }
+
+        return 0;
+    }
+
+    /**
      * Count unified video checkpoints on lib_assessments for this module (non-archived).
      * Used for the per-module cap regardless of legacy read path.
      *
