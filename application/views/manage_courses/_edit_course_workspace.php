@@ -114,7 +114,7 @@ $phase2_ready_ui = ! empty($phase2_schema_ready);
           <div class="mod-list" id="modList">
             <?php if ( ! empty($module_rows)): ?>
               <?php foreach ($module_rows as $idx => $mod):
-                $eff_type = course_phase3_effective_module_type($mod->content_type ?? '', 'manage edit list mod_id=' . (int) $mod->id);
+                $eff_type = course_phase3_effective_module_type_for_row($mod, 'manage edit list mod_id=' . (int) $mod->id);
                 $ct = $content_types[$eff_type] ?? ['icon'=>'📁','label'=>course_phase3_module_type_label($eff_type),'color'=>'#64748b'];
               ?>
               <div class="mod-item" id="moditem-<?= $mod->id ?>"

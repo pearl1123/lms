@@ -32,6 +32,8 @@ $content_types = [
     'audio'         => ['label' => 'Audio',         'icon' => '🎧', 'color' => '#f59f00'],
     'meeting_link'  => ['label' => 'Meeting Link',  'icon' => '🎥', 'color' => '#06b6d4'],
 ];
+/** Content types shown but not selectable until feature ships */
+$coming_soon_types = ['slides', 'audio'];
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
 <style>
@@ -119,6 +121,32 @@ $content_types = [
 .ct-card .ct-label { font-size:.5625rem;font-weight:700;color:var(--ka-text-muted,#64748b);line-height:1.2; }
 .ct-card.selected  { border-color:var(--ka-navy,#1a3a5c);background:var(--ka-accent,#e8f4fd); }
 .ct-card.selected .ct-label { color:var(--ka-navy,#1a3a5c); }
+.ct-card.is-coming-soon { padding:0;overflow:hidden;display:flex;flex-direction:column;align-items:stretch; }
+.ct-card.is-coming-soon .ct-soon-badge { position:static;display:block;width:100%;box-sizing:border-box;padding:3px 2px;font-size:.4375rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;text-align:center;color:#92400e;background:linear-gradient(180deg,#fef9c3,#fde68a);border:none;border-bottom:1px solid #fcd34d;line-height:1.25;flex-shrink:0; }
+.ct-card.is-coming-soon .ct-card-body { padding:.45rem .3rem .55rem;text-align:center;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:0; }
+.ct-card.is-disabled[aria-disabled="true"] { opacity:.58;cursor:not-allowed;pointer-events:none;filter:grayscale(.35);background:#f8fafc;border-color:#e2e8f0;box-shadow:none;transform:none; }
+.ct-card.is-disabled[aria-disabled="true"]:hover { border-color:#e2e8f0;background:#f8fafc; }
+.ct-card.is-disabled[aria-disabled="true"] .ct-icon { opacity:.8; }
+
+/* PDF upload — SaaS action row */
+.mod-pdf-upload { display:none;margin-top:.75rem; }
+.mod-pdf-upload.is-visible { display:block; }
+.mod-pdf-dropzone { position:relative;border:2px dashed var(--ka-border,#e2e8f0);border-radius:10px;background:var(--ka-bg,#f8fafc);transition:border-color .18s,background .18s,box-shadow .18s;margin-bottom:.5rem; }
+.mod-pdf-dropzone.is-dragover { border-color:var(--ka-primary,#6dabcf);background:var(--ka-accent,#e8f4fd);box-shadow:0 0 0 3px rgba(109,171,207,.12); }
+.mod-pdf-file-input { position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2; }
+.mod-pdf-dropzone-inner { display:flex;flex-direction:column;align-items:center;gap:.25rem;padding:.875rem 1rem;text-align:center;pointer-events:none; }
+.mod-pdf-dropzone-icon { width:28px;height:28px;color:var(--ka-primary,#6dabcf);opacity:.9; }
+.mod-pdf-dropzone-title { font-size:.75rem;font-weight:600;color:var(--ka-text-muted,#64748b); }
+.mod-pdf-filename { font-size:.6875rem;font-weight:700;color:var(--ka-navy,#1a3a5c);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:1em; }
+.mod-upload-btn { display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.5rem 1rem;border-radius:10px;border:none;background:var(--ka-navy,#1a3a5c);color:#fff;font-size:.8125rem;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .15s,box-shadow .15s,background .15s;box-shadow:0 2px 8px rgba(26,58,92,.22); }
+.mod-upload-btn:hover:not(:disabled) { background:#254d75;transform:translateY(-1px);box-shadow:0 4px 12px rgba(26,58,92,.28); }
+.mod-upload-btn:active:not(:disabled) { transform:translateY(0); }
+.mod-upload-btn:disabled,.mod-upload-btn.is-loading { opacity:.65;cursor:wait;transform:none; }
+.mod-upload-btn svg { width:16px;height:16px;flex-shrink:0; }
+.mod-upload-btn.is-loading .mod-upload-btn-text { opacity:.85; }
+.mod-pdf-msg { display:block;font-size:.72rem;color:var(--ka-text-muted,#64748b);margin-top:.35rem;min-height:1.1em; }
+.mod-pdf-msg.is-success { color:#15803d;font-weight:600; }
+.mod-pdf-msg.is-error { color:#dc2626;font-weight:600; }
 
 /* Sidebar panels */
 .side-info-item { display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid var(--ka-border,#e2e8f0);font-size:.8125rem; }
@@ -297,13 +325,26 @@ $content_types = [
       <div style="margin-bottom:1.125rem;">
         <label style="display:block;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);margin-bottom:.625rem;">Content Type <span style="color:#dc2626;">*</span></label>
         <div class="ct-grid" id="modContentTypeGrid">
-          <?php foreach ($content_types as $key => $ct): ?>
-          <label class="ct-card <?= $key === 'pdf' ? 'selected' : '' ?>" id="ct-<?= $key ?>" data-content-type="<?= htmlspecialchars($key, ENT_QUOTES) ?>">
+          <?php foreach ($content_types as $key => $ct):
+            $is_coming_soon = in_array($key, $coming_soon_types, true);
+          ?>
+          <label class="ct-card <?= ($key === 'pdf' && ! $is_coming_soon) ? 'selected' : '' ?><?= $is_coming_soon ? ' is-disabled is-coming-soon' : '' ?>"
+                 id="ct-<?= $key ?>"
+                 data-content-type="<?= htmlspecialchars($key, ENT_QUOTES) ?>"
+                 data-coming-soon="<?= $is_coming_soon ? '1' : '0' ?>"
+                 aria-disabled="<?= $is_coming_soon ? 'true' : 'false' ?>"
+                 title="<?= $is_coming_soon ? 'Feature currently in development' : '' ?>">
             <input type="radio" name="mod_content_type" value="<?= $key ?>"
-                   <?= $key === 'pdf' ? 'checked' : '' ?>
+                   <?= ($key === 'pdf' && ! $is_coming_soon) ? 'checked' : '' ?>
+                   <?= $is_coming_soon ? 'disabled' : '' ?>
                    onchange="selectContentType('<?= $key ?>')">
-            <div class="ct-icon"><?= $ct['icon'] ?></div>
-            <div class="ct-label"><?= $ct['label'] ?></div>
+            <?php if ($is_coming_soon): ?>
+            <span class="ct-soon-badge" title="Coming soon — feature in development">Coming soon</span>
+            <?php endif; ?>
+            <div class="ct-card-body">
+              <div class="ct-icon"><?= $ct['icon'] ?></div>
+              <div class="ct-label"><?= $ct['label'] ?></div>
+            </div>
           </label>
           <?php endforeach; ?>
         </div>
@@ -326,10 +367,20 @@ $content_types = [
         <div>
           <label style="display:block;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);margin-bottom:.425rem;">Content URL / Path</label>
           <input type="text" id="modPath" class="ef-input" placeholder="https://… or /uploads/file.pdf">
-          <div id="modPdfUpload" style="display:none;margin-top:.5rem;">
-            <input type="file" id="modPdfFile" accept="application/pdf,.pdf" style="font-size:.8125rem;">
-            <button type="button" class="ef-btn-outline" id="modPdfUploadBtn" style="margin-top:.35rem;">Upload PDF</button>
-            <span id="modPdfUploadMsg" style="display:block;font-size:.72rem;color:var(--ka-text-muted);margin-top:.25rem;"></span>
+          <div id="modPdfUpload" class="mod-pdf-upload" aria-live="polite">
+            <div class="mod-pdf-dropzone" id="modPdfDropzone">
+              <input type="file" id="modPdfFile" class="mod-pdf-file-input" accept="application/pdf,.pdf" aria-label="Choose PDF file">
+              <div class="mod-pdf-dropzone-inner">
+                <svg class="mod-pdf-dropzone-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+                <span class="mod-pdf-dropzone-title">Drop PDF here or browse</span>
+                <span id="modPdfFileName" class="mod-pdf-filename"></span>
+              </div>
+            </div>
+            <button type="button" class="mod-upload-btn" id="modPdfUploadBtn">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span class="mod-upload-btn-text">Upload learning material</span>
+            </button>
+            <span id="modPdfUploadMsg" class="mod-pdf-msg" role="status"></span>
           </div>
         </div>
         <div>
@@ -355,6 +406,17 @@ var CSRF_NAME  = '<?= $csrf_field_name ?>';
 var CSRF_HASH  = '<?= $csrf_hash ?>';
 var CT_DATA    = <?= json_encode($content_types) ?>;
 var CHECKPOINT_SCHEMA_READY = <?= $checkpoint_schema_ready ? 'true' : 'false' ?>;
+/** Shown in picker but not selectable for new modules */
+var COMING_SOON_TYPES = ['slides', 'audio'];
+
+function isComingSoonType(key) {
+  return COMING_SOON_TYPES.indexOf(String(key || '').toLowerCase()) !== -1;
+}
+var COMING_SOON_TYPES = <?= json_encode($coming_soon_types) ?>;
+
+function isComingSoonType(key) {
+  return COMING_SOON_TYPES.indexOf(String(key || '').toLowerCase()) !== -1;
+}
 
 /** Video checkpoints: contract uses effective type only (same as PHP course_phase3_effective_module_type). */
 function isVideoModuleContent(effType) {
@@ -433,66 +495,162 @@ function updateDraftWeightHint() {
   }
 }
 
-/** All content types stay available — never hide types already used on the course. */
+/** All content types stay visible — never hide types; coming-soon types stay disabled unless editing that type. */
 function refreshContentTypePicker() {
-  document.querySelectorAll('#modContentTypeGrid .ct-card, #modModalOverlay .ct-card').forEach(function(card) {
+  var modId = parseInt(document.getElementById('modId').value, 10) || 0;
+  var existingType = '';
+  if (modId) {
+    var row = document.getElementById('moditem-' + modId);
+    if (row) existingType = String(row.dataset.type || '').toLowerCase();
+  }
+  document.querySelectorAll('#modContentTypeGrid .ct-card').forEach(function(card) {
     card.classList.remove('is-hidden');
     card.style.display = '';
-    card.style.pointerEvents = '';
-    card.style.opacity = '';
+    var key = String(card.getAttribute('data-content-type') || '').toLowerCase();
+    var comingSoon = card.getAttribute('data-coming-soon') === '1';
     var input = card.querySelector('input[name="mod_content_type"]');
-    if (input) {
-      input.disabled = false;
+    if (comingSoon) {
+      card.classList.add('is-disabled', 'is-coming-soon');
+      var allowExisting = modId > 0 && existingType === key;
+      if (input) input.disabled = !allowExisting;
+      card.setAttribute('aria-disabled', allowExisting ? 'false' : 'true');
+    } else {
+      card.classList.remove('is-disabled', 'is-coming-soon');
+      card.setAttribute('aria-disabled', 'false');
+      if (input) input.disabled = false;
     }
   });
 }
 
+function setModPdfMsg(text, kind) {
+  var msg = document.getElementById('modPdfUploadMsg');
+  if (!msg) return;
+  msg.textContent = text || '';
+  msg.classList.remove('is-success', 'is-error');
+  if (kind === 'success') msg.classList.add('is-success');
+  if (kind === 'error') msg.classList.add('is-error');
+}
+
+function updateModPdfFileName() {
+  var fileInput = document.getElementById('modPdfFile');
+  var nameEl = document.getElementById('modPdfFileName');
+  if (!nameEl || !fileInput) return;
+  var file = fileInput.files && fileInput.files[0];
+  nameEl.textContent = file ? file.name : '';
+}
+
+function resetModPdfUploadUi() {
+  var fileInput = document.getElementById('modPdfFile');
+  var btn = document.getElementById('modPdfUploadBtn');
+  if (fileInput) fileInput.value = '';
+  updateModPdfFileName();
+  setModPdfMsg('', '');
+  if (btn) {
+    btn.classList.remove('is-loading');
+    btn.disabled = false;
+  }
+}
+
 // ── Content type picker ─────────────────────────────────────
-function selectContentType(key) {
+function selectContentType(key, force) {
+  key = String(key || '').toLowerCase();
   refreshContentTypePicker();
+  if (!force && isComingSoonType(key)) {
+    var blocked = document.querySelector('input[name="mod_content_type"][value="' + key + '"]');
+    if (!blocked || blocked.disabled) return;
+  }
   document.querySelectorAll('.ct-card').forEach(function(c) { c.classList.remove('selected'); });
   document.getElementById('ct-' + key)?.classList.add('selected');
   var radio = document.querySelector('input[name="mod_content_type"][value="' + key + '"]');
-  if (radio) radio.checked = true;
+  if (radio && !radio.disabled) radio.checked = true;
   toggleModPdfUpload();
 }
 
 function toggleModPdfUpload() {
   var type = document.querySelector('input[name="mod_content_type"]:checked')?.value || '';
   var box = document.getElementById('modPdfUpload');
-  if (box) {
-    box.style.display = (type === 'pdf') ? 'block' : 'none';
-  }
+  if (box) box.classList.toggle('is-visible', type === 'pdf');
 }
 
 function uploadModulePdf() {
   var fileInput = document.getElementById('modPdfFile');
   var msg = document.getElementById('modPdfUploadMsg');
+  var btn = document.getElementById('modPdfUploadBtn');
   if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-    if (msg) msg.textContent = 'Choose a PDF file first.';
+    setModPdfMsg('Choose a PDF file first.', 'error');
     return;
   }
   var fd = new FormData();
   fd.append('module_file', fileInput.files[0]);
   fd.append('course_id', COURSE_ID);
   fd.append(CSRF_NAME, CSRF_HASH);
-  if (msg) msg.textContent = 'Uploading…';
+  setModPdfMsg('Uploading…', '');
+  if (btn) {
+    btn.classList.add('is-loading');
+    btn.disabled = true;
+  }
   fetch(BASE_URL + 'manage_courses/upload_module_file', { method: 'POST', body: fd, credentials: 'same-origin' })
     .then(parseJsonResponse)
     .then(function(res) {
       if (res.success && res.content_path) {
         document.getElementById('modPath').value = res.content_path;
-        if (msg) msg.textContent = 'PDF uploaded.';
-      } else if (msg) {
-        msg.textContent = res.message || 'Upload failed.';
+        setModPdfMsg('PDF uploaded successfully.', 'success');
+      } else {
+        setModPdfMsg(res.message || 'Upload failed.', 'error');
       }
     })
     .catch(function() {
-      if (msg) msg.textContent = 'Upload failed.';
+      setModPdfMsg('Upload failed.', 'error');
+    })
+    .finally(function() {
+      if (btn) {
+        btn.classList.remove('is-loading');
+        btn.disabled = false;
+      }
     });
 }
 
 document.getElementById('modPdfUploadBtn')?.addEventListener('click', uploadModulePdf);
+document.getElementById('modPdfFile')?.addEventListener('change', updateModPdfFileName);
+
+(function initModPdfDropzone() {
+  var zone = document.getElementById('modPdfDropzone');
+  var fileInput = document.getElementById('modPdfFile');
+  if (!zone || !fileInput) return;
+  ['dragenter', 'dragover'].forEach(function(ev) {
+    zone.addEventListener(ev, function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.classList.add('is-dragover');
+    });
+  });
+  ['dragleave', 'drop'].forEach(function(ev) {
+    zone.addEventListener(ev, function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.classList.remove('is-dragover');
+    });
+  });
+  zone.addEventListener('drop', function(e) {
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (!files || !files.length) return;
+    try {
+      fileInput.files = files;
+    } catch (err) {
+      return;
+    }
+    updateModPdfFileName();
+  });
+})();
+
+document.getElementById('modContentTypeGrid')?.addEventListener('click', function(e) {
+  var card = e.target.closest('.ct-card');
+  if (!card || card.getAttribute('data-coming-soon') !== '1') return;
+  if (card.getAttribute('aria-disabled') === 'true') {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+});
 
 // ── Modal ────────────────────────────────────────────────────
 function openModModal(id) {
@@ -507,7 +665,8 @@ function openModModal(id) {
     document.getElementById('modDesc').value   = '';
     document.getElementById('modPath').value   = '';
     document.getElementById('modWeight').value = '';
-    selectContentType('pdf');
+    resetModPdfUploadUi();
+    selectContentType('pdf', true);
   }
   updateDraftWeightHint();
 }
@@ -515,16 +674,17 @@ function openModModal(id) {
 function editModule(id) {
   var el = document.getElementById('moditem-' + id);
   if ( ! el) return;
+  openModModal(id);
   document.getElementById('modTitle').value  = el.dataset.title;
   document.getElementById('modDesc').value   = el.dataset.desc;
   document.getElementById('modPath').value   = el.dataset.path;
   document.getElementById('modWeight').value = el.dataset.weight;
+  resetModPdfUploadUi();
   // data-type is server-computed effective type (modal preselect only; not a type resolver).
-  var modType = el.dataset.type || '';
-  selectContentType(modType);
+  var modType = String(el.dataset.type || 'pdf').toLowerCase();
+  selectContentType(modType || 'pdf', true);
   var radio = document.querySelector('input[name="mod_content_type"][value="' + modType + '"]');
-  if (radio) radio.checked = true;
-  openModModal(id);
+  if (radio && !radio.disabled) radio.checked = true;
   updateDraftWeightHint();
 }
 

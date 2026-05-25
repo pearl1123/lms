@@ -1337,7 +1337,8 @@ class Course_model extends CI_Model {
         $this->load->helper('course_phase3');
         $ctype = course_phase3_effective_module_type(
             $data['content_type'] ?? '',
-            'create_module course_id=' . (int) ($data['course_id'] ?? 0)
+            'create_module course_id=' . (int) ($data['course_id'] ?? 0),
+            $data['content_path'] ?? null
         );
 
         $this->db->insert('course_modules', [
@@ -1369,7 +1370,8 @@ class Course_model extends CI_Model {
         $this->load->helper('course_phase3');
         $ctype = course_phase3_effective_module_type(
             $data['content_type'] ?? '',
-            'update_module module_id=' . (int) $module_id
+            'update_module module_id=' . (int) $module_id,
+            $data['content_path'] ?? null
         );
 
         return (bool) $this->db

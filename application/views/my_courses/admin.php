@@ -7,6 +7,8 @@ $total        = $total_courses ?? count($courses);
 $keyword      = $keyword       ?? '';
 $filter_cat   = $filter_cat    ?? '';
 $filter_status= $filter_status ?? '';
+$kpi_active   = $kpi_active ?? 'all';
+$mc_base_url  = site_url('my_courses');
 
 $thumb_gradients = [
     'linear-gradient(135deg,#3b82f6,#1d4ed8)',
@@ -63,6 +65,25 @@ $thumb_gradients = [
   background:#fff;border:1px solid var(--ka-border,#e2e8f0);
   border-radius:12px;padding:1rem 1.125rem;
   display:flex;align-items:center;gap:.875rem;
+}
+a.mc-kpi--clickable {
+  text-decoration:none;color:inherit;
+  cursor:pointer;
+  transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
+}
+a.mc-kpi--clickable:hover {
+  transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(15,23,42,.08);
+  border-color:var(--ka-primary,#6dabcf);
+}
+a.mc-kpi--clickable.is-active {
+  border-color:var(--ka-primary,#6dabcf);
+  box-shadow:0 0 0 2px rgba(109,171,207,.22);
+}
+a.mc-kpi--clickable:active { transform:translateY(0); }
+a.mc-kpi--clickable:focus-visible {
+  outline:2px solid var(--ka-primary,#6dabcf);
+  outline-offset:2px;
 }
 .mc-kpi-icon {
   width:40px;height:40px;border-radius:10px;flex-shrink:0;
@@ -302,30 +323,30 @@ $thumb_gradients = [
   $total_enroll = 0;
   foreach ($courses as $c) { $total_enroll += (int)($c->enrolled_count ?? 0); }
   ?>
-  <div class="mc-kpi">
+  <a href="<?= html_escape($mc_base_url) ?>" class="mc-kpi mc-kpi--clickable <?= $kpi_active === 'all' ? 'is-active' : '' ?>" data-kpi="all" role="button" aria-label="View all courses" title="View all courses">
     <div class="mc-kpi-icon" style="background:#eff6ff;color:#3b82f6;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
     </div>
     <div><div class="mc-kpi-val"><?= count($courses) ?></div><div class="mc-kpi-lbl">Total Courses</div></div>
-  </div>
-  <div class="mc-kpi">
+  </a>
+  <a href="<?= html_escape($mc_base_url . '?status=published') ?>" class="mc-kpi mc-kpi--clickable <?= $kpi_active === 'published' ? 'is-active' : '' ?>" data-kpi="published" role="button" aria-label="View published courses" title="View published courses">
     <div class="mc-kpi-icon" style="background:#ecfdf5;color:#22c55e;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
     </div>
     <div><div class="mc-kpi-val"><?= $pub_count ?></div><div class="mc-kpi-lbl">Published</div></div>
-  </div>
-  <div class="mc-kpi">
+  </a>
+  <a href="<?= html_escape($mc_base_url . '?status=archived') ?>" class="mc-kpi mc-kpi--clickable <?= $kpi_active === 'archived' ? 'is-active' : '' ?>" data-kpi="archived" role="button" aria-label="View archived courses" title="View archived courses">
     <div class="mc-kpi-icon" style="background:#f1f5f9;color:#64748b;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
     </div>
     <div><div class="mc-kpi-val"><?= $arch_count ?></div><div class="mc-kpi-lbl">Archived</div></div>
-  </div>
-  <div class="mc-kpi">
+  </a>
+  <a href="<?= html_escape($mc_base_url . '?status=enrollments') ?>" class="mc-kpi mc-kpi--clickable <?= $kpi_active === 'enrollments' ? 'is-active' : '' ?>" data-kpi="enrollments" role="button" aria-label="View courses by enrollment" title="Sort by enrollment and scroll to course list">
     <div class="mc-kpi-icon" style="background:var(--ka-accent,#e8f4fd);color:var(--ka-primary,#6dabcf);">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
     </div>
     <div><div class="mc-kpi-val"><?= number_format($total_enroll) ?></div><div class="mc-kpi-lbl">Total Enrollments</div></div>
-  </div>
+  </a>
 </div>
 
 <!-- ══ Filters ══════════════════════════════════════════════ -->
@@ -348,6 +369,8 @@ $thumb_gradients = [
   <span class="mc-filter-count" id="mcFilterCount"><?= count($courses) ?> courses</span>
 </div>
 
+<!-- ══ Course list ══════════════════════════════════════════ -->
+<div id="mcCourseList">
 <!-- ══ Grid View ════════════════════════════════════════════ -->
 <div id="mcGridView" class="mc-grid animate__animated animate__fadeInUp animate__fast" style="animation-delay:.1s;">
   <?php if ( ! empty($courses)): ?>
@@ -360,7 +383,7 @@ $thumb_gradients = [
       $enrolled   = (int)($course->enrolled_count ?? 0);
       $avg_prog   = (int)($course->avg_progress   ?? 0);
     ?>
-    <div class="mc-card animate__animated animate__fadeInUp" style="animation-delay:<?= ($i % 8) * 0.04 ?>s;" data-title="<?= htmlspecialchars(strtolower($course->title)) ?>" data-cat="<?= $course->category_id ?? '' ?>" data-archived="<?= (int)$is_archived ?>">
+    <div class="mc-card animate__animated animate__fadeInUp" style="animation-delay:<?= ($i % 8) * 0.04 ?>s;" data-title="<?= htmlspecialchars(strtolower($course->title)) ?>" data-cat="<?= $course->category_id ?? '' ?>" data-archived="<?= (int)$is_archived ?>" data-enrolled="<?= $enrolled ?>">
       <div class="mc-card-thumb" style="background:<?= $grad ?>;">
         <div class="mc-card-thumb-icon">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
@@ -456,7 +479,7 @@ $thumb_gradients = [
             $enrolled   = (int)($course->enrolled_count ?? 0);
             $avg_prog   = (int)($course->avg_progress   ?? 0);
           ?>
-          <tr data-title="<?= htmlspecialchars(strtolower($course->title)) ?>" data-cat="<?= $course->category_id ?? '' ?>" data-archived="<?= (int)$is_archived ?>">
+          <tr data-title="<?= htmlspecialchars(strtolower($course->title)) ?>" data-cat="<?= $course->category_id ?? '' ?>" data-archived="<?= (int)$is_archived ?>" data-enrolled="<?= $enrolled ?>">
             <td>
               <div class="mc-tbl-course">
                 <div class="mc-tbl-thumb" style="background:<?= $grad ?>"><?= $initials ?></div>
@@ -492,21 +515,90 @@ $thumb_gradients = [
     </table>
   </div>
 </div>
+</div><!-- /#mcCourseList -->
 
 <script src="<?= base_url('assets/js/manage_courses.js') ?>" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
-  // ── Live filter ──────────────────────────────────────────
+  const kpiMap = { all: '', published: '0', archived: '1' };
+  const statusSelect = document.getElementById('mcFilterStatus');
+  const kpiLinks = document.querySelectorAll('.mc-kpi--clickable[data-kpi]');
+
+  function setActiveKpi(name) {
+    kpiLinks.forEach(function (el) {
+      el.classList.toggle('is-active', el.getAttribute('data-kpi') === name);
+    });
+  }
+
+  function updateUrl(kpi) {
+    const params = new URLSearchParams(window.location.search);
+    if (kpi === 'all') {
+      params.delete('status');
+    } else {
+      params.set('status', kpi);
+    }
+    const q = params.toString();
+    const path = window.location.pathname;
+    try {
+      history.replaceState(null, '', q ? path + '?' + q : path);
+    } catch (e) {}
+  }
+
+  function sortByEnrollments() {
+    const grid = document.getElementById('mcGridView');
+    if (grid) {
+      const cards = Array.prototype.slice.call(grid.querySelectorAll('.mc-card'));
+      cards.sort(function (a, b) {
+        return parseInt(b.getAttribute('data-enrolled') || '0', 10) - parseInt(a.getAttribute('data-enrolled') || '0', 10);
+      });
+      cards.forEach(function (c) { grid.appendChild(c); });
+    }
+    const tbody = document.querySelector('#mcTableView tbody');
+    if (tbody) {
+      const rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-title]'));
+      rows.sort(function (a, b) {
+        return parseInt(b.getAttribute('data-enrolled') || '0', 10) - parseInt(a.getAttribute('data-enrolled') || '0', 10);
+      });
+      rows.forEach(function (r) { tbody.appendChild(r); });
+    }
+  }
+
+  function scrollToCourseList() {
+    const target = document.getElementById('mcCourseList');
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function applyKpiFilter(kpi, options) {
+    options = options || {};
+    if (kpi === 'enrollments') {
+      statusSelect.value = '';
+      setActiveKpi('enrollments');
+      if (!options.skipUrl) updateUrl('enrollments');
+      applyFilters();
+      sortByEnrollments();
+      if (!options.skipScroll) scrollToCourseList();
+      return;
+    }
+    const statusVal = kpiMap[kpi] !== undefined ? kpiMap[kpi] : '';
+    statusSelect.value = statusVal;
+    setActiveKpi(kpi);
+    if (!options.skipUrl) updateUrl(kpi);
+    applyFilters();
+    if (!options.skipScroll) scrollToCourseList();
+  }
+
   function applyFilters() {
     const keyword  = document.getElementById('mcSearch').value.toLowerCase().trim();
     const cat      = document.getElementById('mcFilterCat').value;
-    const status   = document.getElementById('mcFilterStatus').value;
+    const status   = statusSelect.value;
 
     const allCards = document.querySelectorAll('.mc-card, #mcTableView tbody tr');
     let visible = 0;
 
-    allCards.forEach(el => {
+    allCards.forEach(function (el) {
       const title    = el.dataset.title    || '';
       const elCat    = el.dataset.cat      || '';
       const archived = el.dataset.archived || '0';
@@ -523,10 +615,33 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('mcFilterCount').textContent = visible + ' course' + (visible !== 1 ? 's' : '');
   }
 
+  kpiLinks.forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      applyKpiFilter(link.getAttribute('data-kpi') || 'all');
+    });
+    link.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        applyKpiFilter(link.getAttribute('data-kpi') || 'all');
+      }
+    });
+  });
+
+  statusSelect.addEventListener('change', function () {
+    let kpi = 'all';
+    if (statusSelect.value === '0') kpi = 'published';
+    if (statusSelect.value === '1') kpi = 'archived';
+    setActiveKpi(kpi);
+    updateUrl(kpi);
+    applyFilters();
+  });
+
   document.getElementById('mcSearch').addEventListener('input', applyFilters);
   document.getElementById('mcFilterCat').addEventListener('change', applyFilters);
-  document.getElementById('mcFilterStatus').addEventListener('change', applyFilters);
   document.addEventListener('ka-mc-view-applied', applyFilters);
-  applyFilters();
+
+  const initialKpi = <?= json_encode($kpi_active) ?>;
+  applyKpiFilter(initialKpi, { skipUrl: true, skipScroll: initialKpi !== 'enrollments' });
 });
 </script>

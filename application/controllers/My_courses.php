@@ -118,12 +118,30 @@ class My_courses extends CI_Controller {
             ->get('course_categories')
             ->result();
 
+        $status_param = strtolower(trim((string) $this->input->get('status', true)));
+        $filter_status = '';
+        $kpi_active    = 'all';
+
+        if ($status_param === 'published' || $status_param === '0') {
+            $filter_status = '0';
+            $kpi_active    = 'published';
+        } elseif ($status_param === 'archived' || $status_param === '1') {
+            $filter_status = '1';
+            $kpi_active    = 'archived';
+        } elseif ($status_param === 'enrollments') {
+            $kpi_active = 'enrollments';
+        }
+
         $data = [
             'user'          => $user,
             'page_title'    => 'Course Management',
             'courses'       => $courses,
             'categories'    => $categories,
             'total_courses' => count($courses),
+            'keyword'       => trim((string) $this->input->get('q', true)),
+            'filter_cat'    => $this->input->get('category', true) ?: '',
+            'filter_status' => $filter_status,
+            'kpi_active'    => $kpi_active,
             'breadcrumbs'   => [
                 ['label' => 'Dashboard', 'url' => 'dashboard'],
                 ['label' => 'Course Management'],

@@ -188,6 +188,30 @@
       if (m) m.style.display = on ? 'none' : 'block';
     }
 
+    function filterModulesForAssessmentType(type) {
+      var sel = document.getElementById('module_id');
+      if (!sel) return;
+      var checkpointMode = type === 'checkpoint';
+      var firstVideo = null;
+      var selectedOk = true;
+      Array.prototype.forEach.call(sel.options, function(opt) {
+        if (!opt.value) return;
+        var isVideo = opt.getAttribute('data-video-module') === '1';
+        if (checkpointMode) {
+          opt.disabled = !isVideo;
+          opt.hidden = !isVideo;
+          if (isVideo && !firstVideo) firstVideo = opt;
+          if (opt.selected && !isVideo) selectedOk = false;
+        } else {
+          opt.disabled = false;
+          opt.hidden = false;
+        }
+      });
+      if (checkpointMode && !selectedOk && firstVideo) {
+        sel.value = firstVideo.value;
+      }
+    }
+
     function selectType(type) {
       var pre = document.getElementById('card-pre');
       var post = document.getElementById('card-post');
@@ -198,6 +222,7 @@
       var panel = document.getElementById('checkpointFields');
       var hint = document.getElementById('createSidebarHint');
       if (panel) panel.classList.toggle('visible', type === 'checkpoint');
+      filterModulesForAssessmentType(type);
       if (type === 'checkpoint') {
         var ag = document.getElementById('checkpoint_auto_generate');
         toggleCheckpointAuto(ag && ag.checked);
@@ -251,8 +276,8 @@
           ev.preventDefault();
           if (window.KA && typeof window.KA.toast === 'function') {
             window.KA.toast('error', 'Checkpoint exceeds video length (' + vd + 's)');
-          } else {
-            alert('Checkpoint exceeds video length (' + vd + 's)');
+          } else if (window.KA_SWAL && typeof KA_SWAL.SwalWarning === 'function') {
+            KA_SWAL.SwalWarning({ title: 'Checkpoint exceeds video length (' + vd + 's)' });
           }
         }
       });
@@ -1245,7 +1270,11 @@
           if (window.KA && typeof window.KA.toast === 'function') {
             window.KA.toast('error', 'Whole video duration is required when the timestamp is greater than zero.');
           } else {
-            alert('Whole video duration is required when the timestamp is greater than zero.');
+            if (window.KA_SWAL && typeof KA_SWAL.SwalWarning === 'function') {
+              KA_SWAL.SwalWarning({ title: 'Whole video duration is required when the timestamp is greater than zero.' });
+            } else if (window.KA && typeof window.KA.toast === 'function') {
+              window.KA.toast('warning', 'Whole video duration is required when the timestamp is greater than zero.');
+            }
           }
           return;
         }
@@ -1253,8 +1282,8 @@
           ev.preventDefault();
           if (window.KA && typeof window.KA.toast === 'function') {
             window.KA.toast('error', 'Checkpoint exceeds video length (' + vd + 's)');
-          } else {
-            alert('Checkpoint exceeds video length (' + vd + 's)');
+          } else if (window.KA_SWAL && typeof KA_SWAL.SwalWarning === 'function') {
+            KA_SWAL.SwalWarning({ title: 'Checkpoint exceeds video length (' + vd + 's)' });
           }
         }
       });

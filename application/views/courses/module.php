@@ -36,8 +36,8 @@ if ( ! $module) {
     return;
 }
 
-$eff_type = course_phase3_effective_module_type(
-    $module->content_type ?? '',
+$eff_type = course_phase3_effective_module_type_for_row(
+    $module,
     'module view id=' . (int) ($module->id ?? 0)
 );
 $is_video_module        = ($eff_type === 'video');

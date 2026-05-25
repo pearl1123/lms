@@ -13,6 +13,7 @@ $flash_messages = $flash_messages ?? [];
 
 <!-- SweetAlert2 (loaded once here so every view has it) -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+<script src="<?= base_url('assets/js/swal_helper.js') ?>"></script>
 <style>
   /* ── KABAGA-branded SweetAlert2 overrides ── */
   .swal2-popup {
@@ -145,28 +146,29 @@ window.KA = window.KA || {};
  *   onConfirm   {function|string}  callback or URL to redirect
  */
 KA.confirm = function(opts) {
+  opts = opts || {};
   const colors = {
     danger:  { btn: '#dc2626', icon: 'warning' },
     warning: { btn: '#f59f00', icon: 'warning' },
     info:    { btn: '#6dabcf', icon: 'question' },
+    success: { btn: '#22c55e', icon: 'question' },
   };
   const c = colors[opts.type || 'warning'];
+  const run = (window.KA_SWAL && typeof KA_SWAL.SwalConfirm === 'function')
+    ? KA_SWAL.SwalConfirm
+    : (window.Swal ? function(o) { return Swal.fire(o); } : null);
 
-  Swal.fire({
-    title:              opts.title       || 'Are you sure?',
-    html:               opts.text        || '',
-    icon:               c.icon,
-    showCancelButton:   true,
-    confirmButtonText:  opts.confirmText || 'Yes, continue',
-    cancelButtonText:   opts.cancelText  || 'Cancel',
-    confirmButtonColor: c.btn,
-    reverseButtons:     true,
-    focusCancel:        true,
-    customClass: {
-      popup:          'swal2-popup',
-      confirmButton:  'swal2-confirm',
-      cancelButton:   'swal2-cancel',
-    },
+  if (!run) {
+    return;
+  }
+
+  run({
+    title: opts.title || 'Are you sure?',
+    text: opts.text || 'You are about to perform this action.',
+    icon: opts.icon || c.icon,
+    confirmButtonText: opts.confirmText || 'Yes, continue',
+    cancelButtonText: opts.cancelText || 'Cancel',
+    confirmButtonColor: opts.confirmButtonColor || c.btn,
   }).then(function(result) {
     if (result.isConfirmed) {
       if (typeof opts.onConfirm === 'function') {
@@ -175,6 +177,53 @@ KA.confirm = function(opts) {
         window.location.href = opts.onConfirm;
       }
     }
+  });
+};
+
+/**
+ * KA.acceptInviteConfirm(url) — accept course invitation (my courses, catalog, etc.)
+ */
+KA.acceptInviteConfirm = function(url) {
+  if (window.KA_SWAL && KA_SWAL.PRESETS && KA_SWAL.confirmThenGo) {
+    KA_SWAL.confirmThenGo(url, KA_SWAL.PRESETS.acceptInvite);
+    return;
+  }
+  KA.confirm({
+    title: 'Accept course invitation?',
+    text: 'You will be enrolled in this course after accepting.',
+    confirmText: 'Yes, accept',
+    cancelText: 'Not now',
+    type: 'success',
+    onConfirm: url,
+  });
+};
+
+/**
+ * KA.enrollRequestConfirm(url) — self-enrollment / request enrollment
+ */
+KA.enrollRequestConfirm = function(url) {
+  if (window.KA_SWAL && KA_SWAL.PRESETS && KA_SWAL.confirmThenGo) {
+    KA_SWAL.confirmThenGo(url, KA_SWAL.PRESETS.enrollRequest);
+    return;
+  }
+  KA.enrollConfirm(url, 'this course');
+};
+
+/**
+ * KA.enrollRetryConfirm(url) — re-submit enrollment after rejection
+ */
+KA.enrollRetryConfirm = function(url) {
+  if (window.KA_SWAL && KA_SWAL.PRESETS && KA_SWAL.confirmThenGo) {
+    KA_SWAL.confirmThenGo(url, KA_SWAL.PRESETS.enrollRetry);
+    return;
+  }
+  KA.confirm({
+    title: 'Submit a new enrollment request?',
+    text: 'A new request will be sent for instructor review.',
+    confirmText: 'Yes, submit request',
+    cancelText: 'Cancel',
+    type: 'info',
+    onConfirm: url,
   });
 };
 
@@ -272,4 +321,5 @@ KA.unpublishConfirm = function(url, courseName) {
     onConfirm:   url,
   });
 };
+
 </script>

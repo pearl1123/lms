@@ -268,35 +268,7 @@ if ( ! function_exists('ka_module_is_video_content')) {
             return false;
         }
 
-        $type = '';
-        $path = '';
-        if (is_object($module)) {
-            $type = (string) ($module->content_type ?? '');
-            $path = (string) ($module->content_path ?? '');
-        } elseif (is_array($module)) {
-            $type = (string) ($module['content_type'] ?? '');
-            $path = (string) ($module['content_path'] ?? '');
-        }
-
-        $type = strtolower(trim($type));
-        if (in_array($type, ['video', 'youtube', 'mp4', 'yt'], true)) {
-            return true;
-        }
-
-        $path = trim($path);
-        if ($path === '') {
-            return false;
-        }
-
-        if (preg_match('#(?:youtube\.com|youtu\.be)#i', $path)) {
-            return true;
-        }
-
-        if (preg_match('#\.(?:mp4|webm|m4v|mov|ogv)(?:\?|$)#i', $path)) {
-            return true;
-        }
-
-        return false;
+        return course_phase3_effective_module_type_for_row($module, 'ka_module_is_video_content') === 'video';
     }
 }
 

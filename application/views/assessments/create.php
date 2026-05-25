@@ -66,8 +66,15 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
                   $current_course = $m->course_title;
                 endif;
               ?>
-              <option value="<?= $m->id ?>" <?= (set_select('module_id', $m->id) || ( ! $_POST && (int) $m->id === $preselect_mod)) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($m->module_title) ?>
+              <?php
+                $mod_eff = (string) ($m->content_type_effective ?? '');
+                $is_video_mod = ($mod_eff === 'video');
+              ?>
+              <option value="<?= $m->id ?>"
+                      data-effective-type="<?= htmlspecialchars($mod_eff, ENT_QUOTES, 'UTF-8') ?>"
+                      data-video-module="<?= $is_video_mod ? '1' : '0' ?>"
+                      <?= (set_select('module_id', $m->id) || ( ! $_POST && (int) $m->id === $preselect_mod)) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($m->module_title) ?><?= $is_video_mod ? '' : ' (not a video module)' ?>
               </option>
               <?php endforeach; ?>
               <?php if ($current_course !== '') echo '</optgroup>'; ?>

@@ -165,8 +165,7 @@ $content_colors = [
           Your enrollment request was not approved. You may submit a new request if you still wish to join this course.
         </p>
         <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
-           class="cd-enroll-btn cd-enroll-btn-primary"
-           onclick="return confirm('Submit a new enrollment request?')">
+           class="cd-enroll-btn cd-enroll-btn-primary js-ka-enroll-retry">
           Request enrollment again
         </a>
         <a href="<?= base_url('courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
@@ -210,8 +209,7 @@ $content_colors = [
         </form>
         <?php else: ?>
         <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
-           class="cd-enroll-btn cd-enroll-btn-primary"
-           onclick="return confirm('Request enrollment in this course?')">
+           class="cd-enroll-btn cd-enroll-btn-primary <?= $access_type === 'open' ? 'js-ka-enroll-open' : 'js-ka-enroll-request' ?>">
           <?= $access_type === 'open' ? 'Enroll now' : 'Request enrollment' ?>
         </a>
         <?php endif; ?>
@@ -282,8 +280,8 @@ $content_colors = [
               $action_class= 'cd-module-action-start';
             }
 
-            $eff_type = course_phase3_effective_module_type(
-                $module->content_type ?? '',
+            $eff_type = course_phase3_effective_module_type_for_row(
+                $module,
                 'course detail module_id=' . (int) ($module->id ?? 0)
             );
             $type_color = $content_colors[$eff_type] ?? '#64748b';
@@ -396,8 +394,8 @@ $content_colors = [
     <?php
     $type_counts = [];
     foreach ($modules as $m) {
-        $t = course_phase3_effective_module_type(
-            $m->content_type ?? '',
+        $t = course_phase3_effective_module_type_for_row(
+            $m,
             'course detail type_count mod_id=' . (int) ($m->id ?? 0)
         );
         $type_counts[$t] = ($type_counts[$t] ?? 0) + 1;
@@ -435,66 +433,10 @@ $content_colors = [
 <?php $_ka_json = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT; ?>
 <script>
 (function () {
-  function goInvite(url) {
-    if (url) {
-      window.location.href = url;
-    }
-  }
-  function bindInviteConfirm(selector, opts) {
-    document.querySelectorAll(selector).forEach(function (el) {
-      el.addEventListener('click', function (e) {
-        var url = el.getAttribute('href');
-        if (!url) {
-          return;
-        }
-        e.preventDefault();
-        if (window.KA && typeof KA.confirm === 'function') {
-          KA.confirm({
-            title: opts.title,
-            text: opts.text,
-            type: opts.type || 'info',
-            confirmText: opts.confirmText,
-            cancelText: opts.cancelText || 'Cancel',
-            onConfirm: url
-          });
-        } else if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            title: opts.title,
-            html: opts.text,
-            icon: opts.swalIcon || 'question',
-            showCancelButton: true,
-            confirmButtonText: opts.confirmText,
-            cancelButtonText: opts.cancelText || 'Cancel',
-            reverseButtons: true,
-            focusCancel: true
-          }).then(function (r) {
-            if (r.isConfirmed) {
-              goInvite(url);
-            }
-          });
-        } else if (window.confirm(opts.fallbackConfirm)) {
-          goInvite(url);
-        }
-      });
-    });
-  }
   document.addEventListener('DOMContentLoaded', function () {
-    bindInviteConfirm('.js-ka-invite-accept', {
-      title: 'Accept this invitation?',
-      text: 'You will be enrolled in this course after you confirm.',
-      type: 'info',
-      swalIcon: 'question',
-      confirmText: 'Accept invitation',
-      fallbackConfirm: 'Accept this course invitation?'
-    });
-    bindInviteConfirm('.js-ka-invite-decline', {
-      title: 'Decline this invitation?',
-      text: 'You can ask your instructor to send a new invite if you change your mind.',
-      type: 'danger',
-      swalIcon: 'warning',
-      confirmText: 'Yes, decline',
-      fallbackConfirm: 'Decline this course invitation?'
-    });
+    if (window.KA_SWAL && typeof KA_SWAL.bindConfirmLinks === 'function') {
+      KA_SWAL.bindConfirmLinks();
+    }
   });
 })();
 kaApplyAppContext(<?= json_encode([

@@ -81,6 +81,8 @@ $route['courses/video_checkpoint_submit']  = 'assessments/video_checkpoint_submi
 $route['courses/youtube_quizzes/(:num)']   = 'assessments/video_checkpoints/$1';
 $route['courses/youtube_quiz_submit']      = 'assessments/video_checkpoint_submit';
 $route['assessments/migrate_youtube_checkpoints'] = 'assessments/migrate_video_checkpoints';
+$route['assessments/save_checkpoint_meta']         = 'assessments/save_checkpoint_meta';
+$route['assessments/ajax_auto_generate_checkpoints'] = 'assessments/ajax_auto_generate_checkpoints';
 
 // Dashboard role shortcuts
 $route['admin'] = 'Dashboard/admin';

@@ -147,8 +147,8 @@ class Assessment_service {
         $pre_assessment = ! empty($pre_list) ? $pre_list[0] : null;
         $pre_blocked    = false;
         $eff_type       = $module
-            ? course_phase3_effective_module_type(
-                $module->content_type ?? '',
+            ? course_phase3_effective_module_type_for_row(
+                $module,
                 'Assessment_service exam_browse mid=' . (int) $mid
             )
             : '';
@@ -202,8 +202,8 @@ class Assessment_service {
 
         if ($module) {
             $yid = Module_video_checkpoint_model::extract_youtube_video_id((string) ($module->content_path ?? ''));
-            $eff_type = course_phase3_effective_module_type(
-                $module->content_type ?? '',
+            $eff_type = course_phase3_effective_module_type_for_row(
+                $module,
                 'Assessment_service video_checkpoint_ctx mid=' . (int) $mid
             );
             if ($eff_type === 'video' && $yid !== null) {
@@ -612,8 +612,8 @@ class Assessment_service {
         $mid = (int) $mid;
 
         $vm            = $this->CI->video_checkpoint_model;
-        $eff_type = course_phase3_effective_module_type(
-            $module->content_type ?? '',
+        $eff_type = course_phase3_effective_module_type_for_row(
+            $module,
             'Assessment_service flow_state mid=' . (int) $mid
         );
         $content_video = ($eff_type === 'video');

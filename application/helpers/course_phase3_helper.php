@@ -31,20 +31,50 @@ if ( ! function_exists('course_phase3_normalize_module_type')) {
     }
 }
 
+if ( ! function_exists('course_phase3_content_path_is_youtube_video')) {
+    /**
+     * Whether content_path points at YouTube or a direct video file (checkpoint / player contract).
+     *
+     * @param string $path
+     * @return bool
+     */
+    function course_phase3_content_path_is_youtube_video($path)
+    {
+        $path = trim((string) $path);
+        if ($path === '') {
+            return false;
+        }
+
+        if (preg_match('#(?:youtube\.com|youtu\.be)#i', $path)) {
+            return true;
+        }
+
+        return (bool) preg_match('#\.(?:mp4|webm|m4v|mov|ogv)(?:\?|$)#i', $path);
+    }
+}
+
 if ( ! function_exists('course_phase3_effective_module_type')) {
     /**
      * Single source of truth for module content_type resolution (storage, admin UI, learner view, JSON).
      * Applies course_phase3_normalize_module_type(); unknown non-empty raw values → "video" + one debug log.
+     * When $content_path is provided, meeting_link + YouTube/file URL resolves to "video" (mis-tagged modules).
      *
-     * @param mixed  $raw
-     * @param string $context Optional context for debug log (e.g. "module view id=12")
+     * @param mixed       $raw
+     * @param string      $context      Optional context for debug log (e.g. "module view id=12")
+     * @param string|null $content_path Optional module content_path for path-aware resolution
      * @return string Resolved type (meeting_link, video, pdf, …) suitable for branching and CT_DATA keys
      */
-    function course_phase3_effective_module_type($raw, $context = '')
+    function course_phase3_effective_module_type($raw, $context = '', $content_path = null)
     {
         $raw_s = strtolower(trim((string) $raw));
         $n     = course_phase3_normalize_module_type($raw_s);
         if ($n !== '') {
+            if ($n === 'meeting_link' && $content_path !== null && course_phase3_content_path_is_youtube_video($content_path)) {
+                $suffix = $context !== '' ? ' (' . $context . ')' : '';
+                log_message('debug', 'Phase3 module type: meeting_link + playable path → video' . $suffix . '.');
+                return 'video';
+            }
+
             return $n;
         }
 
@@ -54,6 +84,34 @@ if ( ! function_exists('course_phase3_effective_module_type')) {
         }
 
         return 'video';
+    }
+}
+
+if ( ! function_exists('course_phase3_effective_module_type_for_row')) {
+    /**
+     * Resolve effective type from a course_modules row (object or array).
+     *
+     * @param object|array|null $module
+     * @param string            $context
+     * @return string
+     */
+    function course_phase3_effective_module_type_for_row($module, $context = '')
+    {
+        if ($module === null) {
+            return 'video';
+        }
+
+        $raw  = '';
+        $path = null;
+        if (is_object($module)) {
+            $raw  = (string) ($module->content_type ?? '');
+            $path = isset($module->content_path) ? (string) $module->content_path : null;
+        } elseif (is_array($module)) {
+            $raw  = (string) ($module['content_type'] ?? '');
+            $path = isset($module['content_path']) ? (string) $module['content_path'] : null;
+        }
+
+        return course_phase3_effective_module_type($raw, $context, $path);
     }
 }
 

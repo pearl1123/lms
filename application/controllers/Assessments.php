@@ -52,14 +52,25 @@ class Assessments extends CI_Controller {
         }
 
         $mid = (int) ($mod->id ?? 0);
+        $raw = (string) ($mod->content_type ?? '');
+        $eff = course_phase3_effective_module_type_for_row($mod, 'Assessments video contract mid=' . $mid);
 
-        return course_phase3_effective_module_type($mod->content_type ?? '', 'Assessments video contract mid=' . $mid) === 'video';
+        log_message(
+            'debug',
+            '[VIDEO CHECKPOINT] module_id=' . $mid
+            . ' raw=' . ($raw === '' ? 'NULL' : $raw)
+            . ' effective=' . $eff
+            . ' path=' . (trim((string) ($mod->content_path ?? '')) === '' ? 'empty' : 'set')
+        );
+
+        return $eff === 'video';
     }
 
     private function _json_error($status, $message)
     {
         $payload = json_encode([
             'success' => false,
+            'ok'      => false,
             'message' => (string) $message,
         ]);
 
@@ -630,7 +641,7 @@ class Assessments extends CI_Controller {
                         $first = ! empty($ids) ? (int) $ids[0] : 0;
                         $this->session->set_flashdata('success', $batch['message'] ?? 'Checkpoints created.');
                         if ($first > 0) {
-                            redirect('assessments/edit/' . $first);
+                            redirect('assessments/edit/' . $first . '?workspace=1&generated=1');
                         }
                     }
                 } else {
@@ -681,7 +692,11 @@ class Assessments extends CI_Controller {
                                 ? 'Video checkpoint created. Add one multiple-choice question (shown during video playback).'
                                 : 'Assessment created. Now add your questions.';
                             $this->session->set_flashdata('success', $msg);
-                            redirect('assessments/edit/' . $id);
+                            $redir = 'assessments/edit/' . $id;
+                            if ($post_type === 'checkpoint') {
+                                $redir .= '?workspace=1';
+                            }
+                            redirect($redir);
                         }
                     }
                     if ($skip_insert) {
@@ -695,6 +710,12 @@ class Assessments extends CI_Controller {
 
         // Build module list for dropdown
         $modules = $this->_get_available_modules($user);
+        foreach ($modules as $m) {
+            $m->content_type_effective = course_phase3_effective_module_type_for_row(
+                $m,
+                'assessments create module_id=' . (int) ($m->id ?? 0)
+            );
+        }
 
         $preselect_course_id = (int) ($this->input->get('course_id') ?? 0);
         $preselect_mod       = (int) ($this->input->get('module_id') ?? 0);
@@ -852,22 +873,313 @@ class Assessments extends CI_Controller {
         $questions = $this->assessment_model->get_questions($id);
         $modules   = $this->_get_available_modules($this->user);
 
+        $checkpoint_workspace = null;
+        $use_workspace        = ($assessment->type === 'checkpoint')
+            && $this->assessment_model->assessments_checkpoint_schema_ready();
+
+        if ($use_workspace) {
+            $checkpoint_workspace = $this->_build_checkpoint_workspace($assessment, $id);
+        }
+
         $data = [
             'user'        => $this->user,
-            'page_title'  => 'Edit Assessment',
+            'page_title'  => $use_workspace ? 'Video Checkpoint Workspace' : 'Edit Assessment',
             'assessment'  => $assessment,
             'questions'   => $questions,
             'modules'     => $modules,
             'checkpoint_schema_ready' => $this->assessment_model->assessments_checkpoint_schema_ready(),
+            'checkpoint_workspace'    => $checkpoint_workspace,
+            'use_checkpoint_workspace'=> $use_workspace,
             'breadcrumbs' => [
                 ['label' => 'Dashboard',   'url' => 'dashboard'],
                 ['label' => 'Assessments', 'url' => 'assessments'],
-                ['label' => 'Edit: ' . $assessment->title],
+                ['label' => $use_workspace ? 'Video checkpoints' : ('Edit: ' . $assessment->title)],
             ],
             'view' => 'assessments/edit',
         ];
 
         $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
+    }
+
+    /**
+     * AJAX — save checkpoint meta (timestamp, required, sort) without leaving workspace.
+     * POST index.php/assessments/save_checkpoint_meta
+     */
+    public function save_checkpoint_meta()
+    {
+        $this->_require_manager();
+
+        $id = (int) $this->input->post('assessment_id');
+        if ($id < 1) {
+            return $this->_checkpoint_json_response([
+                'success' => false,
+                'message' => 'Missing checkpoint id.',
+            ], 400);
+        }
+
+        $assessment = $this->assessment_model->get_assessment($id);
+        if ( ! $assessment || ($assessment->type ?? '') !== 'checkpoint') {
+            return $this->_checkpoint_json_response([
+                'success' => false,
+                'message' => 'Checkpoint not found.',
+            ], 404);
+        }
+
+        $this->_check_ownership_json($assessment);
+
+        if ( ! $this->assessment_model->assessments_checkpoint_schema_ready()) {
+            return $this->_checkpoint_json_response([
+                'success' => false,
+                'message' => 'Checkpoint schema is not ready on this server.',
+            ], 503);
+        }
+
+        $vd = (int) $this->input->post('video_duration_seconds');
+        $ts_val = filter_var(
+            $this->input->post('trigger_seconds'),
+            FILTER_VALIDATE_INT,
+            FILTER_NULL_ON_FAILURE
+        );
+        $ts = ($ts_val === null) ? 0 : max(0, (int) $ts_val);
+
+        if ($ts > 0 && $vd < 1) {
+            return $this->_checkpoint_json_response([
+                'success' => false,
+                'message' => 'Whole video duration (seconds) is required when the checkpoint uses a timestamp.',
+            ], 422);
+        }
+        if ($ts > 0 && $vd > 0 && $ts > $vd) {
+            return $this->_checkpoint_json_response([
+                'success' => false,
+                'message' => 'Video timestamp cannot exceed whole video duration (' . $vd . 's).',
+            ], 422);
+        }
+
+        $title = trim((string) $this->input->post('title'));
+        if ($title === '') {
+            return $this->_checkpoint_json_response([
+                'success' => false,
+                'message' => 'Title is required.',
+            ], 422);
+        }
+
+        $upd = [
+            'type'            => 'checkpoint',
+            'title'           => $title,
+            'module_id'       => (int) $assessment->module_id,
+            'modified_by'     => (int) $this->user->id,
+            'trigger_seconds' => $this->input->post('trigger_seconds'),
+            'trigger_percent' => $this->input->post('trigger_percent') ?: 0,
+            'is_required'       => $this->input->post('checkpoint_required') ? 1 : 0,
+            'sort_order'        => (int) $this->input->post('sort_order'),
+        ];
+        if ($vd > 0) {
+            $upd['video_duration_seconds'] = $vd;
+        }
+
+        $updated = $this->assessment_model->update_assessment($id, $upd);
+        if ( ! $updated) {
+            $db_err = $this->db->error();
+            if ( ! empty($db_err['code'])) {
+                log_message('error', 'save_checkpoint_meta DB: ' . json_encode($db_err));
+            }
+
+            return $this->_checkpoint_json_response([
+                'success' => false,
+                'message' => 'Could not save. Another checkpoint may use the same timestamp, or the timestamp exceeds the video duration.',
+            ], 409);
+        }
+
+        return $this->_checkpoint_json_response([
+            'success' => true,
+            'message' => 'Checkpoint saved successfully.',
+            'data'    => [
+                'assessment_id'    => $id,
+                'trigger_seconds'  => $ts,
+                'title'            => $title,
+            ],
+        ]);
+    }
+
+    /**
+     * AJAX — auto-generate 3 checkpoints for a module (same service as create form).
+     * POST index.php/assessments/ajax_auto_generate_checkpoints
+     */
+    public function ajax_auto_generate_checkpoints()
+    {
+        $this->_require_manager();
+        header('Content-Type: application/json');
+
+        $module_id = (int) $this->input->post('module_id');
+        $mod       = $this->course_model->get_module($module_id);
+        if ( ! $mod || ! $this->_module_row_is_video_contract($mod)) {
+            echo json_encode(['success' => false, 'message' => 'Video checkpoints require a video module.']);
+
+            return;
+        }
+        $this->_check_ownership_module($mod);
+
+        $batch = $this->assessment_service->create_auto_distributed_video_checkpoints(
+            $module_id,
+            (int) $this->user->id,
+            [
+                'title'                  => $this->input->post('title') ?: 'Video checkpoint',
+                'is_required'            => $this->input->post('checkpoint_required'),
+                'video_duration_seconds' => (int) $this->input->post('video_duration_seconds'),
+            ]
+        );
+
+        if (empty($batch['ok'])) {
+            echo json_encode(['success' => false, 'message' => $batch['message'] ?? 'Could not auto-generate checkpoints.']);
+
+            return;
+        }
+
+        $ids   = $batch['created_ids'] ?? [];
+        $first = ! empty($ids) ? (int) $ids[0] : 0;
+        echo json_encode([
+            'success'     => true,
+            'message'     => $batch['message'] ?? 'Checkpoints created.',
+            'created_ids' => $ids,
+            'redirect'    => $first > 0 ? site_url('assessments/edit/' . $first . '?workspace=1&generated=1') : '',
+        ]);
+    }
+
+    /**
+     * @param object $assessment Current lib_assessments row
+     * @param int    $active_id  Active checkpoint tab
+     * @return array|null
+     */
+    private function _build_checkpoint_workspace($assessment, $active_id)
+    {
+        $module_id = (int) ($assessment->module_id ?? 0);
+        if ($module_id < 1) {
+            return null;
+        }
+
+        $module = $this->course_model->get_module($module_id);
+        $this->load->model('Module_video_checkpoint_model', 'video_checkpoint_model');
+        $youtube_id = $module
+            ? Module_video_checkpoint_model::extract_youtube_video_id((string) ($module->content_path ?? ''))
+            : null;
+
+        $raw_list = $this->assessment_model->get_assessments($module_id, 'checkpoint');
+        $panels   = [];
+
+        foreach ($raw_list as $row) {
+            $aid  = (int) ($row->id ?? 0);
+            $full = $this->assessment_model->get_assessment($aid);
+            if ( ! $full) {
+                continue;
+            }
+            $qs = $this->assessment_model->get_questions($aid);
+            $ts = 0;
+            if (isset($full->trigger_type) && (string) $full->trigger_type === 'seconds') {
+                $ts = (int) round((float) ($full->trigger_value ?? 0));
+            }
+            $panels[] = [
+                'assessment'      => $full,
+                'questions'       => $qs,
+                'segment_label'   => $this->_checkpoint_segment_label($full),
+                'trigger_seconds' => $ts,
+                'has_question'    => count($qs) > 0,
+                'question_count'  => (int) ($row->question_count ?? count($qs)),
+            ];
+        }
+
+        usort($panels, static function ($a, $b) {
+            $ao = (int) ($a['assessment']->sort_order ?? 0);
+            $bo = (int) ($b['assessment']->sort_order ?? 0);
+            if ($ao !== $bo) {
+                return $ao <=> $bo;
+            }
+
+            return (int) $a['assessment']->id <=> (int) $b['assessment']->id;
+        });
+
+        $active_id = (int) $active_id;
+        $active_found = false;
+        foreach ($panels as $p) {
+            if ((int) $p['assessment']->id === $active_id) {
+                $active_found = true;
+                break;
+            }
+        }
+        if ( ! $active_found && ! empty($panels)) {
+            $active_id = (int) $panels[0]['assessment']->id;
+        }
+
+        $tab_from_get = (int) ($this->input->get('tab') ?? 0);
+        if ($tab_from_get > 0) {
+            foreach ($panels as $p) {
+                if ((int) $p['assessment']->id === $tab_from_get) {
+                    $active_id = $tab_from_get;
+                    break;
+                }
+            }
+        }
+
+        $max = Module_video_checkpoint_model::MAX_VIDEO_CHECKPOINTS_PER_MODULE;
+        $count = count($panels);
+
+        return [
+            'module'            => $module,
+            'module_id'         => $module_id,
+            'course_id'         => (int) ($module->course_id ?? $assessment->course_id ?? 0),
+            'youtube_id'        => $youtube_id,
+            'panels'            => $panels,
+            'active_id'         => $active_id,
+            'checkpoint_count'  => $count,
+            'max_checkpoints'   => $max,
+            'can_auto_generate' => $count < $max && ($max - $count) >= 3,
+            'module_title'      => (string) ($module->title ?? $assessment->module_title ?? ''),
+            'course_title'      => (string) ($module->course_title ?? $assessment->course_title ?? ''),
+        ];
+    }
+
+    /**
+     * Human label for checkpoint tab (auto-generated titles or sort_order).
+     *
+     * @param object $assessment
+     * @return string
+     */
+    private function _checkpoint_segment_label($assessment)
+    {
+        $title = strtolower((string) ($assessment->title ?? ''));
+        if (strpos($title, 'early segment') !== false) {
+            return 'Early segment';
+        }
+        if (strpos($title, 'middle segment') !== false) {
+            return 'Middle segment';
+        }
+        if (strpos($title, 'late segment') !== false) {
+            return 'Late segment';
+        }
+
+        $order = (int) ($assessment->sort_order ?? 0);
+        $labels = ['Early segment', 'Middle segment', 'Late segment'];
+
+        return $labels[$order] ?? ('Checkpoint ' . ($order + 1));
+    }
+
+    /**
+     * Ownership check for a course module row.
+     *
+     * @param object $module
+     */
+    private function _check_ownership_module($module)
+    {
+        if ($this->user->role === 'admin') {
+            return;
+        }
+        $course_id = (int) ($module->course_id ?? 0);
+        if ( ! $this->course_phase2->user_manages_course((int) $this->user->id, $course_id)) {
+            if ($this->_is_ajax()) {
+                $this->_json_error(403, 'You can only manage assessments for your own courses.');
+            }
+            $this->session->set_flashdata('error', 'You can only manage assessments for your own courses.');
+            redirect('assessments');
+        }
     }
 
     // =========================================================
@@ -1402,6 +1714,29 @@ class Assessments extends CI_Controller {
             ->set_status_header((int) $status)
             ->set_content_type('application/json')
             ->set_output($payload);
+
+        $this->output->_display();
+        exit;
+    }
+
+    /**
+     * Ownership check for JSON checkpoint/workspace AJAX (never redirect).
+     *
+     * @param object $assessment
+     */
+    private function _check_ownership_json($assessment)
+    {
+        if ($this->user->role === 'admin') {
+            return;
+        }
+
+        $cid = (int) ($assessment->course_id ?? 0);
+        if ($cid < 1 || ! $this->course_phase2->user_manages_course((int) $this->user->id, $cid)) {
+            $this->_checkpoint_json_response([
+                'success' => false,
+                'message' => 'You can only manage assessments for your own courses.',
+            ], 403);
+        }
     }
 
     // =========================================================
@@ -1485,7 +1820,7 @@ class Assessments extends CI_Controller {
     private function _get_available_modules($user)
     {
         $this->db
-            ->select('cm.id, cm.title AS module_title, c.title AS course_title, c.id AS course_id')
+            ->select('cm.id, cm.title AS module_title, cm.content_type, cm.content_path, c.title AS course_title, c.id AS course_id')
             ->from('course_modules cm')
             ->join('courses c', 'c.id = cm.course_id', 'left')
             ->where('cm.archived', 0)

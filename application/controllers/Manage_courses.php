@@ -318,7 +318,11 @@ class Manage_courses extends CI_Controller {
             echo json_encode(['success' => false, 'message' => 'Module title is required.']);
             return;
         }
-        $content_type = course_phase3_effective_module_type($content_type, 'save_module course_id=' . $course_id);
+        $content_type = course_phase3_effective_module_type(
+            $content_type,
+            'save_module course_id=' . $course_id,
+            $this->input->post('content_path')
+        );
 
         // Multiple modules may share the same content_type; only total weight is restricted.
 
@@ -359,8 +363,8 @@ class Manage_courses extends CI_Controller {
 
         $module = $this->course_model->get_module($mid);
         if ($module) {
-            $module->content_type_effective = course_phase3_effective_module_type(
-                $module->content_type ?? '',
+            $module->content_type_effective = course_phase3_effective_module_type_for_row(
+                $module,
                 'save_module json mid=' . (int) $mid
             );
             if ($module->content_type_effective === 'video') {
@@ -464,8 +468,8 @@ class Manage_courses extends CI_Controller {
             $post = $this->assessment_model->get_assessments($mod->id, 'post');
             $mod->pre_count  = count($pre);
             $mod->post_count = count($post);
-            $eff_ck = course_phase3_effective_module_type(
-                $mod->content_type ?? '',
+            $eff_ck = course_phase3_effective_module_type_for_row(
+                $mod,
                 'manage edit list checkpoints mod_id=' . (int) $mod->id
             );
             if ($eff_ck === 'video') {

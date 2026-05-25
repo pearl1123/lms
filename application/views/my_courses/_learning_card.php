@@ -105,15 +105,14 @@ if ($mode === 'enrolled') {
         <?php $iid = (int) ($course->invitation_id ?? 0); ?>
         <?php if ($iid > 0): ?>
         <a href="<?= base_url('index.php/courses/accept_invitation/' . $iid) ?>"
-           class="ec-card-cta ec-cta-start"
-           onclick="return confirm('Accept this course invitation?')">Accept invite</a>
+           class="ec-card-cta ec-cta-start js-ka-invite-accept">Accept invite</a>
         <?php endif; ?>
         <?php if ($cid > 0): ?>
         <a href="<?= base_url('courses/view/' . $cid . '?' . ka_lms_return_q('my_courses')) ?>" class="ec-card-details-link">Details</a>
         <?php endif; ?>
       <?php else: ?>
         <?php if ($cid > 0): ?>
-        <a href="<?= base_url('index.php/courses/enroll/' . $cid) ?>" class="ec-card-cta ec-cta-start">Enroll Now</a>
+        <a href="<?= base_url('index.php/courses/enroll/' . $cid) ?>" class="ec-card-cta ec-cta-start js-ka-enroll-open">Enroll Now</a>
         <a href="<?= base_url('courses/view/' . $cid . '?' . ka_lms_return_q('my_courses')) ?>" class="ec-card-details-link">Details</a>
         <?php endif; ?>
       <?php endif; ?>
