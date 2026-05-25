@@ -909,6 +909,9 @@ class Assessments extends CI_Controller {
     {
         $this->_require_manager();
 
+        log_message('debug', 'checkpoint save reached');
+        log_message('debug', 'save_checkpoint_meta POST: ' . json_encode($this->input->post()));
+
         $id = (int) $this->input->post('assessment_id');
         if ($id < 1) {
             return $this->_checkpoint_json_response([
@@ -934,7 +937,7 @@ class Assessments extends CI_Controller {
             ], 503);
         }
 
-        $vd = (int) $this->input->post('video_duration_seconds');
+        $module_id = (int) $assessment->module_id;
         $ts_val = filter_var(
             $this->input->post('trigger_seconds'),
             FILTER_VALIDATE_INT,
@@ -942,17 +945,32 @@ class Assessments extends CI_Controller {
         );
         $ts = ($ts_val === null) ? 0 : max(0, (int) $ts_val);
 
+        $vd = $this->_resolve_whole_video_duration_seconds($module_id, $ts);
+        log_message('debug', 'save_checkpoint_meta resolved duration=' . $vd . ' trigger_seconds=' . $ts . ' module_id=' . $module_id);
+
         if ($ts > 0 && $vd < 1) {
             return $this->_checkpoint_json_response([
                 'success' => false,
+                'ok'      => false,
                 'message' => 'Whole video duration (seconds) is required when the checkpoint uses a timestamp.',
+                'errors'  => [
+                    'whole_video_duration_seconds' => 'Enter the full video length in seconds (e.g. 94 or 1000) in the field below the checkpoints.',
+                ],
             ], 422);
         }
         if ($ts > 0 && $vd > 0 && $ts > $vd) {
             return $this->_checkpoint_json_response([
                 'success' => false,
+                'ok'      => false,
                 'message' => 'Video timestamp cannot exceed whole video duration (' . $vd . 's).',
+                'errors'  => [
+                    'trigger_seconds' => 'Timestamp must be between 0 and ' . $vd . ' seconds.',
+                ],
             ], 422);
+        }
+
+        if ($vd > 0 && $module_id > 0) {
+            $this->session->set_userdata('cpw_video_duration_' . $module_id, $vd);
         }
 
         $title = trim((string) $this->input->post('title'));
@@ -1019,13 +1037,21 @@ class Assessments extends CI_Controller {
         }
         $this->_check_ownership_module($mod);
 
+        $vd = $this->_post_whole_video_duration_seconds();
+        if ($vd < 1) {
+            $vd = $this->_resolve_whole_video_duration_seconds($module_id, 0);
+        }
+        if ($vd > 0) {
+            $this->session->set_userdata('cpw_video_duration_' . $module_id, $vd);
+        }
+
         $batch = $this->assessment_service->create_auto_distributed_video_checkpoints(
             $module_id,
             (int) $this->user->id,
             [
                 'title'                  => $this->input->post('title') ?: 'Video checkpoint',
                 'is_required'            => $this->input->post('checkpoint_required'),
-                'video_duration_seconds' => (int) $this->input->post('video_duration_seconds'),
+                'video_duration_seconds' => $vd,
             ]
         );
 
@@ -1122,6 +1148,16 @@ class Assessments extends CI_Controller {
         $max = Module_video_checkpoint_model::MAX_VIDEO_CHECKPOINTS_PER_MODULE;
         $count = count($panels);
 
+        $max_trigger = 0;
+        foreach ($panels as $p) {
+            $max_trigger = max($max_trigger, (int) ($p['trigger_seconds'] ?? 0));
+        }
+        if ($max_trigger < 1) {
+            $max_trigger = $this->assessment_model->get_max_video_checkpoint_trigger_seconds_for_module($module_id);
+        }
+        $cached_duration = (int) $this->session->userdata('cpw_video_duration_' . $module_id);
+        $suggested_duration = max($cached_duration, $max_trigger);
+
         return [
             'module'            => $module,
             'module_id'         => $module_id,
@@ -1134,6 +1170,9 @@ class Assessments extends CI_Controller {
             'can_auto_generate' => $count < $max && ($max - $count) >= 3,
             'module_title'      => (string) ($module->title ?? $assessment->module_title ?? ''),
             'course_title'      => (string) ($module->course_title ?? $assessment->course_title ?? ''),
+            'max_trigger_seconds'              => $max_trigger,
+            'suggested_video_duration_seconds' => $suggested_duration,
+            'cached_video_duration_seconds'    => $cached_duration,
         ];
     }
 
@@ -1742,6 +1781,66 @@ class Assessments extends CI_Controller {
     // =========================================================
     // PRIVATE HELPERS
     // =========================================================
+
+    /**
+     * Read whole-video duration from POST (canonical + legacy field names).
+     *
+     * @return int
+     */
+    private function _post_whole_video_duration_seconds()
+    {
+        $keys = [
+            'whole_video_duration_seconds',
+            'video_duration_seconds',
+            'video_duration',
+            'duration',
+        ];
+        foreach ($keys as $key) {
+            $raw = $this->input->post($key);
+            if ($raw === null || $raw === '') {
+                continue;
+            }
+            $val = filter_var($raw, FILTER_VALIDATE_INT);
+            if ($val !== false && (int) $val > 0) {
+                return (int) $val;
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * Resolve video duration for checkpoint validation (POST → session → module max trigger).
+     *
+     * @param int $module_id
+     * @param int $trigger_seconds
+     * @return int
+     */
+    private function _resolve_whole_video_duration_seconds($module_id, $trigger_seconds)
+    {
+        $vd = $this->_post_whole_video_duration_seconds();
+        if ($vd > 0) {
+            return $vd;
+        }
+
+        if ($module_id > 0) {
+            $cached = (int) $this->session->userdata('cpw_video_duration_' . $module_id);
+            if ($cached > 0) {
+                return $cached;
+            }
+
+            $max_ts = $this->assessment_model->get_max_video_checkpoint_trigger_seconds_for_module($module_id);
+            if ($max_ts > 0) {
+                return max($max_ts, (int) $trigger_seconds);
+            }
+        }
+
+        if ($trigger_seconds > 0) {
+            return (int) $trigger_seconds;
+        }
+
+        return 0;
+    }
 
     /**
      * Video checkpoint `lib_assessments.id` from POST (`assessment_id` or `checkpoint_id`).

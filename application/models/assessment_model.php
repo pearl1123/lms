@@ -342,6 +342,31 @@ class assessment_model extends CI_Model {
             ->update('lib_assessments', $update);
     }
 
+    /**
+     * Max seconds-based trigger_value for video checkpoints on a module (for duration inference).
+     *
+     * @param int $module_id
+     * @return int
+     */
+    public function get_max_video_checkpoint_trigger_seconds_for_module($module_id)
+    {
+        if ($module_id < 1 || ! $this->assessments_checkpoint_schema_ready()) {
+            return 0;
+        }
+
+        $row = $this->db
+            ->select_max('trigger_value', 'max_tv')
+            ->where('module_id', (int) $module_id)
+            ->where('type', 'checkpoint')
+            ->where('context', 'video')
+            ->where('trigger_type', 'seconds')
+            ->where('archived', 0)
+            ->get('lib_assessments')
+            ->row();
+
+        return $row ? max(0, (int) round((float) ($row->max_tv ?? 0))) : 0;
+    }
+
     /** Soft-delete an assessment. */
     public function delete_assessment($assessment_id)
     {

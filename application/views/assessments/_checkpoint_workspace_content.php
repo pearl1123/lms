@@ -20,6 +20,8 @@ foreach ($panels as $p) {
     }
 }
 $generated_flash = ! empty($_GET['generated']);
+$suggested_duration = (int) ($checkpoint_workspace['suggested_video_duration_seconds'] ?? 0);
+$max_trigger        = (int) ($checkpoint_workspace['max_trigger_seconds'] ?? 0);
 ?>
 
 <section class="asx-editor-section <?= empty($panels) ? 'is-active' : '' ?>" data-asx-section="overview" id="asxSectionOverview">
@@ -105,6 +107,21 @@ $generated_flash = ! empty($_GET['generated']);
       </div>
     </div>
 
+    <div class="asx-editor-card asx-editor-card--inline" id="cpwSharedDurationCard">
+      <label class="cpw-label" for="cpwSharedDuration">Whole video duration (seconds) <span class="cpw-label-req">*</span></label>
+      <input type="number"
+             class="cpw-input"
+             id="cpwSharedDuration"
+             name="whole_video_duration_seconds"
+             min="1"
+             step="1"
+             placeholder="e.g. 94 or 1000"
+             value="<?= $suggested_duration > 0 ? (int) $suggested_duration : '' ?>"
+             data-module-id="<?= (int) $module_id ?>"
+             data-max-trigger="<?= (int) $max_trigger ?>">
+      <p class="cpw-help">Full length of the video (not the checkpoint timestamp). Required when saving timestamps.<?php if ($max_trigger > 0): ?> Longest checkpoint on this module: <?= (int) $max_trigger ?>s.<?php endif; ?></p>
+    </div>
+
     <div class="cpw-blocks" id="cpwBlocks">
       <?php foreach ($panels as $panel):
         $this->load->view('assessments/_checkpoint_editor_panel', [
@@ -114,12 +131,6 @@ $generated_flash = ! empty($_GET['generated']);
             'block_mode'  => true,
         ]);
       endforeach; ?>
-    </div>
-
-    <div class="asx-editor-card asx-editor-card--inline" id="cpwSharedDurationCard">
-      <label class="cpw-label" for="cpwSharedDuration">Whole video duration (seconds)</label>
-      <input type="number" class="cpw-input" id="cpwSharedDuration" min="1" step="1" placeholder="Shared cap for timestamp validation">
-      <p class="cpw-help">Applied when saving checkpoint timestamps on this module.</p>
     </div>
   </div>
   <?php endif; ?>

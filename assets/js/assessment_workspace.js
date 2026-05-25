@@ -16,11 +16,17 @@
   function parseJsonResponse(r) {
     return r.text().then(function(text) {
       var raw = text == null ? '' : String(text);
-      if (typeof console !== 'undefined' && console.log) {
-        console.log('RAW RESPONSE:', raw);
+      var trimmed = raw.trim();
+      if (trimmed === '') {
+        return {
+          success: false,
+          ok: false,
+          message: 'Empty server response. Please refresh and try again.',
+          _parseError: true,
+        };
       }
       try {
-        var res = JSON.parse(raw);
+        var res = JSON.parse(trimmed);
         if (typeof res.success === 'undefined' && typeof res.ok !== 'undefined') {
           res.success = !!res.ok;
         }
@@ -30,13 +36,14 @@
         return res;
       } catch (e) {
         if (typeof console !== 'undefined' && console.error) {
-          console.error('Invalid JSON response:', raw, e);
+          console.error('Invalid JSON response:', trimmed.slice(0, 300), e);
         }
         return {
           success: false,
           ok: false,
-          message: 'Unexpected server response.',
-          _raw: raw.slice(0, 500),
+          message: 'Could not read the server response. Please refresh and try again.',
+          _parseError: true,
+          _raw: trimmed.slice(0, 500),
         };
       }
     });
@@ -44,6 +51,99 @@
 
   function responseOk(res) {
     return !!(res && (res.success || res.ok));
+  }
+
+  function cpwErrorMessage(res, fallback) {
+    if (!res) {
+      return fallback || 'Save failed.';
+    }
+    if (res.errors) {
+      if (res.errors.whole_video_duration_seconds) {
+        return res.errors.whole_video_duration_seconds;
+      }
+      if (res.errors.trigger_seconds) {
+        return res.errors.trigger_seconds;
+      }
+    }
+    return res.message || fallback || 'Save failed.';
+  }
+
+  function cpwShowError(res, fallback) {
+    var msg = cpwErrorMessage(res, fallback);
+    if (window.KA_SWAL && typeof KA_SWAL.SwalError === 'function') {
+      KA_SWAL.SwalError({ title: msg });
+    } else {
+      cpwToast('error', msg);
+    }
+  }
+
+  function cpwDurationStorageKey(moduleId) {
+    return 'lms_cpw_whole_video_duration_' + (parseInt(moduleId, 10) || 0);
+  }
+
+  function getVideoDurationSeconds(C) {
+    C = C || {};
+    var el = document.getElementById('cpwSharedDuration')
+      || document.getElementById('cpwAutoDuration');
+    if (el && String(el.value).trim() !== '') {
+      var fromInput = parseInt(String(el.value).trim(), 10);
+      if (!isNaN(fromInput) && fromInput > 0) {
+        return fromInput;
+      }
+    }
+    var suggested = parseInt(C.suggestedVideoDurationSeconds, 10);
+    if (!isNaN(suggested) && suggested > 0) {
+      return suggested;
+    }
+    var mid = parseInt(C.moduleId, 10) || 0;
+    if (mid > 0) {
+      try {
+        var stored = localStorage.getItem(cpwDurationStorageKey(mid));
+        if (stored) {
+          var fromStore = parseInt(stored, 10);
+          if (!isNaN(fromStore) && fromStore > 0) {
+            return fromStore;
+          }
+        }
+      } catch (ignore) {}
+    }
+    var maxTs = parseInt(C.maxTriggerSeconds, 10) || 0;
+    document.querySelectorAll('.cpw-meta-form input[name="trigger_seconds"]').forEach(function(inp) {
+      var t = parseInt(String(inp.value).trim(), 10);
+      if (!isNaN(t) && t > maxTs) {
+        maxTs = t;
+      }
+    });
+    return maxTs > 0 ? maxTs : 0;
+  }
+
+  function persistVideoDurationSeconds(moduleId, seconds) {
+    var sec = parseInt(seconds, 10);
+    if (isNaN(sec) || sec < 1) {
+      return;
+    }
+    var el = document.getElementById('cpwSharedDuration');
+    if (el && !el.value) {
+      el.value = String(sec);
+    }
+    var mid = parseInt(moduleId, 10) || 0;
+    if (mid > 0) {
+      try {
+        localStorage.setItem(cpwDurationStorageKey(mid), String(sec));
+      } catch (ignore) {}
+    }
+  }
+
+  function appendDurationFields(body, vd, moduleId) {
+    if (!(vd > 0)) {
+      return body;
+    }
+    body += '&whole_video_duration_seconds=' + encodeURIComponent(vd);
+    body += '&video_duration_seconds=' + encodeURIComponent(vd);
+    if (moduleId > 0) {
+      body += '&module_id=' + encodeURIComponent(moduleId);
+    }
+    return body;
   }
 
   function escHtml(s) {
@@ -63,6 +163,19 @@
     var SAVE_META_URL = C.saveMetaUrl || '';
     var AUTO_URL = C.autoGenerateUrl || '';
     var MODULE_ID = parseInt(C.moduleId, 10) || 0;
+
+    if (C.suggestedVideoDurationSeconds > 0) {
+      persistVideoDurationSeconds(MODULE_ID, C.suggestedVideoDurationSeconds);
+    }
+    var sharedDurInput = document.getElementById('cpwSharedDuration');
+    if (sharedDurInput) {
+      sharedDurInput.addEventListener('change', function() {
+        persistVideoDurationSeconds(MODULE_ID, sharedDurInput.value);
+      });
+      sharedDurInput.addEventListener('input', function() {
+        persistVideoDurationSeconds(MODULE_ID, sharedDurInput.value);
+      });
+    }
 
     function csrfPrefix() {
       if (!String(CSRF_NAME).trim()) return '';
@@ -297,18 +410,41 @@
         var aid = parseInt(form.getAttribute('data-assessment-id'), 10);
         var msgEl = document.querySelector('[data-cpw-meta-msg="' + aid + '"]');
         var fd = new FormData(form);
-        var sharedDur = document.getElementById('cpwSharedDuration');
-        var vd = sharedDur && sharedDur.value ? parseInt(sharedDur.value, 10) : 0;
+        var tsRaw = String(fd.get('trigger_seconds') || '').trim();
+        var ts = tsRaw === '' ? 0 : parseInt(tsRaw, 10);
+        if (isNaN(ts) || ts < 0) {
+          ts = 0;
+        }
+        var vd = getVideoDurationSeconds(C);
+        if (ts > 0 && vd < 1) {
+          var needMsg = 'Enter whole video duration (seconds) above the checkpoint list — this is the full video length, not the checkpoint timestamp.';
+          setMsg(msgEl, needMsg, 'err');
+          cpwShowError({ message: needMsg, errors: { whole_video_duration_seconds: needMsg } });
+          var durCard = document.getElementById('cpwSharedDurationCard');
+          if (durCard && durCard.scrollIntoView) {
+            durCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          var durIn = document.getElementById('cpwSharedDuration');
+          if (durIn) {
+            durIn.focus();
+          }
+          return;
+        }
+        if (ts > 0 && vd > 0 && ts > vd) {
+          var overMsg = 'Checkpoint timestamp (' + ts + 's) cannot exceed whole video duration (' + vd + 's).';
+          setMsg(msgEl, overMsg, 'err');
+          cpwShowError({ message: overMsg });
+          return;
+        }
+        persistVideoDurationSeconds(MODULE_ID, vd);
         var body = csrfPrefix()
           + 'assessment_id=' + encodeURIComponent(aid)
           + '&title=' + encodeURIComponent(fd.get('title') || '')
-          + '&trigger_seconds=' + encodeURIComponent(fd.get('trigger_seconds') || '0')
+          + '&trigger_seconds=' + encodeURIComponent(ts)
           + '&trigger_percent=0'
           + '&sort_order=' + encodeURIComponent(fd.get('sort_order') || '0')
           + '&checkpoint_required=' + (fd.get('checkpoint_required') ? '1' : '0');
-        if (vd > 0) {
-          body += '&video_duration_seconds=' + encodeURIComponent(vd);
-        }
+        body = appendDurationFields(body, vd, MODULE_ID);
         setMsg(msgEl, 'Saving…', '');
         if (!SAVE_META_URL) {
           setMsg(msgEl, 'Save URL is not configured.', 'err');
@@ -325,12 +461,16 @@
           },
           body: body,
         })
-          .then(parseJsonResponse)
+          .then(function(r) {
+            return parseJsonResponse(r);
+          })
           .then(function(res) {
             if (responseOk(res)) {
               setMsg(msgEl, res.message || 'Checkpoint saved.', 'ok');
               markUnsaved(false);
-              var ts = parseInt(fd.get('trigger_seconds') || '0', 10) || 0;
+              if (vd > 0) {
+                persistVideoDurationSeconds(MODULE_ID, vd);
+              }
               var badge = document.querySelector('[data-cpw-ts-badge="' + aid + '"]');
               if (badge) {
                 badge.innerHTML = ts > 0
@@ -351,13 +491,20 @@
               }
               cpwToast('success', res.message || 'Saved.');
             } else {
-              setMsg(msgEl, res.message || 'Save failed.', 'err');
-              cpwToast('error', res.message || 'Save failed.');
+              var errMsg = cpwErrorMessage(res, 'Save failed.');
+              setMsg(msgEl, errMsg, 'err');
+              cpwShowError(res, errMsg);
+              if (res && res.errors && res.errors.whole_video_duration_seconds) {
+                var card = document.getElementById('cpwSharedDurationCard');
+                if (card && card.scrollIntoView) {
+                  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+              }
             }
           })
           .catch(function() {
             setMsg(msgEl, 'Network error.', 'err');
-            cpwToast('error', 'Network error.');
+            cpwShowError({ message: 'Network error. Check your connection and try again.' });
           });
       });
     });
@@ -456,12 +603,12 @@
     });
 
     function runAutoGenerate(btn) {
-      var durEl = document.getElementById('cpwAutoDuration') || document.getElementById('cpwSharedDuration');
-      var vd = durEl ? parseInt(durEl.value, 10) : 0;
+      var vd = getVideoDurationSeconds(C);
       if (!(vd > 0)) {
-        cpwToast('error', 'Enter whole video duration in seconds first.');
+        cpwShowError({ message: 'Enter whole video duration in seconds first (e.g. 94 or 1000).' });
         return;
       }
+      persistVideoDurationSeconds(MODULE_ID, vd);
       var spin = btn.querySelector('.asx-btn-spinner');
       btn.disabled = true;
       btn.classList.add('is-loading');
@@ -471,9 +618,9 @@
       }
       var body = csrfPrefix()
         + 'module_id=' + encodeURIComponent(MODULE_ID)
-        + '&video_duration_seconds=' + encodeURIComponent(vd)
         + '&title=Video checkpoint'
         + '&checkpoint_required=1';
+      body = appendDurationFields(body, vd, MODULE_ID);
       fetch(AUTO_URL, {
         method: 'POST',
         headers: {
