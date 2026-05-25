@@ -265,10 +265,15 @@ class Courses extends CI_Controller {
 
         $lms_rt = ka_lms_resolve_return_target($user, $this->input->get('return_url'));
 
+        $course_batches = $this->course_model->batches_table_ready()
+            ? $this->course_model->get_course_batches($id)
+            : [];
+
         $data = [
             'user'              => $user,
             'page_title'        => $course->title,
             'course'            => $course,
+            'course_batches'    => $course_batches,
             'modules'           => $modules,
             'is_enrolled'        => $is_enrolled,
             'enrollment'         => $enrollment,
@@ -286,6 +291,7 @@ class Courses extends CI_Controller {
                 ['label' => 'Course Catalog', 'url' => 'courses'],
                 ['label' => $course->title],
             ],
+            'phase3_batches_ready' => $this->course_model->batches_table_ready(),
             'view' => 'courses/detail',
         ];
 
@@ -334,7 +340,9 @@ class Courses extends CI_Controller {
             redirect('courses/view/' . $id);
         }
 
+        $GLOBALS['ka_enrollment_batch_id'] = (int) $this->input->post('batch_id');
         $ok = $this->course_model->request_enrollment($user->id, $id);
+        unset($GLOBALS['ka_enrollment_batch_id']);
 
         if ($ok) {
             $row = $this->course_model->get_enrollment((int) $user->id, $id);

@@ -38,7 +38,7 @@ class Assessment_service {
     public function __construct()
     {
         $this->CI =& get_instance();
-        $this->CI->load->helper('ka_format');
+        $this->CI->load->helper(['ka_format', 'course_phase3']);
         $this->CI->load->model('Course_model', 'course_model');
         $this->CI->load->model('Module_video_checkpoint_model', 'video_checkpoint_model');
         $this->CI->load->model('assessment_model');
@@ -146,7 +146,13 @@ class Assessment_service {
 
         $pre_assessment = ! empty($pre_list) ? $pre_list[0] : null;
         $pre_blocked    = false;
-        $is_video       = ($module && ($module->content_type ?? '') === 'video');
+        $eff_type       = $module
+            ? course_phase3_effective_module_type(
+                $module->content_type ?? '',
+                'Assessment_service exam_browse mid=' . (int) $mid
+            )
+            : '';
+        $is_video = ($module && $eff_type === 'video');
         $pre_required = ! $is_video || ! empty($pre_assessment->is_required);
         if ($pre_assessment && in_array($role, ['employee', 'student'], true) && $pre_required) {
             $pre_blocked = ! $this->CI->assessment_model->has_answered($uid, (int) $pre_assessment->id);
@@ -187,18 +193,25 @@ class Assessment_service {
     {
         $vm  = $this->CI->video_checkpoint_model;
         $mid = (int) $module_id;
-        $yid = Module_video_checkpoint_model::extract_youtube_video_id((string) ($module->content_path ?? ''));
 
         $payload      = [];
         $passed_ids   = [];
         $required_cnt = 0;
         $gate         = false;
+        $yid          = null;
 
-        if (($module->content_type ?? '') === 'video' && $yid !== null) {
-            $required_cnt = $vm->count_required_checkpoints($mid);
-            $gate         = $required_cnt > 0;
-            $payload      = $vm->get_public_checkpoints_payload($mid);
-            $passed_ids   = $vm->get_passed_checkpoint_assessment_ids((int) $user_id, $mid);
+        if ($module) {
+            $yid = Module_video_checkpoint_model::extract_youtube_video_id((string) ($module->content_path ?? ''));
+            $eff_type = course_phase3_effective_module_type(
+                $module->content_type ?? '',
+                'Assessment_service video_checkpoint_ctx mid=' . (int) $mid
+            );
+            if ($eff_type === 'video' && $yid !== null) {
+                $required_cnt = $vm->count_required_checkpoints($mid);
+                $gate         = $required_cnt > 0;
+                $payload      = $vm->get_public_checkpoints_payload($mid);
+                $passed_ids   = $vm->get_passed_checkpoint_assessment_ids((int) $user_id, $mid);
+            }
         }
 
         return [
@@ -599,7 +612,11 @@ class Assessment_service {
         $mid = (int) $mid;
 
         $vm            = $this->CI->video_checkpoint_model;
-        $content_video = (($module->content_type ?? '') === 'video');
+        $eff_type = course_phase3_effective_module_type(
+            $module->content_type ?? '',
+            'Assessment_service flow_state mid=' . (int) $mid
+        );
+        $content_video = ($eff_type === 'video');
 
         // --- Phase 1: Pre-assessment (attempt gates video on video modules; pass optional) ---
         $pre_list = $this->CI->course_model->get_assessments($mid, 'pre');

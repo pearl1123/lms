@@ -14,6 +14,8 @@ $enrollment_status  = $enrollment_status ?? null;
 $access_type        = $access_type ?? 'approval_required';
 $pending_invitation = $pending_invitation ?? null;
 $pending_invitation_id = is_object($pending_invitation) ? (int) ($pending_invitation->id ?? 0) : 0;
+$course_batches      = is_array($course_batches ?? null) ? $course_batches : [];
+$phase3_batches_ready = ! empty($phase3_batches_ready);
 
 $lms_return_target = isset($lms_return_target) ? $lms_return_target : ka_lms_default_return_target_for_role($user);
 $lms_return_q      = isset($lms_return_q) && $lms_return_q !== '' ? $lms_return_q : ka_lms_return_q($lms_return_target);
@@ -32,19 +34,19 @@ if ( ! $course) return;
 echo $alerts_partial_html ?? '';
 
 $content_icons = [
-    'pdf'            => '📄',
-    'slides'         => '📊',
-    'video'          => '🎬',
-    'audio'          => '🎧',
-    'zoom_recording' => '🎥',
+    'pdf'           => '📄',
+    'slides'        => '📊',
+    'video'         => '🎬',
+    'audio'         => '🎧',
+    'meeting_link'  => '🎥',
 ];
 
 $content_colors = [
-    'pdf'            => '#ef4444',
-    'slides'         => '#3b82f6',
-    'video'          => '#8b5cf6',
-    'audio'          => '#f59f00',
-    'zoom_recording' => '#06b6d4',
+    'pdf'           => '#ef4444',
+    'slides'        => '#3b82f6',
+    'video'         => '#8b5cf6',
+    'audio'         => '#f59f00',
+    'meeting_link'  => '#06b6d4',
 ];
 ?>
 
@@ -192,11 +194,27 @@ $content_colors = [
             <div class="cd-enroll-stat-lbl">Enrolled</div>
           </div>
         </div>
+        <?php if ($phase3_batches_ready && ! empty($course_batches)): ?>
+        <form method="post" action="<?= base_url('index.php/courses/enroll/' . (int) $course->id) ?>" class="cd-enroll-batch-form">
+          <input type="hidden" name="<?= html_escape($csrf_field_name ?? '') ?>" value="<?= html_escape($csrf_hash ?? '') ?>">
+          <label class="cd-enroll-muted" for="enroll_batch_id" style="display:block;margin-bottom:.5rem;">Cohort / batch</label>
+          <select id="enroll_batch_id" name="batch_id" class="cd-enroll-select" required>
+            <?php foreach ($course_batches as $b): ?>
+            <?php if (($b->status ?? '') === 'closed') { continue; } ?>
+            <option value="<?= (int) $b->id ?>"><?= htmlspecialchars($b->batch_name ?? 'Batch') ?></option>
+            <?php endforeach; ?>
+          </select>
+          <button type="submit" class="cd-enroll-btn cd-enroll-btn-primary" style="margin-top:.75rem;width:100%;">
+            <?= $access_type === 'open' ? 'Enroll now' : 'Request enrollment' ?>
+          </button>
+        </form>
+        <?php else: ?>
         <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
            class="cd-enroll-btn cd-enroll-btn-primary"
            onclick="return confirm('Request enrollment in this course?')">
           <?= $access_type === 'open' ? 'Enroll now' : 'Request enrollment' ?>
         </a>
+        <?php endif; ?>
         <a href="<?= base_url('courses') ?>" class="cd-enroll-btn cd-enroll-btn-outline">
           ← Back to Catalog
         </a>
@@ -264,8 +282,12 @@ $content_colors = [
               $action_class= 'cd-module-action-start';
             }
 
-            $type_color = $content_colors[$module->content_type ?? ''] ?? '#64748b';
-            $type_icon  = $content_icons[$module->content_type ?? ''] ?? '📁';
+            $eff_type = course_phase3_effective_module_type(
+                $module->content_type ?? '',
+                'course detail module_id=' . (int) ($module->id ?? 0)
+            );
+            $type_color = $content_colors[$eff_type] ?? '#64748b';
+            $type_icon  = $content_icons[$eff_type] ?? '📁';
           ?>
           <li class="cd-module-item">
             <div class="cd-module-num status-<?= $status !== 'locked' ? $status : 'locked' ?>">
@@ -275,7 +297,7 @@ $content_colors = [
               <div class="cd-module-title"><?= htmlspecialchars($module->title) ?></div>
               <div class="cd-module-meta">
                 <span class="cd-module-type" style="--cd-type-base: <?= htmlspecialchars($type_color, ENT_QUOTES, 'UTF-8') ?>">
-                  <?= $type_icon ?> <?= ucfirst(str_replace('_', ' ', $module->content_type ?? 'content')) ?>
+                  <?= $type_icon ?> <?= htmlspecialchars(course_phase3_module_type_label($eff_type), ENT_QUOTES, 'UTF-8') ?>
                 </span>
                 <?php if ($is_enrolled): ?>
                 <span class="cd-module-status-tag cd-module-status-<?= $status ?>">
@@ -374,7 +396,10 @@ $content_colors = [
     <?php
     $type_counts = [];
     foreach ($modules as $m) {
-        $t = $m->content_type ?? 'content';
+        $t = course_phase3_effective_module_type(
+            $m->content_type ?? '',
+            'course detail type_count mod_id=' . (int) ($m->id ?? 0)
+        );
         $type_counts[$t] = ($type_counts[$t] ?? 0) + 1;
     }
     if ( ! empty($type_counts)):
@@ -393,7 +418,7 @@ $content_colors = [
             <?= $icon ?>
           </span>
           <span class="cd-type-summary-label">
-            <?= ucfirst(str_replace('_', ' ', $type)) ?>
+            <?= htmlspecialchars(course_phase3_module_type_label($type), ENT_QUOTES, 'UTF-8') ?>
           </span>
           <span class="cd-type-summary-count">
             <?= $count ?>

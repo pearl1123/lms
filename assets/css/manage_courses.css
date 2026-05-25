@@ -253,3 +253,33 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Dashed “add” row (e.g. Add module on edit, phase-3 add signatory/batch on create) */
+.add-mod-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.875rem;
+  border-radius: 10px;
+  border: 2px dashed var(--ka-border, #e2e8f0);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ka-text-muted, #64748b);
+  transition: all 0.18s;
+  margin-top: 0.625rem;
+  font-family: inherit;
+}
+
+.crs-create-quick-p2 {
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+}
+
+.crs-create-quick-p2 .crs-p2-card {
+  box-shadow: none;
+  border-radius: 12px;
+}

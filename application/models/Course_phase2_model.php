@@ -1119,6 +1119,20 @@ class Course_phase2_model extends CI_Model {
         $data['user_id'] = $uid;
         $data['course_id'] = $cid;
 
+        $CI =& get_instance();
+        $CI->load->model('Course_model', 'course_model');
+        /** @var Course_model $course_model */
+        $course_model = $CI->{'course_model'};
+        $batch_id = $course_model->resolve_enrollment_batch_id($cid, 0);
+        if ($batch_id > 0 && $this->db->field_exists('batch_id', 'enrollments')) {
+            $data['batch_id'] = $batch_id;
+        } elseif ($batch_id > 0) {
+            log_message(
+                'debug',
+                'Phase3: enrollments.batch_id column missing; not persisting batch_id=' . $batch_id . ' on invitation enrollment (course_id=' . $cid . ').'
+            );
+        }
+
         return (bool) $this->db->insert('enrollments', $data);
     }
 

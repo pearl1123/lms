@@ -40,6 +40,22 @@ class Assessments extends CI_Controller {
         return strtolower((string) $this->input->server('HTTP_X_REQUESTED_WITH')) === 'xmlhttprequest';
     }
 
+    /**
+     * Video / checkpoint UI: use Phase 3 effective type only (not raw DB content_type).
+     *
+     * @param object|null $mod course_modules row
+     */
+    private function _module_row_is_video_contract($mod)
+    {
+        if ( ! $mod) {
+            return false;
+        }
+
+        $mid = (int) ($mod->id ?? 0);
+
+        return course_phase3_effective_module_type($mod->content_type ?? '', 'Assessments video contract mid=' . $mid) === 'video';
+    }
+
     private function _json_error($status, $message)
     {
         $payload = json_encode([
@@ -383,7 +399,7 @@ class Assessments extends CI_Controller {
 
         $mod = $this->course_model->get_module($mid);
 
-        return $mod && ka_module_is_video_content($mod);
+        return $mod && $this->_module_row_is_video_contract($mod);
     }
 
     // =========================================================
@@ -580,7 +596,7 @@ class Assessments extends CI_Controller {
 
                 if ($post_type === 'checkpoint') {
                     $mod_ck = $this->course_model->get_module($module_id_post);
-                    if ( ! $mod_ck || ! ka_module_is_video_content($mod_ck)) {
+                    if ( ! $mod_ck || ! $this->_module_row_is_video_contract($mod_ck)) {
                         $this->session->set_flashdata(
                             'error',
                             'Video checkpoints can only be created on video modules.'
@@ -707,7 +723,7 @@ class Assessments extends CI_Controller {
         $preselect_type = (string) ($this->input->get('type') ?? '');
         if ($preselect_mod > 0 && $preselect_type === 'checkpoint') {
             $ckmod = $this->course_model->get_module($preselect_mod);
-            if ( ! $ckmod || ! ka_module_is_video_content($ckmod)) {
+            if ( ! $ckmod || ! $this->_module_row_is_video_contract($ckmod)) {
                 $this->session->set_flashdata(
                     'error',
                     'Video checkpoints can only be created on video modules.'

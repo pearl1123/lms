@@ -26,11 +26,11 @@ if (empty($edit_category_ids) && ! empty($course->category_id)) {
 $edit_publish_status = $phase2 ? (string) $phase2->publish_status : (string) ($course->publish_status ?? 'published');
 
 $content_types = [
-    'pdf'            => ['label' => 'PDF Document',    'icon' => '📄', 'color' => '#ef4444'],
-    'slides'         => ['label' => 'Slides',          'icon' => '📊', 'color' => '#3b82f6'],
-    'video'          => ['label' => 'Video',           'icon' => '🎬', 'color' => '#8b5cf6'],
-    'audio'          => ['label' => 'Audio',           'icon' => '🎧', 'color' => '#f59f00'],
-    'zoom_recording' => ['label' => 'Meeting Link',    'icon' => '🎥', 'color' => '#06b6d4'],
+    'pdf'           => ['label' => 'PDF Document',  'icon' => '📄', 'color' => '#ef4444'],
+    'slides'        => ['label' => 'Slides',        'icon' => '📊', 'color' => '#3b82f6'],
+    'video'         => ['label' => 'Video',         'icon' => '🎬', 'color' => '#8b5cf6'],
+    'audio'         => ['label' => 'Audio',         'icon' => '🎧', 'color' => '#f59f00'],
+    'meeting_link'  => ['label' => 'Meeting Link',  'icon' => '🎥', 'color' => '#06b6d4'],
 ];
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
@@ -125,16 +125,32 @@ $content_types = [
 .side-info-item:last-child { border-bottom:none; }
 .side-info-label { color:var(--ka-text-muted,#64748b);font-weight:500; }
 .side-info-value { font-weight:700;color:var(--ka-text,#1e293b); }
+
+/* Course edit — tabbed workspace (progressive disclosure) */
+.crs-edit-toolbar { display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:1rem;align-items:center;border-bottom:1px solid var(--ka-border,#e2e8f0);padding-bottom:.75rem; }
+.crs-edit-tab { display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .7rem;border-radius:8px;border:1.5px solid transparent;background:transparent;font-size:.75rem;font-weight:600;color:var(--ka-text-muted,#64748b);cursor:pointer;font-family:inherit;transition:all .15s; }
+.crs-edit-tab:hover { color:var(--ka-text,#1e293b);background:var(--ka-bg,#f8fafc); }
+.crs-edit-tab.is-active { color:var(--ka-navy,#1a3a5c);background:var(--ka-accent,#e8f4fd);border-color:var(--ka-primary,#6dabcf); }
+.crs-edit-tab .crs-edit-tab-badge { font-size:.5625rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:999px;background:rgba(100,116,139,.12);color:var(--ka-text-muted,#64748b); }
+.crs-edit-tab-progress { margin-left:auto;font-size:.6875rem;color:var(--ka-text-muted,#64748b);font-weight:500; }
+.crs-edit-tab-panels { min-height:200px; }
+.crs-edit-panel { display:none;margin-bottom:1rem; }
+.crs-edit-panel.is-active { display:block; }
+.crs-edit-sticky-save { position:sticky;bottom:0;z-index:50;margin:1rem -0.25rem 0;padding:.875rem 1rem;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1px solid var(--ka-border,#e2e8f0);border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;box-shadow:0 -4px 24px rgba(15,23,42,.06); }
+.crs-edit-sticky-save p { margin:0;font-size:.75rem;color:var(--ka-text-muted,#64748b);flex:1;min-width:140px; }
+.crs-edit-workspace-title { font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ka-text-muted,#64748b);margin:0 0 .5rem; }
 </style>
 
 <!-- Page header -->
 <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;" class="animate__animated animate__fadeIn animate__fast">
   <div>
     <h2 style="font-size:1.25rem;font-weight:800;color:var(--ka-text,#1e293b);margin:0 0 3px;letter-spacing:-.02em;">
-      Edit Course
+      Course workspace
     </h2>
     <p style="font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0;">
       <?= htmlspecialchars($course->title) ?>
+      &nbsp;·&nbsp;
+      <span style="font-weight:600;color:var(--ka-text-muted,#64748b);"><?= htmlspecialchars(ucfirst($edit_publish_status)) ?></span>
       &nbsp;·&nbsp;
       <span style="color:<?= $course->archived ? '#64748b' : '#22c55e' ?>;font-weight:600;">
         <?= $course->archived ? 'Archived' : 'Active' ?>
@@ -154,199 +170,11 @@ $content_types = [
   </div>
 </div>
 
-<div class="edit-crs-layout animate__animated animate__fadeInUp animate__fast">
+<div class="edit-crs-layout ka-form-flow animate__animated animate__fadeInUp animate__fast">
 
   <!-- ── LEFT COLUMN ── -->
   <div>
-
-    <!-- Course details + Phase 2 settings -->
-    <form method="post" action="<?= base_url('manage_courses/edit/'.$course->id) ?>">
-      <input type="hidden" name="<?= $csrf_field_name ?>" value="<?= $csrf_hash ?>">
-      <input type="hidden" name="return_url" value="<?= htmlspecialchars($lms_return_target ?? '', ENT_QUOTES, 'UTF-8') ?>">
-      <input type="hidden" id="edit_category_id" name="category_id" value="<?= (int) ($edit_category_ids[0] ?? 0) ?>">
-
-      <div class="edit-crs-panel">
-        <div class="edit-crs-hdr"><h3 class="edit-crs-title">Course Details</h3></div>
-        <div class="edit-crs-body">
-          <div class="ef-group">
-            <label class="ef-label" for="title">Title <span>*</span></label>
-            <input type="text" id="title" name="title" class="ef-input"
-                   value="<?= htmlspecialchars(set_value('title', $course->title)) ?>" required>
-            <?php if (form_error('title')): ?><div class="ef-error"><?= form_error('title') ?></div><?php endif; ?>
-          </div>
-
-          <div class="ef-group">
-            <label class="ef-label" for="description">Description</label>
-            <textarea id="description" name="description" class="ef-textarea"><?= htmlspecialchars(set_value('description', $course->description ?? '')) ?></textarea>
-          </div>
-
-          <div class="ef-row">
-            <div class="ef-group">
-              <label class="ef-label">Modality <span>*</span></label>
-              <select name="modality_id" class="ef-select" required>
-                <option value="">-- Select --</option>
-                <?php foreach ($modalities as $m): ?>
-                <option value="<?= $m->modality_id ?>" <?= ((int)$m->modality_id === (int)($course->modality_id ?? 0)) ? 'selected' : '' ?>>
-                  <?= htmlspecialchars($m->modality_desc) ?>
-                </option>
-                <?php endforeach; ?>
-              </select>
-              <?php if (form_error('modality_id')): ?><div class="ef-error"><?= form_error('modality_id') ?></div><?php endif; ?>
-            </div>
-            <div class="ef-group">
-              <label class="ef-label">Expiry Days</label>
-              <input type="number" name="expiry_days" class="ef-input"
-                     value="<?= htmlspecialchars(set_value('expiry_days', $course->expiry_days ?? '')) ?>"
-                     min="1" placeholder="No expiry">
-            </div>
-          </div>
-
-          <div class="ef-row">
-            <div class="ef-group">
-              <label class="ef-label">Certificate Prefix <span>*</span></label>
-              <input type="text" name="certificate_prefix" class="ef-input"
-                     value="<?= htmlspecialchars(set_value('certificate_prefix', $course->certificate_prefix ?? '')) ?>"
-                     maxlength="12" placeholder="e.g. UIUX" required>
-              <?php if (form_error('certificate_prefix')): ?><div class="ef-error"><?= form_error('certificate_prefix') ?></div><?php endif; ?>
-              <div class="ef-help" style="margin-top:.35rem;font-size:.72rem;color:var(--ka-text-muted,#64748b);">
-                Serial format: KABAGA-{PREFIX}-<?= date('Y') ?>-0001
-              </div>
-            </div>
-            <div class="ef-group">
-              <label class="ef-label">Signatory Name</label>
-              <input type="text" name="signatory_name" class="ef-input"
-                     value="<?= htmlspecialchars(set_value('signatory_name', $course->signatory_name ?? '')) ?>"
-                     maxlength="120" placeholder="e.g. Maria L. Santos">
-            </div>
-          </div>
-
-          <div class="ef-row">
-            <div class="ef-group">
-              <label class="ef-label">Signatory Title</label>
-              <input type="text" name="signatory_title" class="ef-input"
-                     value="<?= htmlspecialchars(set_value('signatory_title', $course->signatory_title ?? '')) ?>"
-                     maxlength="120" placeholder="e.g. Learning & Development Manager">
-            </div>
-            <div class="ef-group"></div>
-          </div>
-        </div>
-      </div>
-
-      <?php $is_edit_form = true; $this->load->view('manage_courses/_phase2_course_fields', get_defined_vars()); ?>
-
-      <div class="crs-p2-form-actions">
-        <button type="submit" class="ef-save-btn">Save Details</button>
-      </div>
-    </form>
-
-    <!-- Module builder -->
-    <div id="courseModulesPanel" class="edit-crs-panel">
-      <div class="edit-crs-hdr">
-        <h3 class="edit-crs-title">
-          Modules
-          <span style="font-size:.75rem;font-weight:500;color:var(--ka-text-muted,#64748b);margin-left:.375rem;" id="modCountLabel">
-            <?= $module_count ?> module<?= $module_count !== 1 ? 's' : '' ?>
-          </span>
-        </h3>
-        <span style="font-size:.6875rem;color:var(--ka-text-muted,#64748b);">Drag to reorder</span>
-      </div>
-      <div class="edit-crs-body">
-        <div id="modWeightSummary" style="margin-bottom:.75rem;padding:.625rem .75rem;border:1px solid var(--ka-border,#e2e8f0);border-radius:10px;font-size:.8125rem;color:var(--ka-text-muted,#64748b);background:#f8fafc;">
-          Current total: <strong id="modWeightTotal">0%</strong>
-          · Remaining: <strong id="modWeightRemaining">100%</strong>
-          <span id="modWeightStatus" style="margin-left:.35rem;"></span>
-        </div>
-
-        <div class="mod-list" id="modList">
-          <?php if ( ! empty($module_rows)): ?>
-            <?php foreach ($module_rows as $idx => $mod):
-              $ct = $content_types[$mod->content_type] ?? ['icon'=>'📁','label'=>$mod->content_type,'color'=>'#64748b'];
-            ?>
-            <div class="mod-item" id="moditem-<?= $mod->id ?>"
-                 draggable="true"
-                 data-id="<?= $mod->id ?>"
-                 data-title="<?= htmlspecialchars($mod->title, ENT_QUOTES) ?>"
-                 data-desc="<?= htmlspecialchars($mod->description ?? '', ENT_QUOTES) ?>"
-                 data-type="<?= $mod->content_type ?>"
-                 data-path="<?= htmlspecialchars($mod->content_path ?? '', ENT_QUOTES) ?>"
-                 data-weight="<?= $mod->weight_percentage ?? 0 ?>">
-              <div class="mod-drag-handle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="6" r="1" fill="currentColor"/><circle cx="15" cy="6" r="1" fill="currentColor"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="9" cy="18" r="1" fill="currentColor"/><circle cx="15" cy="18" r="1" fill="currentColor"/></svg></div>
-              <div class="mod-order"><?= $idx + 1 ?></div>
-              <div class="mod-type-icon"><?= $ct['icon'] ?></div>
-              <div class="mod-body">
-                <div class="mod-title"><?= htmlspecialchars($mod->title) ?></div>
-                <div class="mod-meta"><?= $ct['label'] ?><?= $mod->weight_percentage > 0 ? ' · ' . (float)$mod->weight_percentage . '% weight' : '' ?></div>
-                <div class="mod-asx-badges">
-                  <?php if (($mod->pre_count ?? 0) > 0): ?>
-                    <a href="<?= base_url('assessments?module_id='.$mod->id.'&type=pre') ?>"
-                       class="mod-asx-badge pre" title="Pre-assessments">
-                      ⏱ Pre (<?= $mod->pre_count ?>)
-                    </a>
-                  <?php else: ?>
-                    <a href="<?= base_url('assessments/create?course_id='.(int) $course->id.'&module_id='.$mod->id.'&type=pre') ?>"
-                       class="mod-asx-badge add" title="Add pre-assessment">
-                      + Pre-assessment
-                    </a>
-                  <?php endif; ?>
-                  <?php if (($mod->post_count ?? 0) > 0): ?>
-                    <a href="<?= base_url('assessments?module_id='.$mod->id.'&type=post') ?>"
-                       class="mod-asx-badge post" title="Post-assessments">
-                      🏆 Post (<?= $mod->post_count ?>)
-                    </a>
-                  <?php else: ?>
-                    <a href="<?= base_url('assessments/create?course_id='.(int) $course->id.'&module_id='.$mod->id.'&type=post') ?>"
-                       class="mod-asx-badge add" title="Add post-assessment">
-                      + Post-assessment
-                    </a>
-                  <?php endif; ?>
-                  <?php
-                    $cp_max = 3;
-                    if (ka_module_is_video_content($mod)):
-                      $cp_n = (int) ($mod->checkpoint_count ?? 0);
-                  ?>
-                    <?php if ($cp_n >= $cp_max): ?>
-                    <a href="<?= base_url('assessments?module_id='.(int) $mod->id.'&type=checkpoint') ?>"
-                       class="mod-asx-badge cp" title="Video checkpoints for this module (maximum reached)">
-                      ▶ Checkpoint (<?= $cp_n ?>)
-                    </a>
-                    <?php elseif ($checkpoint_schema_ready): ?>
-                    <a href="<?= base_url('assessments/create?course_id='.(int) $course->id.'&module_id='.$mod->id.'&type=checkpoint') ?>"
-                       class="mod-asx-badge add" title="Add video progress checkpoint for this module">
-                      + Video Checkpoint
-                    </a>
-                    <?php else: ?>
-                    <span class="mod-asx-badge add" title="Video checkpoints require a database migration (lib_assessments context column). Contact your administrator."
-                          style="opacity:.65;cursor:not-allowed;">
-                      + Video Checkpoint
-                    </span>
-                    <?php endif; ?>
-                  <?php endif; ?>
-                </div>
-              </div>
-              <div class="mod-actions">
-                <button type="button" class="mod-action-btn" title="Edit" onclick="editModule(<?= $mod->id ?>)">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-                <button type="button" class="mod-action-btn danger" title="Delete" onclick="deleteModule(<?= $mod->id ?>)">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                </button>
-              </div>
-            </div>
-            <?php endforeach; ?>
-          <?php else: ?>
-            <div id="modEmpty" style="text-align:center;padding:2rem;color:var(--ka-text-muted,#64748b);font-size:.875rem;">
-              No modules yet. Add the first module below.
-            </div>
-          <?php endif; ?>
-        </div>
-
-        <button type="button" class="add-mod-btn" onclick="openModModal()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add Module
-        </button>
-      </div>
-    </div>
-
+    <?php $this->load->view('manage_courses/_edit_course_workspace', get_defined_vars()); ?>
   </div>
 
   <!-- ── RIGHT SIDEBAR ── -->
@@ -498,6 +326,11 @@ $content_types = [
         <div>
           <label style="display:block;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);margin-bottom:.425rem;">Content URL / Path</label>
           <input type="text" id="modPath" class="ef-input" placeholder="https://… or /uploads/file.pdf">
+          <div id="modPdfUpload" style="display:none;margin-top:.5rem;">
+            <input type="file" id="modPdfFile" accept="application/pdf,.pdf" style="font-size:.8125rem;">
+            <button type="button" class="ef-btn-outline" id="modPdfUploadBtn" style="margin-top:.35rem;">Upload PDF</button>
+            <span id="modPdfUploadMsg" style="display:block;font-size:.72rem;color:var(--ka-text-muted);margin-top:.25rem;"></span>
+          </div>
         </div>
         <div>
           <label style="display:block;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);margin-bottom:.425rem;">Weight (%)</label>
@@ -523,13 +356,9 @@ var CSRF_HASH  = '<?= $csrf_hash ?>';
 var CT_DATA    = <?= json_encode($content_types) ?>;
 var CHECKPOINT_SCHEMA_READY = <?= $checkpoint_schema_ready ? 'true' : 'false' ?>;
 
-function isVideoModuleContent(contentType, contentPath) {
-  var t = String(contentType || '').toLowerCase().trim();
-  if (['video', 'youtube', 'mp4', 'yt'].indexOf(t) !== -1) return true;
-  var p = String(contentPath || '');
-  if (/youtube\.com|youtu\.be/i.test(p)) return true;
-  if (/\.(mp4|webm|m4v|mov|ogv)(\?|$)/i.test(p)) return true;
-  return false;
+/** Video checkpoints: contract uses effective type only (same as PHP course_phase3_effective_module_type). */
+function isVideoModuleContent(effType) {
+  return String(effType || '').toLowerCase().trim() === 'video';
 }
 
 function formatPct(value) {
@@ -625,11 +454,50 @@ function selectContentType(key) {
   document.getElementById('ct-' + key)?.classList.add('selected');
   var radio = document.querySelector('input[name="mod_content_type"][value="' + key + '"]');
   if (radio) radio.checked = true;
+  toggleModPdfUpload();
 }
+
+function toggleModPdfUpload() {
+  var type = document.querySelector('input[name="mod_content_type"]:checked')?.value || '';
+  var box = document.getElementById('modPdfUpload');
+  if (box) {
+    box.style.display = (type === 'pdf') ? 'block' : 'none';
+  }
+}
+
+function uploadModulePdf() {
+  var fileInput = document.getElementById('modPdfFile');
+  var msg = document.getElementById('modPdfUploadMsg');
+  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+    if (msg) msg.textContent = 'Choose a PDF file first.';
+    return;
+  }
+  var fd = new FormData();
+  fd.append('module_file', fileInput.files[0]);
+  fd.append('course_id', COURSE_ID);
+  fd.append(CSRF_NAME, CSRF_HASH);
+  if (msg) msg.textContent = 'Uploading…';
+  fetch(BASE_URL + 'manage_courses/upload_module_file', { method: 'POST', body: fd, credentials: 'same-origin' })
+    .then(parseJsonResponse)
+    .then(function(res) {
+      if (res.success && res.content_path) {
+        document.getElementById('modPath').value = res.content_path;
+        if (msg) msg.textContent = 'PDF uploaded.';
+      } else if (msg) {
+        msg.textContent = res.message || 'Upload failed.';
+      }
+    })
+    .catch(function() {
+      if (msg) msg.textContent = 'Upload failed.';
+    });
+}
+
+document.getElementById('modPdfUploadBtn')?.addEventListener('click', uploadModulePdf);
 
 // ── Modal ────────────────────────────────────────────────────
 function openModModal(id) {
   document.getElementById('modModalOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
   document.getElementById('modId').value            = id || 0;
   document.getElementById('modModalTitle').textContent = id ? 'Edit Module' : 'Add Module';
   document.getElementById('modSaveText').textContent   = id ? 'Update Module' : 'Add Module';
@@ -651,9 +519,10 @@ function editModule(id) {
   document.getElementById('modDesc').value   = el.dataset.desc;
   document.getElementById('modPath').value   = el.dataset.path;
   document.getElementById('modWeight').value = el.dataset.weight;
-  selectContentType(el.dataset.type);
-  // Set radio
-  var radio = document.querySelector('input[name="mod_content_type"][value="' + el.dataset.type + '"]');
+  // data-type is server-computed effective type (modal preselect only; not a type resolver).
+  var modType = el.dataset.type || '';
+  selectContentType(modType);
+  var radio = document.querySelector('input[name="mod_content_type"][value="' + modType + '"]');
   if (radio) radio.checked = true;
   openModModal(id);
   updateDraftWeightHint();
@@ -661,6 +530,7 @@ function editModule(id) {
 
 function closeModModal() {
   document.getElementById('modModalOverlay').classList.remove('open');
+  document.body.style.overflow = '';
 }
 function closeModModalOutside(e) {
   if (e.target === document.getElementById('modModalOverlay')) closeModModal();
@@ -749,13 +619,16 @@ function renderModule(m, isNew) {
   var empty = document.getElementById('modEmpty');
   if (empty) empty.remove();
 
-  var ct    = CT_DATA[m.content_type] || { icon:'📁', label: m.content_type };
+  var effType = (m.content_type_effective !== undefined && m.content_type_effective !== null && m.content_type_effective !== '')
+    ? m.content_type_effective
+    : m.content_type;
+  var ct    = CT_DATA[effType] || { icon:'📁', label: effType };
   var count = list.querySelectorAll('.mod-item').length;
   var order = isNew ? count + 1 : null;
 
   var cpMax = 3;
   var cpBadge = '';
-  if (isVideoModuleContent(m.content_type, m.content_path)) {
+  if (isVideoModuleContent(effType)) {
     var cpN = parseInt(m.checkpoint_count, 10) || 0;
     if (cpN >= cpMax) {
       cpBadge = '<a href="' + BASE_URL + 'assessments?module_id=' + m.id + '&type=checkpoint" class="mod-asx-badge cp" title="Video checkpoints for this module (maximum reached)">▶ Checkpoint (' + cpN + ')</a>';
@@ -771,7 +644,7 @@ function renderModule(m, isNew) {
     + ' data-id="'     + m.id + '"'
     + ' data-title="'  + escAttr(m.title) + '"'
     + ' data-desc="'   + escAttr(m.description || '') + '"'
-    + ' data-type="'   + m.content_type + '"'
+    + ' data-type="'   + escAttr(effType) + '"'
     + ' data-path="'   + escAttr(m.content_path || '') + '"'
     + ' data-weight="' + (m.weight_percentage || 0) + '">'
     + '<div class="mod-drag-handle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="6" r="1" fill="currentColor"/><circle cx="15" cy="6" r="1" fill="currentColor"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="9" cy="18" r="1" fill="currentColor"/><circle cx="15" cy="18" r="1" fill="currentColor"/></svg></div>'
@@ -832,7 +705,9 @@ function deleteModule(id) {
           updateModuleWeightSummary();
           if (document.querySelectorAll('.mod-item').length === 0) {
             document.getElementById('modList').insertAdjacentHTML('beforeend',
-              '<div id="modEmpty" style="text-align:center;padding:2rem;color:var(--ka-text-muted,#64748b);font-size:.875rem;">No modules yet.</div>'
+              '<div class="ka-empty ka-empty--wide" id="modEmpty"><div class="ka-empty-icon" aria-hidden="true">📦</div>' +
+              '<h3 class="ka-empty-title">No modules yet</h3>' +
+              '<p class="ka-empty-text">Add a module from the button above to build this course.</p></div>'
             );
           }
         } else {

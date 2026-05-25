@@ -19,15 +19,12 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
 <link rel="stylesheet" href="<?= base_url('assets/css/assessments.css') ?>">
 
 <!-- Page header -->
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;" class="animate__animated animate__fadeIn animate__fast">
-  <div>
-    <h2 style="font-size:1.25rem;font-weight:800;color:var(--ka-text,#1e293b);margin:0 0 3px;letter-spacing:-.02em;">Create Assessment</h2>
-    <p style="font-size:.8125rem;color:var(--ka-text-muted,#64748b);margin:0;">Set up a pre, post, or video checkpoint assessment for a course module</p>
+<div class="ka-page-head ka-page-head--split animate__animated animate__fadeIn animate__fast">
+  <div class="ka-page-head-main">
+    <h2 class="ka-page-title">Create Assessment</h2>
+    <p class="ka-page-lead">Set up a pre, post, or video checkpoint assessment for a course module.</p>
   </div>
-  <a href="<?= base_url('index.php/assessments') ?>"
-     style="display:inline-flex;align-items:center;gap:6px;padding:.5rem 1rem;border-radius:8px;font-size:.8125rem;font-weight:600;text-decoration:none;border:1.5px solid var(--ka-border,#e2e8f0);background:#fff;color:var(--ka-text,#1e293b);">
-    ← Back
-  </a>
+  <a href="<?= base_url('index.php/assessments') ?>" class="ka-btn ka-btn--ghost">← Back</a>
 </div>
 
 <form method="post" action="<?= base_url('index.php/assessments/create') ?>" id="createForm">
@@ -36,11 +33,11 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
   <input type="hidden" name="course_id" value="<?= (int) set_value('course_id', (string) $preselect_course_id) ?>">
   <?php endif; ?>
 
-  <div class="crt-layout animate__animated animate__fadeInUp animate__fast">
+  <div class="crt-layout ka-form-flow animate__animated animate__fadeInUp animate__fast">
 
     <!-- Main form -->
     <div>
-      <div class="crt-panel" style="margin-bottom:1.25rem;">
+      <div class="crt-panel">
         <div class="crt-panel-hdr"><h3 class="crt-panel-title">Assessment Details</h3></div>
         <div class="crt-panel-body">
 
@@ -79,14 +76,19 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
               <div class="crt-error"><?= form_error('module_id') ?></div>
             <?php endif; ?>
             <?php if (empty($modules)): ?>
-              <div class="crt-help" style="color:#dc2626;">
-                No modules available.
-                <?php if ($user_role === 'teacher'): ?>
-                  You need to create course modules first.
-                <?php else: ?>
-                  <a href="<?= base_url('index.php/manage_courses') ?>">Create a course module</a> first.
-                <?php endif; ?>
-              </div>
+              <?php
+              $empty_desc = ($user_role === 'teacher')
+                ? 'Create course modules on the course edit screen before adding assessments.'
+                : 'Create a course and modules first, then return here to attach assessments.';
+              $this->load->view('components/empty_state', [
+                  'emoji'       => '📚',
+                  'title'       => 'No course modules available',
+                  'description' => $empty_desc,
+                  'cta_href'    => $user_role !== 'teacher' ? base_url('index.php/manage_courses') : base_url('index.php/manage_courses'),
+                  'cta_label'   => 'Go to manage courses',
+                  'modifier'    => 'ka-empty--wide',
+              ]);
+              ?>
             <?php endif; ?>
           </div>
 
@@ -95,7 +97,7 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
 
       <!-- Assessment type -->
       <div class="crt-panel">
-        <div class="crt-panel-hdr"><h3 class="crt-panel-title">Assessment Type <span style="color:#dc2626;">*</span></h3></div>
+        <div class="crt-panel-hdr"><h3 class="crt-panel-title">Assessment Type <span class="ka-req-star">*</span></h3></div>
         <div class="crt-panel-body">
           <div class="crt-type-grid">
             <label class="crt-type-card <?= $type_selected === 'pre' ? 'selected' : '' ?>" id="card-pre">

@@ -593,9 +593,151 @@ class certificate_model extends CI_Model {
     // PRIVATE HELPERS
     // =========================================================
 
+    public function signatories_table_ready()
+    {
+        return $this->db->table_exists('certificate_signatories');
+    }
+
     /**
-     * Generate a unique certificate code: KABAGA-{PREFIX}-{YEAR}-{NNNN}
-     * Prefix comes from courses.certificate_prefix (fallback AUTO).
+     * Active signatories for a course (ordered).
+     *
+     * @param  int $course_id
+     * @return object[]
+     */
+    public function get_signatories_for_course($course_id)
+    {
+        if ( ! $this->signatories_table_ready()) {
+            return [];
+        }
+
+        $r = $this->db
+            ->where('course_id', (int) $course_id)
+            ->where('is_active', 1)
+            ->where('archived', 0)
+            ->order_by('order_no', 'ASC')
+            ->order_by('id', 'ASC')
+            ->get('certificate_signatories');
+
+        if ($r === false) {
+            log_message('error', 'Phase3: certificate_signatories query failed: ' . json_encode($this->db->error()));
+
+            return [];
+        }
+
+        return ($r->num_rows() > 0) ? $r->result() : [];
+    }
+
+    /**
+     * Signatories for PDF; falls back to courses.signatory_name/title when none configured.
+     *
+     * @param  int         $course_id
+     * @param  string      $fallback_name
+     * @param  string      $fallback_title
+     * @return object[] {name, title}
+     */
+    public function resolve_signatories_for_pdf($course_id, $fallback_name = '', $fallback_title = '')
+    {
+        if ( ! $this->signatories_table_ready()) {
+            log_message(
+                'debug',
+                'Phase3 cert PDF: certificate_signatories table not present; using courses.signatory_name/title if set (course_id=' . (int) $course_id . ').'
+            );
+        }
+
+        $rows = $this->get_signatories_for_course($course_id);
+        if ( ! empty($rows)) {
+            return $rows;
+        }
+
+        if ($this->signatories_table_ready()) {
+            log_message(
+                'debug',
+                'Phase3 cert PDF: no active certificate_signatories rows for course_id=' . (int) $course_id . '; using courses.signatory_name/title if set.'
+            );
+        }
+
+        $name  = trim((string) $fallback_name);
+        $title = trim((string) $fallback_title);
+        if ($name === '') {
+            if ($this->signatories_table_ready()) {
+                log_message('debug', 'Phase3 cert PDF: no signatory rows and empty course signatory_name for course_id=' . (int) $course_id . '.');
+            } else {
+                log_message('debug', 'Phase3 cert PDF: certificate_signatories absent and no course signatory_name for course_id=' . (int) $course_id . '.');
+            }
+
+            return [];
+        }
+
+        log_message('debug', 'Phase3 cert PDF: using course-level signatory fallback for course_id=' . (int) $course_id . '.');
+
+        return [(object) ['name' => $name, 'title' => $title]];
+    }
+
+    /**
+     * Replace signatories for a course from admin form rows.
+     *
+     * @param  int   $course_id
+     * @param  array $rows Each: name, title, order_no, id (optional)
+     * @param  int   $actor_id
+     */
+    public function sync_course_signatories($course_id, array $rows, $actor_id = 0)
+    {
+        if ( ! $this->signatories_table_ready()) {
+            log_message('debug', 'Phase3: certificate_signatories table not present; skipping signatory sync for course_id=' . (int) $course_id . '.');
+
+            return;
+        }
+
+        $cid  = (int) $course_id;
+        $now  = date('Y-m-d H:i:s');
+        $keep = [];
+        $ord  = 1;
+
+        foreach ($rows as $row) {
+            if ( ! is_array($row)) {
+                continue;
+            }
+            $name = trim((string) ($row['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $payload = [
+                'name'               => $name,
+                'title'              => trim((string) ($row['title'] ?? '')),
+                'order_no'           => isset($row['order_no']) ? (int) $row['order_no'] : $ord,
+                'is_active'          => 1,
+                'date_last_modified' => $now,
+                'modified_by'        => (int) $actor_id,
+            ];
+            $ord++;
+            $sid = (int) ($row['id'] ?? 0);
+            if ($sid > 0) {
+                $this->db->where('id', $sid)->where('course_id', $cid)->update('certificate_signatories', $payload);
+                $keep[] = $sid;
+            } else {
+                $payload['course_id']    = $cid;
+                $payload['date_encoded'] = $now;
+                $payload['encoded_by']   = (int) $actor_id;
+                $payload['archived']     = 0;
+                $this->db->insert('certificate_signatories', $payload);
+                $keep[] = (int) $this->db->insert_id();
+            }
+        }
+
+        $this->db->where('course_id', $cid)->where('archived', 0);
+        if ( ! empty($keep)) {
+            $this->db->where_not_in('id', $keep);
+        }
+        $this->db->update('certificate_signatories', [
+            'archived'           => 1,
+            'date_last_modified' => $now,
+            'modified_by'        => (int) $actor_id,
+        ]);
+    }
+
+    /**
+     * Generate a unique certificate code: {PREFIX}-{YEAR}-{NNNN}
+     * (Legacy KABAGA-{PREFIX}-{YEAR}-{NNNN} codes remain valid.)
      */
     private function _generate_code($course_id)
     {
@@ -614,11 +756,23 @@ class certificate_model extends CI_Model {
         $year       = date('Y');
 
         do {
-            $like_base = 'KABAGA-' . $prefix . '-' . $year . '-';
-            $row = $this->db
+            $like_new  = $prefix . '-' . $year . '-';
+            $like_old  = 'KABAGA-' . $prefix . '-' . $year . '-';
+
+            $row_new = $this->db
                 ->select('certificate_code')
                 ->from('lib_certificates')
-                ->like('certificate_code', $like_base, 'after')
+                ->like('certificate_code', $like_new, 'after')
+                ->where('archived', 0)
+                ->order_by('id', 'DESC')
+                ->limit(1)
+                ->get()
+                ->row();
+
+            $row_old = $this->db
+                ->select('certificate_code')
+                ->from('lib_certificates')
+                ->like('certificate_code', $like_old, 'after')
                 ->where('archived', 0)
                 ->order_by('id', 'DESC')
                 ->limit(1)
@@ -626,13 +780,17 @@ class certificate_model extends CI_Model {
                 ->row();
 
             $next = 1;
-            if ($row && ! empty($row->certificate_code)) {
-                $parts = explode('-', (string) $row->certificate_code);
-                $last  = (int) end($parts);
-                $next  = $last + 1;
+            foreach ([$row_new, $row_old] as $row) {
+                if ($row && ! empty($row->certificate_code)) {
+                    $parts = explode('-', (string) $row->certificate_code);
+                    $last  = (int) end($parts);
+                    if ($last >= $next) {
+                        $next = $last + 1;
+                    }
+                }
             }
 
-            $code = $like_base . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+            $code   = $like_new . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
             $exists = $this->db
                 ->where('certificate_code', $code)
                 ->count_all_results('lib_certificates');

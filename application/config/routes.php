@@ -70,6 +70,7 @@ $route['courses/complete_module/(:num)'] = 'courses/complete_module/$1';
 $route['manage_courses/modules/(:num)'] = 'manage_courses/modules/$1';
 $route['manage_courses/publish/(:num)'] = 'manage_courses/publish/$1';
 $route['manage_courses/unpublish/(:num)'] = 'manage_courses/unpublish/$1';
+$route['manage_courses/upload_module_file'] = 'manage_courses/upload_module_file';
 // Legacy / mistaken URL from older My Learning cards → same as courses/view
 $route['my_courses/view/(:num)'] = 'courses/view/$1';
 
@@ -87,6 +88,10 @@ $route['instructor'] = 'Dashboard/instructor';
 
 //Administrator routes
 $route['users'] = 'Users/index';
+$route['reports'] = 'Reports/index';
+$route['reports/export/csv']   = 'reports/export_csv';
+$route['reports/export/excel'] = 'reports/export_excel';
+$route['reports/export/pdf']   = 'reports/export_pdf';
 
 // Enrollment approvals (explicit routes for approve/reject POST targets)
 $route['enrollments/requests']         = 'Enrollments/requests';
@@ -99,5 +104,7 @@ $route['notifications/unread_count'] = 'Notifications/unread_count';
 $route['notifications/latest']       = 'Notifications/latest';
 $route['notifications/mark_read/(:num)'] = 'Notifications/mark_read/$1';
 
-$route['404_override'] = '';
+$route['404_override'] = 'error_pages/not_found';
+$route['coming_soon'] = 'error_pages/under_construction';
+$route['under_construction'] = 'error_pages/under_construction';
 $route['translate_uri_dashes'] = FALSE;

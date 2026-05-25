@@ -59,6 +59,8 @@ class Course_model extends CI_Model {
      */
     public function get_catalog($keyword = '', $filter_cat = 0)
     {
+        $this->apply_expiry_unpublish();
+
         $this->db
             ->select('
                 c.id,
@@ -240,6 +242,7 @@ class Course_model extends CI_Model {
         }
 
         $row = $result->row();
+        $this->apply_expiry_unpublish((int) $course_id);
         $this->_hydrate_access_type_names($row);
 
         return $row;
@@ -469,6 +472,18 @@ class Course_model extends CI_Model {
             'status'      => $target_status,
             'enrolled_at' => date('Y-m-d H:i:s'),
         ];
+        $batch_id = (int) ($GLOBALS['ka_enrollment_batch_id'] ?? 0);
+        if ($batch_id < 1) {
+            $batch_id = $this->resolve_enrollment_batch_id((int) $course_id, 0);
+        }
+        if ($batch_id > 0 && $this->db->field_exists('batch_id', 'enrollments')) {
+            $data['batch_id'] = $batch_id;
+        } elseif ($batch_id > 0) {
+            log_message(
+                'debug',
+                'Phase3: enrollments.batch_id column missing; not persisting batch_id=' . $batch_id . ' (course_id=' . (int) $course_id . ').'
+            );
+        }
         log_message('debug', 'ENROLL REQUEST DATA: ' . json_encode([
             'mode' => 'insert',
             'data' => $data,
@@ -1319,11 +1334,17 @@ class Course_model extends CI_Model {
         $order = $max && $max->module_order ? (int) $max->module_order + 1 : 1;
         $now   = date('Y-m-d H:i:s');
 
+        $this->load->helper('course_phase3');
+        $ctype = course_phase3_effective_module_type(
+            $data['content_type'] ?? '',
+            'create_module course_id=' . (int) ($data['course_id'] ?? 0)
+        );
+
         $this->db->insert('course_modules', [
             'course_id'          => (int) $data['course_id'],
             'title'              => trim($data['title']),
             'description'        => isset($data['description']) ? trim($data['description']) : null,
-            'content_type'       => $data['content_type'],
+            'content_type'       => $ctype,
             'content_path'       => isset($data['content_path']) ? trim($data['content_path']) : null,
             'weight_percentage'  => ! empty($data['weight_percentage']) ? (float) $data['weight_percentage'] : 0,
             'module_order'       => $order,
@@ -1345,12 +1366,18 @@ class Course_model extends CI_Model {
      */
     public function update_module($module_id, $data, $user_id)
     {
+        $this->load->helper('course_phase3');
+        $ctype = course_phase3_effective_module_type(
+            $data['content_type'] ?? '',
+            'update_module module_id=' . (int) $module_id
+        );
+
         return (bool) $this->db
             ->where('id', (int) $module_id)
             ->update('course_modules', [
                 'title'              => trim($data['title']),
                 'description'        => isset($data['description']) ? trim($data['description']) : null,
-                'content_type'       => $data['content_type'],
+                'content_type'       => $ctype,
                 'content_path'       => isset($data['content_path']) ? trim($data['content_path']) : null,
                 'weight_percentage'  => ! empty($data['weight_percentage']) ? (float) $data['weight_percentage'] : 0,
                 'date_last_modified' => date('Y-m-d H:i:s'),
@@ -1438,5 +1465,205 @@ class Course_model extends CI_Model {
         return ($result && $result->num_rows() > 0)
             ? $result->result()
             : [];
+    }
+
+    // =========================================================
+    // Phase 3 — expiry auto-unpublish, batches
+    // =========================================================
+
+    /**
+     * Unpublish published courses past expiry_days from created_at.
+     *
+     * @param  int|null $course_id Single course or all when null
+     * @return int Rows updated
+     */
+    public function apply_expiry_unpublish($course_id = null)
+    {
+        if ( ! $this->db->field_exists('expiry_days', 'courses')
+            || ! $this->db->field_exists('publish_status', 'courses')) {
+            return 0;
+        }
+
+        $this->db
+            ->where('archived', 0)
+            ->where('publish_status', 'published')
+            ->where('expiry_days IS NOT NULL', null, false)
+            ->where('expiry_days >', 0)
+            ->where(
+                'DATE(DATE_ADD(created_at, INTERVAL expiry_days DAY)) < CURDATE()',
+                null,
+                false
+            );
+
+        if ($course_id !== null && (int) $course_id > 0) {
+            $this->db->where('id', (int) $course_id);
+        }
+
+        $this->db->update('courses', [
+            'publish_status'     => 'unpublished',
+            'date_last_modified' => date('Y-m-d H:i:s'),
+        ]);
+
+        return (int) $this->db->affected_rows();
+    }
+
+    public function batches_table_ready()
+    {
+        return $this->db->table_exists('course_batches');
+    }
+
+    /**
+     * @param  int $course_id
+     * @return object[]
+     */
+    public function get_course_batches($course_id)
+    {
+        if ( ! $this->batches_table_ready()) {
+            return [];
+        }
+
+        $r = $this->db
+            ->where('course_id', (int) $course_id)
+            ->where('archived', 0)
+            ->order_by('start_date', 'ASC')
+            ->order_by('id', 'ASC')
+            ->get('course_batches');
+
+        if ($r === false) {
+            log_message('error', 'Phase3: course_batches query failed: ' . json_encode($this->db->error()));
+
+            return [];
+        }
+
+        return ($r->num_rows() > 0) ? $r->result() : [];
+    }
+
+    /**
+     * @param  int $course_id
+     * @return object|null
+     */
+    public function get_active_batch_for_course($course_id)
+    {
+        if ( ! $this->batches_table_ready()) {
+            return null;
+        }
+
+        $r = $this->db
+            ->where('course_id', (int) $course_id)
+            ->where('archived', 0)
+            ->where('status', 'active')
+            ->order_by('start_date', 'DESC')
+            ->order_by('id', 'DESC')
+            ->limit(1)
+            ->get('course_batches');
+
+        if ($r === false) {
+            log_message('error', 'Phase3: course_batches active lookup failed: ' . json_encode($this->db->error()));
+
+            return null;
+        }
+
+        return ($r->num_rows() > 0) ? $r->row() : null;
+    }
+
+    /**
+     * Resolve batch for new enrollment.
+     *
+     * @param  int $course_id
+     * @param  int $preferred_batch_id
+     * @return int
+     */
+    public function resolve_enrollment_batch_id($course_id, $preferred_batch_id = 0)
+    {
+        if ( ! $this->batches_table_ready()) {
+            if ((int) $preferred_batch_id > 0) {
+                log_message(
+                    'debug',
+                    'Phase3: course_batches table not present; ignoring requested batch_id=' . (int) $preferred_batch_id . ' (single-batch mode).'
+                );
+            }
+
+            return 0;
+        }
+
+        $preferred = (int) $preferred_batch_id;
+        if ($preferred > 0) {
+            $ok = (int) $this->db
+                ->where('id', $preferred)
+                ->where('course_id', (int) $course_id)
+                ->where('archived', 0)
+                ->count_all_results('course_batches');
+            if ($ok > 0) {
+                return $preferred;
+            }
+        }
+
+        $active = $this->get_active_batch_for_course($course_id);
+
+        return $active ? (int) $active->id : 0;
+    }
+
+    /**
+     * Replace all batches for a course from form POST rows.
+     *
+     * @param  int   $course_id
+     * @param  array $rows Each: batch_name, start_date, end_date, status, id (optional)
+     * @param  int   $actor_id
+     */
+    public function sync_course_batches($course_id, array $rows, $actor_id = 0)
+    {
+        if ( ! $this->batches_table_ready()) {
+            log_message('debug', 'Phase3: course_batches table not present; skipping batch sync for course_id=' . (int) $course_id . '.');
+
+            return;
+        }
+
+        $cid   = (int) $course_id;
+        $now   = date('Y-m-d H:i:s');
+        $keep  = [];
+
+        foreach ($rows as $row) {
+            if ( ! is_array($row)) {
+                continue;
+            }
+            $name = trim((string) ($row['batch_name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $status = strtolower(trim((string) ($row['status'] ?? 'planned')));
+            if ( ! in_array($status, ['planned', 'active', 'closed'], true)) {
+                $status = 'planned';
+            }
+            $payload = [
+                'batch_name'         => $name,
+                'start_date'         => ! empty($row['start_date']) ? $row['start_date'] : null,
+                'end_date'           => ! empty($row['end_date']) ? $row['end_date'] : null,
+                'status'             => $status,
+                'date_last_modified' => $now,
+                'modified_by'        => (int) $actor_id,
+            ];
+            $bid = (int) ($row['id'] ?? 0);
+            if ($bid > 0) {
+                $this->db->where('id', $bid)->where('course_id', $cid)->update('course_batches', $payload);
+                $keep[] = $bid;
+            } else {
+                $payload['course_id']     = $cid;
+                $payload['date_encoded']  = $now;
+                $payload['encoded_by']    = (int) $actor_id;
+                $payload['archived']      = 0;
+                $this->db->insert('course_batches', $payload);
+                $keep[] = (int) $this->db->insert_id();
+            }
+        }
+
+        $this->db->where('course_id', $cid)->where('archived', 0);
+        if ( ! empty($keep)) {
+            $this->db->where_not_in('id', $keep);
+        }
+        $this->db->update('course_batches', [
+            'archived'           => 1,
+            'date_last_modified' => $now,
+            'modified_by'        => (int) $actor_id,
+        ]);
     }
 }

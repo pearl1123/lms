@@ -161,9 +161,13 @@ $asmt_type_labels = ['pre' => 'Pre-Assessment', 'post' => 'Post-Assessment', 'ch
             <?= render_q_item($idx + 1, $q, $tc, $q_types) ?>
             <?php endforeach; ?>
           <?php else: ?>
-            <div id="qEmpty" style="text-align:center;padding:2rem;color:var(--ka-text-muted,#64748b);font-size:.875rem;">
-              No questions yet. Add your first question below.
-            </div>
+            <?php $this->load->view('components/empty_state', [
+                'id'          => 'qEmpty',
+                'emoji'       => '❓',
+                'title'       => 'No questions yet',
+                'description' => 'Add your first question using the button below.',
+                'modifier'    => 'ka-empty--wide',
+            ]); ?>
           <?php endif; ?>
         </div>
 

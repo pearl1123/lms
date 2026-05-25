@@ -31,6 +31,10 @@
     'onEditAssessmentTypeChange',
   ];
 
+  var Q_EMPTY_HTML = '<div class="ka-empty ka-empty--wide" id="qEmpty"><div class="ka-empty-icon" aria-hidden="true">❓</div>' +
+    '<h3 class="ka-empty-title">No questions yet</h3>' +
+    '<p class="ka-empty-text">Add your first question using the button below.</p></div>';
+
   /** Stubs available before DOMContentLoaded / initEdit (inline onclick-safe). */
   function kaBindAssessmentGlobals() {
     ASSESSMENT_UI_GLOBALS.forEach(function(name) {
@@ -539,6 +543,7 @@
         return;
       }
       document.getElementById('qModalOverlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
       document.getElementById('modalQuestionId').value = qid || 0;
       document.getElementById('modalTitle').textContent = qid ? 'Edit Question' : 'Add Question';
 
@@ -588,6 +593,7 @@
 
     function closeModal() {
       document.getElementById('qModalOverlay').classList.remove('open');
+      document.body.style.overflow = '';
       pendingBatch = [];
       renderQueuedFormBlocks();
       updateBatchQueueUi();
@@ -685,7 +691,7 @@
       var icon = type === 'loading' ? 'info' : type;
       var timer = durationMs;
       if (timer === undefined) {
-        timer = type === 'success' ? 1500 : (type === 'error' ? 3800 : 0);
+        timer = type === 'success' ? 2800 : (type === 'error' ? 4200 : 0);
       }
       var mixinOpts = {
         toast: true,
@@ -700,12 +706,14 @@
           t.addEventListener('mouseleave', Swal.resumeTimer);
         };
       }
+      var toastType = type === 'loading' ? 'info' : icon;
       Swal.mixin(mixinOpts).fire({
         icon: icon,
         title: message,
         iconColor: iconColors[icon] || '#6dabcf',
-        background: '#fff',
-        color: '#1e293b',
+        background: 'var(--ka-surface-0, #fff)',
+        color: 'var(--ka-text, #1e293b)',
+        customClass: { popup: 'swal2-popup ka-swal-toast ka-swal-toast--' + toastType },
       });
     }
 
@@ -898,9 +906,7 @@
       if (document.querySelectorAll('.q-item').length === 0) {
         var list = document.getElementById('qList');
         if (list && !document.getElementById('qEmpty')) {
-          list.insertAdjacentHTML('beforeend',
-            '<div id="qEmpty" class="q-empty-msg">No questions yet. Add your first question below.</div>'
-          );
+          list.insertAdjacentHTML('beforeend', Q_EMPTY_HTML);
         }
       }
     }
@@ -1177,9 +1183,7 @@
                 updateSummary();
                 syncCheckpointQuestionUi();
                 if (document.querySelectorAll('.q-item').length === 0) {
-                  document.getElementById('qList').insertAdjacentHTML('beforeend',
-                    '<div id="qEmpty" class="q-empty-msg">No questions yet. Add your first question below.</div>'
-                  );
+                  document.getElementById('qList').insertAdjacentHTML('beforeend', Q_EMPTY_HTML);
                 }
               } else {
                 window.KA.toast('error', data.message || 'Failed to delete.');
@@ -1220,10 +1224,6 @@
     }
 
     onTypeChange();
-
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') closeModal();
-    });
 
     onEditAssessmentTypeChange();
     syncCheckpointQuestionUi();

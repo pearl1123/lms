@@ -79,6 +79,8 @@ class Certificate_service {
         }
 
         try {
+            $m = $this->CI->certificate_model;
+
             $autoload = FCPATH . 'vendor/autoload.php';
             if (is_file($autoload)) {
                 require_once $autoload;
@@ -92,6 +94,12 @@ class Certificate_service {
                 require_once $manual;
             }
 
+            $signatories = $m->resolve_signatories_for_pdf(
+                (int) ($cert->course_id ?? 0),
+                $cert->signatory_name ?? '',
+                $cert->signatory_title ?? ''
+            );
+
             $html = $this->CI->load->view('certificates/template_pdf', [
                 'certificate_code' => $cert->certificate_code,
                 'student_name'       => $cert->student_name,
@@ -100,6 +108,7 @@ class Certificate_service {
                 'category_name'      => $cert->category_name    ?? '',
                 'modality_name'      => $cert->modality_name    ?? '',
                 'certificate_prefix' => $cert->certificate_prefix ?? '',
+                'signatories'        => $signatories,
                 'signatory_name'     => $cert->signatory_name   ?? '',
                 'signatory_title'    => $cert->signatory_title  ?? '',
                 'issued_at'          => date('F j, Y', strtotime($cert->issued_at)),

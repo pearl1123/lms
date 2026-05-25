@@ -165,14 +165,16 @@ $type_colors = [
     <?php endforeach; ?>
 
   <?php else: ?>
-    <div class="asx-empty">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-      <h4>No assessments yet</h4>
-      <p><?= $is_manager ? 'Create your first assessment to get started.' : 'No assessments have been assigned to you yet.' ?></p>
-      <?php if ($is_manager): ?>
-        <a href="<?= base_url('index.php/assessments/create') ?>" class="asx-btn asx-btn-primary">Create Assessment</a>
-      <?php endif; ?>
-    </div>
+    <?php $this->load->view('components/empty_state', [
+        'emoji'       => '📋',
+        'title'       => 'No assessments yet',
+        'description' => $is_manager
+            ? 'Create your first assessment to attach pre-, post-, or video checkpoints to course modules.'
+            : 'No assessments have been assigned to you yet.',
+        'cta_href'    => $is_manager ? base_url('index.php/assessments/create') : '',
+        'cta_label'   => $is_manager ? 'Create assessment' : '',
+        'modifier'    => '',
+    ]); ?>
   <?php endif; ?>
 
 </div>

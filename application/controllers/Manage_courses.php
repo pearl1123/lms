@@ -39,7 +39,8 @@ class Manage_courses extends CI_Controller {
         $this->load->model('Course_model',      'course_model');
         $this->load->model('Assessment_model',  'assessment_model');
         $this->load->model('Course_phase2_model', 'course_phase2');
-        $this->load->helper(['url', 'form']);
+        $this->load->model('Certificate_model', 'certificate_model');
+        $this->load->helper(['url', 'form', 'course_phase3']);
 
         $user_id = $this->session->userdata('user_id');
         if ( ! $user_id) redirect('auth/login');
@@ -106,9 +107,9 @@ class Manage_courses extends CI_Controller {
 
             $this->form_validation
                 ->set_rules('title',       'Course Title', 'required|max_length[255]')
-                ->set_rules('category_id', 'Category',     'required|integer')
+                ->set_rules('category_id', 'Category',     'callback_quick_create_category')
                 ->set_rules('modality_id', 'Modality',     'required|integer')
-                ->set_rules('certificate_prefix', 'Certificate Prefix', 'required|alpha_numeric|max_length[12]')
+                ->set_rules('certificate_prefix', 'Certificate Prefix', 'trim|alpha_numeric|max_length[12]')
                 ->set_rules('signatory_name', 'Signatory Name', 'trim|max_length[120]')
                 ->set_rules('signatory_title', 'Signatory Title', 'trim|max_length[120]');
 
@@ -119,14 +120,20 @@ class Manage_courses extends CI_Controller {
                     ? (int) $this->input->post('created_by')
                     : (int) $user->id;
 
+                $primary_cat = $this->_resolve_quick_create_primary_category_id();
+                $prefix = trim((string) $this->input->post('certificate_prefix'));
+                if ($prefix === '' || ! ctype_alnum($prefix)) {
+                    $prefix = $this->_generate_certificate_prefix((string) $this->input->post('title'));
+                }
+
                 $id = $this->course_model->create_course([
                     'title'          => $this->input->post('title'),
                     'description'    => $this->input->post('description'),
-                    'category_id'    => $this->input->post('category_id'),
+                    'category_id'    => $primary_cat,
                     'modality_id'    => $this->input->post('modality_id'),
                     'access_type'    => $this->input->post('access_type'),
                     'expiry_days'    => $this->input->post('expiry_days'),
-                    'certificate_prefix' => $this->input->post('certificate_prefix'),
+                    'certificate_prefix' => $prefix,
                     'signatory_name'     => $this->input->post('signatory_name'),
                     'signatory_title'    => $this->input->post('signatory_title'),
                     'created_by'     => $created_by,
@@ -134,9 +141,10 @@ class Manage_courses extends CI_Controller {
 
                 if ($id > 0) {
                     $this->course_phase2->save_course_meta_from_post($id, $_POST, (int) $user->id);
+                    $this->_sync_phase3_course_meta($id, (int) $user->id);
                 }
 
-                $this->session->set_flashdata('success', 'Course created! Now add your modules.');
+                $this->session->set_flashdata('success', 'Draft course created. Configure access, certificates, and modules in the workspace.');
                 redirect('manage_courses/edit/' . $id);
             }
         }
@@ -214,6 +222,7 @@ class Manage_courses extends CI_Controller {
                 ], $this->user->id);
 
                 $this->course_phase2->save_course_meta_from_post($id, $_POST, (int) $this->user->id);
+                $this->_sync_phase3_course_meta($id, (int) $this->user->id);
 
                 $this->session->set_flashdata('success', 'Course details updated.');
                 redirect('manage_courses/edit/' . $id . $edit_rt_suffix());
@@ -304,16 +313,12 @@ class Manage_courses extends CI_Controller {
 
         $title        = trim($this->input->post('title'));
         $content_type = $this->input->post('content_type');
-        $valid_types  = ['pdf', 'slides', 'video', 'audio', 'zoom_recording'];
 
         if ($title === '') {
             echo json_encode(['success' => false, 'message' => 'Module title is required.']);
             return;
         }
-        if ( ! in_array($content_type, $valid_types)) {
-            echo json_encode(['success' => false, 'message' => 'Invalid content type.']);
-            return;
-        }
+        $content_type = course_phase3_effective_module_type($content_type, 'save_module course_id=' . $course_id);
 
         // Multiple modules may share the same content_type; only total weight is restricted.
 
@@ -353,10 +358,16 @@ class Manage_courses extends CI_Controller {
         }
 
         $module = $this->course_model->get_module($mid);
-        if ($module && ($module->content_type ?? '') === 'video') {
-            $module->checkpoint_count = count($this->assessment_model->get_assessments($mid, 'checkpoint'));
-        } elseif ($module) {
-            $module->checkpoint_count = 0;
+        if ($module) {
+            $module->content_type_effective = course_phase3_effective_module_type(
+                $module->content_type ?? '',
+                'save_module json mid=' . (int) $mid
+            );
+            if ($module->content_type_effective === 'video') {
+                $module->checkpoint_count = count($this->assessment_model->get_assessments($mid, 'checkpoint'));
+            } else {
+                $module->checkpoint_count = 0;
+            }
         }
 
         echo json_encode([
@@ -453,7 +464,11 @@ class Manage_courses extends CI_Controller {
             $post = $this->assessment_model->get_assessments($mod->id, 'post');
             $mod->pre_count  = count($pre);
             $mod->post_count = count($post);
-            if (ka_module_is_video_content($mod)) {
+            $eff_ck = course_phase3_effective_module_type(
+                $mod->content_type ?? '',
+                'manage edit list checkpoints mod_id=' . (int) $mod->id
+            );
+            if ($eff_ck === 'video') {
                 $mod->checkpoint_count = count($this->assessment_model->get_assessments($mod->id, 'checkpoint'));
             } else {
                 $mod->checkpoint_count = 0;
@@ -464,11 +479,20 @@ class Manage_courses extends CI_Controller {
 
         $lms_rt = ka_lms_resolve_return_target($this->user, $this->input->get('return_url'));
 
+        $phase3_sign = $this->certificate_model->signatories_table_ready();
+        $phase3_batches = $this->course_model->batches_table_ready();
+
         $data = array_merge([
             'user'         => $this->user,
             'page_title'   => $overrides['page_title'] ?? $crumb_label,
             'course'       => $course,
             'modules'      => $modules,
+            'phase3_ready' => $phase3_sign,
+            'phase3_batches_ready' => $phase3_batches,
+            'certificate_signatories' => $phase3_sign
+                ? $this->certificate_model->get_signatories_for_course($id) : [],
+            'course_batches' => $phase3_batches
+                ? $this->course_model->get_course_batches($id) : [],
             'categories'   => $this->course_model->get_categories(),
             'modalities'   => $this->course_model->get_modalities(),
             'teachers'     => $this->user->role === 'admin'
@@ -505,6 +529,8 @@ class Manage_courses extends CI_Controller {
             : [(object) ['id' => (int) $user->id, 'fullname' => (string) $user->fullname]];
 
         $out = [
+            'phase3_ready'          => $this->certificate_model->signatories_table_ready(),
+            'phase3_batches_ready'  => $this->course_model->batches_table_ready(),
             'phase2_schema_ready'  => $this->course_phase2->schema_ready(),
             'hrmis_connection_ok'  => $this->course_phase2->hrmis_connection_ok(),
             'hrmis_ready'          => $this->course_phase2->hrmis_ready(),
@@ -530,6 +556,105 @@ class Manage_courses extends CI_Controller {
         }
 
         return $out;
+    }
+
+    /**
+     * Sync Phase 3 signatories + batches from POST arrays.
+     * Signatories: only certificate_signatories table when it exists (never mixed with course row fields here).
+     * Batches: only when course_batches exists. If tables are absent, POST for these keys is ignored (legacy mode).
+     *
+     * @param int $course_id
+     * @param int $actor_id
+     */
+    private function _sync_phase3_course_meta($course_id, $actor_id)
+    {
+        $cid = (int) $course_id;
+        if ($cid < 1) {
+            return;
+        }
+
+        if ($this->certificate_model->signatories_table_ready()) {
+            $sig_rows = [];
+            $ids    = $this->input->post('signatory_id');
+            $names  = $this->input->post('signatory_name_row');
+            $titles = $this->input->post('signatory_title_row');
+            $orders = $this->input->post('signatory_order');
+            if (is_array($names)) {
+                foreach ($names as $i => $name) {
+                    $sig_rows[] = [
+                        'id'       => is_array($ids) ? (int) ($ids[$i] ?? 0) : 0,
+                        'name'     => $name,
+                        'title'    => is_array($titles) ? ($titles[$i] ?? '') : '',
+                        'order_no' => is_array($orders) ? ($orders[$i] ?? ($i + 1)) : ($i + 1),
+                    ];
+                }
+            }
+            $this->certificate_model->sync_course_signatories($cid, $sig_rows, (int) $actor_id);
+        }
+
+        if ($this->course_model->batches_table_ready()) {
+            $batch_rows = [];
+            $bids     = $this->input->post('batch_id');
+            $bnames   = $this->input->post('batch_name');
+            $bstarts  = $this->input->post('batch_start');
+            $bends    = $this->input->post('batch_end');
+            $bstatus  = $this->input->post('batch_status');
+            if (is_array($bnames)) {
+                foreach ($bnames as $i => $bn) {
+                    $batch_rows[] = [
+                        'id'         => is_array($bids) ? (int) ($bids[$i] ?? 0) : 0,
+                        'batch_name' => $bn,
+                        'start_date' => is_array($bstarts) ? ($bstarts[$i] ?? '') : '',
+                        'end_date'   => is_array($bends) ? ($bends[$i] ?? '') : '',
+                        'status'     => is_array($bstatus) ? ($bstatus[$i] ?? 'planned') : 'planned',
+                    ];
+                }
+            }
+            $this->course_model->sync_course_batches($cid, $batch_rows, (int) $actor_id);
+        }
+    }
+
+    /**
+     * AJAX: upload PDF for a module (content_type pdf).
+     */
+    public function upload_module_file()
+    {
+        header('Content-Type: application/json');
+
+        $course_id = (int) $this->input->post('course_id');
+        $course    = $this->course_model->get_course_any($course_id);
+        if ( ! $course) {
+            echo json_encode(['success' => false, 'message' => 'Course not found.']);
+            return;
+        }
+        $this->_check_ownership($course, true);
+
+        if (empty($_FILES['module_file']['name'])) {
+            echo json_encode(['success' => false, 'message' => 'No file uploaded.']);
+            return;
+        }
+
+        $ext = strtolower(pathinfo($_FILES['module_file']['name'], PATHINFO_EXTENSION));
+        if ($ext !== 'pdf') {
+            echo json_encode(['success' => false, 'message' => 'Only PDF files are allowed.']);
+            return;
+        }
+
+        $dir = FCPATH . 'uploads/modules/' . $course_id . '/';
+        if ( ! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $safe = 'module_' . time() . '_' . bin2hex(random_bytes(4)) . '.pdf';
+        if ( ! move_uploaded_file($_FILES['module_file']['tmp_name'], $dir . $safe)) {
+            echo json_encode(['success' => false, 'message' => 'Upload failed.']);
+            return;
+        }
+
+        echo json_encode([
+            'success'      => true,
+            'content_path' => 'uploads/modules/' . $course_id . '/' . $safe,
+        ]);
     }
 
     private function _set_publish_status_action($id, $status)
@@ -626,6 +751,72 @@ class Manage_courses extends CI_Controller {
             $msg .= ' ' . $skipped . ' skipped or already invited.';
         }
         $this->session->set_flashdata($sent > 0 ? 'success' : 'info', $msg);
+    }
+
+    /**
+     * Quick create: at least one category (legacy category_id or Phase 2 category_ids[]).
+     *
+     * @param string $category_id Posted primary category (may be empty until JS sync)
+     * @return bool
+     */
+    public function quick_create_category($category_id)
+    {
+        if ((int) $category_id > 0) {
+            return true;
+        }
+        $ids = $this->input->post('category_ids');
+        if (is_array($ids)) {
+            foreach ($ids as $id) {
+                if ((int) $id > 0) {
+                    return true;
+                }
+            }
+        }
+        $this->form_validation->set_message('quick_create_category', 'Select at least one category.');
+
+        return false;
+    }
+
+    /**
+     * Primary category_id for courses.category_id from POST (Phase 2 or legacy).
+     *
+     * @return int
+     */
+    private function _resolve_quick_create_primary_category_id()
+    {
+        $cid = (int) $this->input->post('category_id');
+        if ($cid > 0) {
+            return $cid;
+        }
+        $ids = $this->input->post('category_ids');
+        if (is_array($ids)) {
+            foreach ($ids as $id) {
+                $i = (int) $id;
+                if ($i > 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * Default certificate serial prefix when omitted on quick create (alphanumeric, max 12).
+     */
+    private function _generate_certificate_prefix($title)
+    {
+        $base = preg_replace('/[^A-Za-z0-9]/', '', (string) $title);
+        $base = strtoupper(substr($base, 0, 8));
+        if (strlen($base) < 4) {
+            $base .= strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+        }
+        $base = substr($base, 0, 12);
+        if (strlen($base) < 4) {
+            $base = 'CRS' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 5));
+        }
+
+        return substr($base, 0, 12);
     }
 
     /**

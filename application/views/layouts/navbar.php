@@ -436,7 +436,7 @@ $notif_count = (int) ($notif_count ?? 0);
           </div>
         </li>
         <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="<?= base_url('profile'); ?>">
+        <li><a class="dropdown-item" href="<?= base_url('index.php/profile'); ?>">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2 text-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           My Profile
         </a></li>

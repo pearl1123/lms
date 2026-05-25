@@ -1,0 +1,305 @@
+/**
+ * KABAGA Academy — Phase 4 SaaS UI primitives (cards, forms, tables, empty, modals, toasts)
+ * Scoped under .ka-saas-shell where possible; global utilities where needed (SweetAlert2).
+ */
+
+/* ── App shell ─────────────────────────────────────────────── */
+.ka-saas-shell {
+  flex: 1;
+  min-width: 0;
+  padding: var(--ka-space-4) 0 var(--ka-space-8);
+  max-width: var(--ka-content-max);
+  margin-inline: auto;
+  width: 100%;
+}
+
+/* ── Page chrome (assessments create, etc.) ───────────────── */
+.ka-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ka-space-6);
+  flex-wrap: wrap;
+  margin-bottom: var(--ka-space-6);
+}
+.ka-page-head--split { align-items: center; }
+.ka-page-title {
+  font-size: var(--ka-text-xl);
+  font-weight: var(--ka-font-weight-bold);
+  color: var(--ka-text, #1e293b);
+  margin: 0 0 var(--ka-space-1);
+  letter-spacing: var(--ka-tracking-tight);
+}
+.ka-page-lead {
+  font-size: var(--ka-text-sm);
+  color: var(--ka-text-subtle);
+  margin: 0;
+  line-height: var(--ka-leading-normal);
+}
+.ka-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ka-space-2);
+  padding: var(--ka-space-2) var(--ka-space-4);
+  border-radius: var(--ka-radius-md);
+  font-size: var(--ka-text-sm);
+  font-weight: var(--ka-font-weight-semibold);
+  text-decoration: none;
+  border: 1.5px solid var(--ka-border, #e2e8f0);
+  background: var(--ka-surface-0);
+  color: var(--ka-text, #1e293b);
+  transition: background var(--ka-duration-fast) var(--ka-ease-out),
+    border-color var(--ka-duration-fast) var(--ka-ease-out),
+    transform var(--ka-duration-fast) var(--ka-ease-out);
+}
+.ka-btn:hover {
+  border-color: var(--ka-primary, #6dabcf);
+  background: var(--ka-accent, #e8f4fd);
+  color: var(--ka-navy, #1a3a5c);
+}
+.ka-btn--ghost { box-shadow: var(--ka-shadow-xs); }
+
+/* ── Premium cards ─────────────────────────────────────────── */
+.ka-premium-card,
+.ka-saas-shell .db-card,
+.ka-saas-shell .db-kpi-card,
+.ka-saas-shell .asx-card,
+.ka-saas-shell .crs-panel,
+.ka-saas-shell .crt-panel {
+  border-radius: var(--ka-radius-lg) !important;
+  border: 1px solid var(--ka-border-subtle) !important;
+  box-shadow: var(--ka-shadow-sm), var(--ka-shadow-inset) !important;
+  background: var(--ka-surface-0) !important;
+  transition: box-shadow var(--ka-duration-md) var(--ka-ease-out),
+    transform var(--ka-duration-md) var(--ka-ease-out),
+    border-color var(--ka-duration-fast) var(--ka-ease-out);
+}
+.ka-saas-shell .crs-panel:hover,
+.ka-saas-shell .crt-panel:hover,
+.ka-saas-shell .db-card--elevated:hover,
+.ka-saas-shell .asx-card:hover {
+  box-shadow: var(--ka-shadow-md) !important;
+}
+.ka-saas-shell .crs-panel-hdr,
+.ka-saas-shell .crt-panel-hdr,
+.ka-saas-shell .db-card-header {
+  border-bottom-color: var(--ka-border-subtle) !important;
+  padding-top: var(--ka-space-5) !important;
+  padding-bottom: var(--ka-space-4) !important;
+}
+.ka-saas-shell .crs-panel-body,
+.ka-saas-shell .crt-panel-body,
+.ka-saas-shell .db-card-body {
+  padding: var(--ka-space-5) var(--ka-space-6) !important;
+}
+
+/* Summary chips (reuse + polish) */
+.ka-saas-shell .badge,
+.ka-saas-shell .asx-card-type {
+  border-radius: var(--ka-radius-pill) !important;
+  font-size: var(--ka-text-xs) !important;
+  letter-spacing: var(--ka-tracking-wide);
+}
+
+/* ── Form system ───────────────────────────────────────────── */
+.ka-form-flow .crs-form-group,
+.ka-form-flow .crt-form-group,
+.ka-saas-shell .crs-form-group + .crs-form-group,
+.ka-saas-shell .crt-form-group + .crt-form-group {
+  margin-top: var(--ka-space-5);
+}
+.ka-form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ka-space-5);
+}
+@media (max-width: 767.98px) {
+  .ka-form-grid-2 { grid-template-columns: 1fr; }
+}
+.ka-saas-shell .crs-label,
+.ka-saas-shell .crt-label,
+.ka-saas-shell .ef-label {
+  font-size: var(--ka-text-sm) !important;
+  font-weight: var(--ka-font-weight-semibold) !important;
+  color: var(--ka-text, #1e293b) !important;
+  margin-bottom: var(--ka-space-2) !important;
+}
+.ka-saas-shell .crs-input,
+.ka-saas-shell .crs-textarea,
+.ka-saas-shell .crs-select,
+.ka-saas-shell .crt-input,
+.ka-saas-shell .crt-select,
+.ka-saas-shell .ef-input,
+.ka-saas-shell .ef-textarea,
+.ka-saas-shell .ef-select {
+  border-radius: var(--ka-radius-md) !important;
+  border-color: var(--ka-border, #e2e8f0) !important;
+  transition: border-color var(--ka-duration-fast), box-shadow var(--ka-duration-fast) !important;
+}
+.ka-saas-shell .crs-input:focus,
+.ka-saas-shell .crt-input:focus,
+.ka-saas-shell .ef-input:focus {
+  border-color: var(--ka-primary, #6dabcf) !important;
+  box-shadow: 0 0 0 3px var(--ka-focus-ring) !important;
+  outline: none !important;
+}
+.ka-field-hint,
+.ka-saas-shell .crs-panel-kicker,
+.ka-saas-shell .crt-help {
+  font-size: var(--ka-text-sm) !important;
+  color: var(--ka-text-subtle) !important;
+  line-height: var(--ka-leading-snug) !important;
+}
+.ka-saas-shell input[type="checkbox"],
+.ka-saas-shell input[type="radio"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--ka-primary, #6dabcf);
+}
+
+/* Select2 inside shell */
+.ka-saas-shell .select2-container--default .select2-selection--multiple,
+.ka-saas-shell .select2-container--default .select2-selection--single {
+  border-radius: var(--ka-radius-md) !important;
+  border: 1.5px solid var(--ka-border, #e2e8f0) !important;
+  min-height: 42px !important;
+  background: var(--ka-surface-0) !important;
+}
+.ka-saas-shell .select2-container--default.select2-container--focus .select2-selection--multiple,
+.ka-saas-shell .select2-container--default.select2-container--open .select2-selection--multiple {
+  border-color: var(--ka-primary, #6dabcf) !important;
+  box-shadow: 0 0 0 3px var(--ka-focus-ring) !important;
+}
+.ka-saas-shell .select2-dropdown {
+  border-radius: var(--ka-radius-md) !important;
+  border: 1px solid var(--ka-border-subtle) !important;
+  box-shadow: var(--ka-shadow-md) !important;
+}
+
+/* ── Tables ───────────────────────────────────────────────── */
+.ka-saas-shell .db-table-wrap,
+.ka-saas-shell .ka-table-scroll {
+  border-radius: var(--ka-radius-lg);
+  border: 1px solid var(--ka-border-subtle);
+  overflow: auto;
+  background: var(--ka-surface-0);
+  box-shadow: var(--ka-shadow-xs);
+}
+.ka-saas-shell .db-dash-table thead th,
+.ka-saas-shell .table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--ka-surface-muted) !important;
+  font-size: var(--ka-text-xs) !important;
+  text-transform: uppercase;
+  letter-spacing: var(--ka-tracking-wide);
+  color: var(--ka-text-subtle) !important;
+  font-weight: var(--ka-font-weight-semibold) !important;
+  border-bottom: 1px solid var(--ka-border, #e2e8f0) !important;
+}
+.ka-saas-shell .db-dash-table tbody tr,
+.ka-saas-shell .table tbody tr {
+  transition: background var(--ka-duration-fast) var(--ka-ease-out);
+}
+.ka-saas-shell .db-dash-table tbody tr:hover,
+.ka-saas-shell .table tbody tr:hover {
+  background: rgba(109, 171, 207, 0.06) !important;
+}
+
+/* ── Empty states ─────────────────────────────────────────── */
+.ka-empty {
+  text-align: center;
+  padding: var(--ka-space-10) var(--ka-space-6);
+  border-radius: var(--ka-radius-xl);
+  border: 1px dashed var(--ka-border, #e2e8f0);
+  background: linear-gradient(180deg, var(--ka-surface-0) 0%, var(--ka-surface-muted) 100%);
+  max-width: 28rem;
+  margin-inline: auto;
+}
+.ka-empty--wide { max-width: none; }
+.ka-empty-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: var(--ka-space-4);
+  opacity: 0.85;
+}
+.ka-empty-title {
+  font-size: var(--ka-text-md);
+  font-weight: var(--ka-font-weight-bold);
+  color: var(--ka-text, #1e293b);
+  margin: 0 0 var(--ka-space-2);
+}
+.ka-empty-text {
+  font-size: var(--ka-text-sm);
+  color: var(--ka-text-subtle);
+  margin: 0 0 var(--ka-space-5);
+  line-height: var(--ka-leading-normal);
+}
+.ka-empty-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ka-space-2) var(--ka-space-5);
+  border-radius: var(--ka-radius-md);
+  font-size: var(--ka-text-sm);
+  font-weight: var(--ka-font-weight-semibold);
+  background: var(--ka-navy, #1a3a5c);
+  color: #fff !important;
+  text-decoration: none !important;
+  border: none;
+  cursor: pointer;
+  transition: transform var(--ka-duration-fast), box-shadow var(--ka-duration-fast);
+}
+.ka-empty-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ka-shadow-sm);
+  color: #fff !important;
+}
+
+/* ── Modals (module + question) ────────────────────────────── */
+.mod-modal-overlay,
+.q-modal-overlay {
+  animation: kaOverlayIn var(--ka-duration-md) var(--ka-ease-out) both;
+}
+@keyframes kaOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.mod-modal,
+.q-modal {
+  border-radius: var(--ka-radius-xl) !important;
+  border: 1px solid var(--ka-border-subtle) !important;
+  box-shadow: var(--ka-shadow-lg) !important;
+}
+.mod-modal-hdr,
+.q-modal-hdr {
+  border-radius: var(--ka-radius-xl) var(--ka-radius-xl) 0 0 !important;
+}
+.mod-modal-footer,
+.q-modal-footer {
+  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.04);
+}
+
+/* ── SweetAlert2 toasts (KA.toast) ─────────────────────────── */
+.swal2-popup.swal2-toast.ka-swal-toast {
+  border-radius: var(--ka-radius-lg) !important;
+  border: 1px solid var(--ka-border-subtle) !important;
+  box-shadow: var(--ka-shadow-md) !important;
+  padding: var(--ka-space-4) var(--ka-space-5) !important;
+  font-family: var(--tblr-font-sans-serif, inherit) !important;
+}
+.swal2-popup.swal2-toast.ka-swal-toast .swal2-title {
+  font-size: var(--ka-text-sm) !important;
+  font-weight: var(--ka-font-weight-semibold) !important;
+  color: var(--ka-text, #1e293b) !important;
+  padding: 0 !important;
+}
+.swal2-popup.swal2-toast.ka-swal-toast .swal2-timer-progress-bar {
+  background: var(--ka-primary, #6dabcf) !important;
+}
+
+.ka-req-star {
+  color: var(--ka-danger, #d63939);
+  font-weight: var(--ka-font-weight-bold);
+}

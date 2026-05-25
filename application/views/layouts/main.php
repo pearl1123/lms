@@ -22,7 +22,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
     <?php $this->load->view('layouts/navbar'); ?>
 
     <!-- Page Content -->
-    <main>
+    <main class="ka-saas-shell">
         <?php $this->load->view($view); ?>
     </main>
 

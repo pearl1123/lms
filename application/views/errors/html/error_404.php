@@ -1,64 +1,33 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
-?><!DOCTYPE html>
+/**
+ * CI3 show_404() template — premium fallback (preserves 404 status & logging).
+ * Router 404_override uses Error_pages::not_found() with app shell when logged in.
+ */
+$ef_title    = 'Page not found';
+$ef_subtitle = 'The page you requested is not available.';
+$ef_hint     = isset($message) && $message !== ''
+    ? strip_tags((string) $message)
+    : 'We\'re actively improving this part of the LMS.';
+$ef_icon          = 'compass';
+$ef_dashboard_url = function_exists('site_url') ? site_url('dashboard') : '/';
+$ef_login_url     = function_exists('site_url') ? site_url('auth/login') : '/';
+$page_title       = 'Page not found';
+?>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>404 Page Not Found</title>
-<style type="text/css">
-
-::selection { background-color: #E13300; color: white; }
-::-moz-selection { background-color: #E13300; color: white; }
-
-body {
-	background-color: #fff;
-	margin: 40px;
-	font: 13px/20px normal Helvetica, Arial, sans-serif;
-	color: #4F5155;
-}
-
-a {
-	color: #003399;
-	background-color: transparent;
-	font-weight: normal;
-}
-
-h1 {
-	color: #444;
-	background-color: transparent;
-	border-bottom: 1px solid #D0D0D0;
-	font-size: 19px;
-	font-weight: normal;
-	margin: 0 0 14px 0;
-	padding: 14px 15px 10px 15px;
-}
-
-code {
-	font-family: Consolas, Monaco, Courier New, Courier, monospace;
-	font-size: 12px;
-	background-color: #f9f9f9;
-	border: 1px solid #D0D0D0;
-	color: #002166;
-	display: block;
-	margin: 14px 0 14px 0;
-	padding: 12px 10px 12px 10px;
-}
-
-#container {
-	margin: 10px;
-	border: 1px solid #D0D0D0;
-	box-shadow: 0 0 8px #D0D0D0;
-}
-
-p {
-	margin: 12px 15px 12px 15px;
-}
-</style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title><?= htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8') ?> — KABAGA Academy</title>
+  <link rel="stylesheet" href="<?= function_exists('base_url') ? base_url('assets/css/ka-saas-tokens.css') : '' ?>"/>
+  <link rel="stylesheet" href="<?= function_exists('base_url') ? base_url('assets/css/error_fallback.css') : '' ?>"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
-<body>
-	<div id="container">
-		<h1><?php echo $heading; ?></h1>
-		<?php echo $message; ?>
-	</div>
+<body class="ef-standalone-body">
+<?php include dirname(__DIR__) . DIRECTORY_SEPARATOR . '_fallback_card.php'; ?>
+<p class="ef-standalone-foot">
+  <a href="<?= html_escape($ef_login_url) ?>">Sign in</a>
+</p>
 </body>
 </html>

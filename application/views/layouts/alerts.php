@@ -189,23 +189,26 @@ KA.toast = function(type, message) {
     warning: '#f59f00',
     info:    '#6dabcf',
   };
+  const t = ['success', 'error', 'warning', 'info'].indexOf(type) !== -1 ? type : 'info';
   Swal.mixin({
     toast:             true,
     position:          'top-end',
     showConfirmButton: false,
-    timer:             4000,
+    timer:             4200,
     timerProgressBar:  true,
     didOpen: function(toast) {
       toast.addEventListener('mouseenter', Swal.stopTimer);
       toast.addEventListener('mouseleave', Swal.resumeTimer);
     },
   }).fire({
-    icon:              type,
+    icon:              t,
     title:             message,
-    iconColor:         iconColors[type] || '#6dabcf',
-    background:        '#fff',
-    color:             '#1e293b',
-    customClass: { popup: 'swal2-popup' },
+    iconColor:         iconColors[t] || '#6dabcf',
+    background:        'var(--ka-surface-0, #fff)',
+    color:             'var(--ka-text, #1e293b)',
+    customClass: {
+      popup: 'swal2-popup ka-swal-toast ka-swal-toast--' + t,
+    },
   });
 };
 

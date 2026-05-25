@@ -113,6 +113,7 @@ $year = date('Y');
 
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="<?= base_url('assets/js/ka-saas-shell.js'); ?>" defer></script>
 
 <!-- Tabler JS -->
 <script src="<?= base_url('assets/tabler/js/tabler.min.js'); ?>" defer></script>

@@ -16,6 +16,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
   <link href="<?= base_url('assets/tabler/css/tabler-vendors.min.css'); ?>" rel="stylesheet"/>
   <link href="<?= base_url('assets/tabler/css/demo.min.css'); ?>" rel="stylesheet"/>
 
+  <link rel="stylesheet" href="<?= base_url('assets/css/ka-saas-tokens.css'); ?>"/>
+  <link rel="stylesheet" href="<?= base_url('assets/css/ka-saas-ui.css'); ?>"/>
+
   <!-- Google Fonts: DM Sans for brand feel -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

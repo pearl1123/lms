@@ -253,6 +253,10 @@ if ( ! function_exists('ka_module_is_video_content')) {
     /**
      * Whether a course module supports in-video checkpoints (manage UI + validation).
      *
+     * @deprecated Prefer {@see course_phase3_effective_module_type()} === 'video' for the module contract.
+     *             This helper still treats YouTube/file URLs as video when type was mis-saved; new code
+     *             should rely on effective type only.
+     *
      * Accepts canonical content_type "video" and legacy/alternate labels; also treats
      * YouTube or direct video file URLs in content_path as video when type was saved differently.
      *
@@ -293,5 +297,37 @@ if ( ! function_exists('ka_module_is_video_content')) {
         }
 
         return false;
+    }
+}
+
+if ( ! function_exists('ka_under_construction_url')) {
+    /**
+     * URL for the “coming soon” placeholder (unfinished menu links / features).
+     *
+     * @param string $message Optional hint shown on the page
+     * @return string
+     */
+    function ka_under_construction_url($message = '')
+    {
+        $url = site_url('error_pages/under_construction');
+        $message = trim((string) $message);
+        if ($message !== '') {
+            $url .= '?msg=' . rawurlencode($message);
+        }
+
+        return $url;
+    }
+}
+
+if ( ! function_exists('ka_redirect_under_construction')) {
+    /**
+     * Redirect to the under-construction workspace (logged-in users keep app shell).
+     *
+     * @param string $message
+     * @return void
+     */
+    function ka_redirect_under_construction($message = '')
+    {
+        redirect(ka_under_construction_url($message));
     }
 }

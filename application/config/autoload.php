@@ -89,7 +89,7 @@ $autoload['drivers'] = array();
 |
 |	$autoload['helper'] = array('url', 'file');
 */
-$autoload['helper'] = array('url', 'form', 'ka_layout', 'ka_format', 'course_phase2');
+$autoload['helper'] = array('url', 'form', 'ka_layout', 'ka_format', 'course_phase2', 'course_phase3');
 
 /*
 | -------------------------------------------------------------------

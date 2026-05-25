@@ -32,7 +32,15 @@ $module_completion_state         = $module_completion_state ?? [
 $mcs_post_passed                 = ! empty($module_completion_state['post_assessment_passed']);
 $can_start_post_assessment       = ! empty($can_start_post_assessment);
 
-$is_video_module        = (($module->content_type ?? '') === 'video');
+if ( ! $module) {
+    return;
+}
+
+$eff_type = course_phase3_effective_module_type(
+    $module->content_type ?? '',
+    'module view id=' . (int) ($module->id ?? 0)
+);
+$is_video_module        = ($eff_type === 'video');
 $pre_assessment_required = $pre_assessment && ( ! $is_video_module || ! empty($pre_assessment->is_required));
 $video_optional_pre     = ($is_video_module && $pre_assessment && ! $pre_assessment_required);
 $content_gated          = ($pre_blocked && $pre_assessment && ! $video_optional_pre);
@@ -52,7 +60,6 @@ $pre_assessment_id = (is_object($pre_assessment) && isset($pre_assessment->id))
     ? (int) $pre_assessment->id
     : 0;
 
-if ( ! $module) return;
 $MODULE_STATE_URL                = base_url('index.php/courses/module_state/' . (int) $module->id);
 
 /** Pre-assessment modal payload (video modules only; set by Assessments::submit). */
@@ -64,7 +71,7 @@ if (function_exists('get_instance')) {
         $_pm = $CI->session->flashdata('pre_assessment_modal');
         if (is_array($_pm)
             && (int) ($_pm['module_id'] ?? 0) === (int) $module->id
-            && ($module->content_type ?? '') === 'video') {
+            && $eff_type === 'video') {
             $pre_assessment_modal = $_pm;
         }
     }
@@ -95,7 +102,9 @@ $content_url  = $is_external ? $content_path : base_url($content_path);
 $module_app_context = [
     'modulePage'                 => true,
     'isCompleted'                => (bool) $is_completed,
-    'contentType'                => (string) ($module->content_type ?? ''),
+    'contentType'                => $eff_type,
+    'phpEffectiveContentType'    => $eff_type,
+    'moduleContentTypesResolved' => course_phase3_resolved_module_type_contract_values(),
     'markUrl'                    => $MARK_COMPLETE_URL,
     'csrfName'                   => $CSRF_NAME,
     'csrfHash'                   => $CSRF_HASH,
@@ -192,15 +201,8 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
       <!-- Header -->
       <div class="mv-content-header">
         <?php
-        $type_labels = [
-            'pdf'            => 'PDF',
-            'video'          => 'Video',
-            'slides'         => 'Slides',
-            'audio'          => 'Audio',
-            'zoom_recording' => 'Zoom Recording',
-        ];
-        $type_label       = $type_labels[$module->content_type ?? ''] ?? 'Content';
-        $ctype_slug_raw   = strtolower((string) ($module->content_type ?? ''));
+        $type_label       = course_phase3_module_type_label($eff_type);
+        $ctype_slug_raw   = strtolower((string) $eff_type);
         $ctype_slug_safe  = preg_replace('/[^a-z0-9_]/', '_', $ctype_slug_raw);
         if ($ctype_slug_safe === '') {
             $ctype_slug_safe = 'default';
@@ -260,7 +262,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
       <?php endif; ?>
 
 
-      <?php if ($module->content_type === 'pdf'): ?>
+      <?php if ($eff_type === 'pdf'): ?>
       <!-- ── PDF VIEWER ── -->
       <iframe class="mv-pdf-frame"
               id="mvPdfFrame"
@@ -268,7 +270,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
               title="<?= htmlspecialchars($module->title) ?>">
       </iframe>
 
-      <?php elseif ($module->content_type === 'video'): ?>
+      <?php elseif ($eff_type === 'video'): ?>
       <!-- ── VIDEO: YouTube (IFrame API + checkpoints) OR HTML5 ── -->
       <?php if ($youtube_video_id): ?>
       <div class="mv-video-wrap">
@@ -284,7 +286,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
       </div>
       <?php endif; ?>
 
-      <?php elseif ($module->content_type === 'slides'): ?>
+      <?php elseif ($eff_type === 'slides'): ?>
       <!-- ── SLIDES VIEWER ── -->
       <?php
         $ext = strtolower(pathinfo($content_path, PATHINFO_EXTENSION));
@@ -315,7 +317,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
         </div>
       <?php endif; ?>
 
-      <?php elseif ($module->content_type === 'audio'): ?>
+      <?php elseif ($eff_type === 'audio'): ?>
       <!-- ── AUDIO PLAYER ── -->
       <div class="mv-audio-wrap">
         <div class="mv-audio-icon">
@@ -331,21 +333,20 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
         </audio>
       </div>
 
-      <?php elseif ($module->content_type === 'zoom_recording'): ?>
-      <!-- ── ZOOM RECORDING (external link) ── -->
+      <?php elseif ($eff_type === 'meeting_link'): ?>
+      <!-- ── MEETING LINK (external) ── -->
       <div class="mv-zoom-wrap">
         <div class="mv-zoom-icon">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
         </div>
-        <div class="mv-zoom-title">Zoom Recording</div>
+        <div class="mv-zoom-title">Online meeting</div>
         <div class="mv-zoom-sub">
-          This module contains a Zoom recording. Click the button below to open it.<br>
-          After watching, come back and mark the module as complete.
+          Open the meeting link below. When you are done, return here and mark the module complete.
         </div>
-        <a href="<?= htmlspecialchars($content_url) ?>" target="_blank"
+        <a href="<?= htmlspecialchars($content_url) ?>" target="_blank" rel="noopener noreferrer"
            class="mv-zoom-btn" id="mvZoomLink">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-          Open Zoom Recording
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Open meeting link
         </a>
       </div>
       <?php endif; ?>
@@ -361,11 +362,11 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
             <span id="mvCompleteHint">
               <?php if ( ! $mcs_post_passed && ! empty($post_assessments)): ?>
                 Pass all post-assessments (sidebar), then finish content requirements to mark complete
-              <?php elseif ($module->content_type === 'pdf' || $module->content_type === 'slides'): ?>
+              <?php elseif ($eff_type === 'pdf' || $eff_type === 'slides'): ?>
                 Scroll to the end to complete
-              <?php elseif ($module->content_type === 'video' && $youtube_video_id && $video_checkpoint_gate): ?>
+              <?php elseif ($eff_type === 'video' && $youtube_video_id && $video_checkpoint_gate): ?>
                 Complete required video checkpoints; pass post-assessment (sidebar) to mark complete
-              <?php elseif ($module->content_type === 'video' || $module->content_type === 'audio'): ?>
+              <?php elseif ($eff_type === 'video' || $eff_type === 'audio'): ?>
                 Watch to the end to complete
               <?php else: ?>
                 Open the recording then mark complete

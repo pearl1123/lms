@@ -188,7 +188,8 @@ class Module_video_checkpoint_model extends CI_Model {
      */
     public function is_youtube_module($module)
     {
-        if ( ! $module || ($module->content_type ?? '') !== 'video') {
+        $this->load->helper('course_phase3');
+        if ( ! $module || course_phase3_effective_module_type($module->content_type ?? '', 'Module_video_checkpoint_model is_youtube mid=' . (int) ($module->id ?? 0)) !== 'video') {
             return false;
         }
 

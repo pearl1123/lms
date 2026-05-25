@@ -6,8 +6,33 @@ if (!C.modulePage) {
   return;
 }
 
+// Type contract: use only C.contentType, C.phpEffectiveContentType, C.moduleContentTypesResolved.
+// Do not infer module type from DOM dataset attributes.
+
 var IS_COMPLETED = !!C.isCompleted;
-var CONTENT_TYPE = C.contentType || '';
+// Module player: decisions use only server-provided contract fields (no DOM dataset types).
+var MODULE_TYPES_RESOLVED = (Array.isArray(C.moduleContentTypesResolved) && C.moduleContentTypesResolved.length)
+  ? C.moduleContentTypesResolved
+  : ['audio', 'meeting_link', 'pdf', 'slides', 'video'];
+var _ctRaw = String(C.contentType || '').toLowerCase().trim();
+var CONTENT_TYPE = MODULE_TYPES_RESOLVED.indexOf(_ctRaw) !== -1 ? _ctRaw : 'video';
+if (CONTENT_TYPE !== _ctRaw && _ctRaw !== '') {
+  if (typeof console !== 'undefined' && console.debug) {
+    console.debug('[Phase3] Module contentType outside resolved contract; using video', _ctRaw);
+  }
+}
+(function contractMismatchDebug() {
+  var phpRaw = String(C.phpEffectiveContentType != null ? C.phpEffectiveContentType : C.contentType || '').toLowerCase().trim();
+  var phpResolved = MODULE_TYPES_RESOLVED.indexOf(phpRaw) !== -1 ? phpRaw : 'video';
+  if (phpResolved !== CONTENT_TYPE && typeof console !== 'undefined' && console.debug) {
+    console.debug('[Phase3] Module type contract: PHP effective vs JS resolved mismatch', {
+      phpEffectiveContentType: C.phpEffectiveContentType,
+      contentType: C.contentType,
+      phpResolved: phpResolved,
+      jsResolved: CONTENT_TYPE,
+    });
+  }
+})();
 var MARK_URL = C.markUrl || '';
 var CSRF_NAME = C.csrfName || '';
 var CSRF_HASH = C.csrfHash || '';
@@ -1000,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // ── ZOOM: enable after clicking the link ────────────────────
-  else if (CONTENT_TYPE === 'zoom_recording') {
+  else if (CONTENT_TYPE === 'meeting_link') {
     var zoomBtn = document.getElementById('mvZoomLink');
     if (zoomBtn) {
       zoomBtn.addEventListener('click', function() {
