@@ -1,0 +1,59 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+if ( ! function_exists('report_export_log')) {
+    /**
+     * Append debug lines for report export troubleshooting (server + localhost).
+     *
+     * @param string               $message
+     * @param array<string,mixed>  $context
+     */
+    function report_export_log($message, array $context = [])
+    {
+        $line = date('Y-m-d H:i:s') . ' [' . ($message) . ']';
+        if ($context !== []) {
+            $line .= ' ' . json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        }
+        $line .= PHP_EOL;
+
+        $file = APPPATH . 'logs/report_export_debug.log';
+        @file_put_contents($file, $line, FILE_APPEND | LOCK_EX);
+    }
+}
+
+if ( ! function_exists('report_export_prepare_response')) {
+    /**
+     * Clear output buffers before streaming a download (prevents corrupt exports).
+     */
+    function report_export_prepare_response()
+    {
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+    }
+}
+
+if ( ! function_exists('report_export_dompdf_temp_dir')) {
+    /**
+     * Writable temp directory for DOMPDF (font/cache) on deployed hosts.
+     */
+    function report_export_dompdf_temp_dir()
+    {
+        $candidates = [
+            APPPATH . 'cache' . DIRECTORY_SEPARATOR . 'dompdf',
+            APPPATH . 'cache',
+            sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'lms_dompdf',
+        ];
+
+        foreach ($candidates as $dir) {
+            if ( ! is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            if (is_dir($dir) && is_writable($dir)) {
+                return $dir;
+            }
+        }
+
+        return sys_get_temp_dir();
+    }
+}

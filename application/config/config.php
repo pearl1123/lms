@@ -23,7 +23,25 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 | a PHP script and you can easily do that on your own.
 |
 */
-$config['base_url'] = 'http://localhost/lms/';
+/*
+| Auto-detect host + subdirectory so exports/links work on localhost and
+| deployed hosts (e.g. 192.168.3.161:8012) without editing this file.
+*/
+if (is_cli()) {
+    $config['base_url'] = 'http://localhost/lms/';
+} elseif ( ! empty($_SERVER['HTTP_HOST'])) {
+    $protocol = 'http';
+    if (( ! empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || ( ! empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')) {
+        $protocol = 'https';
+    }
+
+    $script   = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'));
+    $basePath = rtrim(str_replace(basename($script), '', $script), '/');
+    $config['base_url'] = $protocol . '://' . $_SERVER['HTTP_HOST'] . ($basePath !== '' ? $basePath . '/' : '/');
+} else {
+    $config['base_url'] = 'http://localhost/lms/';
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -36,6 +54,9 @@ $config['base_url'] = 'http://localhost/lms/';
 |
 */
 $config['index_page'] = '';
+if ( ! is_cli() && strpos((string) ($_SERVER['SCRIPT_NAME'] ?? ''), 'index.php') !== false) {
+    $config['index_page'] = 'index.php';
+}
 
 /*
 |--------------------------------------------------------------------------

@@ -32,11 +32,25 @@ class Pdf {
     {
         $this->_load_dompdf();
 
+        if ( ! function_exists('report_export_dompdf_temp_dir')) {
+            $helper = APPPATH . 'helpers/report_export_helper.php';
+            if (is_file($helper)) {
+                require_once $helper;
+            }
+        }
+
+        $tempDir = function_exists('report_export_dompdf_temp_dir')
+            ? report_export_dompdf_temp_dir()
+            : (APPPATH . 'cache');
+
         $this->options = new \Dompdf\Options();
         $this->options->set('isHtml5ParserEnabled', true);
         $this->options->set('isRemoteEnabled',      false);
         $this->options->set('defaultFont',          'DejaVu Sans');
         $this->options->set('chroot',               FCPATH);
+        $this->options->set('tempDir',              $tempDir);
+        $this->options->set('fontDir',              $tempDir);
+        $this->options->set('fontCache',            $tempDir);
 
         $this->dompdf = new \Dompdf\Dompdf($this->options);
     }

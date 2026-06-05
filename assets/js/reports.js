@@ -201,10 +201,14 @@
     function syncRangeInHref(link) {
       if (!rangeSel || !link.href) return;
       try {
-        var url = new URL(link.href, window.location.origin);
+        var url = new URL(link.href, window.location.href);
         url.searchParams.set('range', rangeSel.value || '30d');
-        link.href = url.pathname + url.search;
-      } catch (e) {}
+        link.href = url.toString();
+      } catch (e) {
+        var sep = link.href.indexOf('?') >= 0 ? '&' : '?';
+        link.href = link.href.replace(/([?&])range=[^&]*/g, '').replace(/\?$/, '')
+          + sep + 'range=' + encodeURIComponent(rangeSel.value || '30d');
+      }
     }
 
     links.forEach(function (link) {

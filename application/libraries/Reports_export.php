@@ -12,6 +12,7 @@ class Reports_export {
     public function __construct()
     {
         $this->CI =& get_instance();
+        $this->CI->load->helper('report_export');
     }
 
     /**
@@ -132,16 +133,55 @@ class Reports_export {
         $meta     = $bundle['meta'] ?? [];
         $filename = $this->build_filename('LMS_Report_Executive', 'summary', 'pdf');
 
+        report_export_prepare_response();
+
+        if ( ! is_file(FCPATH . 'vendor/autoload.php')
+            && ! is_file(APPPATH . 'third_party/dompdf/autoload.inc.php')) {
+            report_export_log('pdf_dompdf_missing', [
+                'vendor'  => FCPATH . 'vendor/autoload.php',
+                'manual'  => APPPATH . 'third_party/dompdf/autoload.inc.php',
+            ]);
+            show_error('PDF export library (DOMPDF) is not installed on this server.', 500);
+        }
+
         $this->CI->load->library('pdf');
         $html = $this->CI->load->view('reports/export_pdf', [
             'bundle' => $bundle,
             'meta'   => $meta,
         ], true);
 
+        if (trim($html) === '') {
+            report_export_log('pdf_empty_html', ['filename' => $filename]);
+            show_error('Report PDF template rendered empty content.', 500);
+        }
+
+        report_export_log('pdf_render_start', [
+            'filename'   => $filename,
+            'html_bytes' => strlen($html),
+            'temp_dir'   => function_exists('report_export_dompdf_temp_dir') ? report_export_dompdf_temp_dir() : '',
+        ]);
+
         $this->CI->pdf->load_html($html);
         $this->CI->pdf->set_paper('A4', 'portrait');
         $this->CI->pdf->render();
-        $this->CI->pdf->stream($filename, false);
+
+        $output = $this->CI->pdf->output();
+        if ($output === '' || strlen($output) < 500) {
+            report_export_log('pdf_render_empty', [
+                'filename' => $filename,
+                'bytes'    => strlen((string) $output),
+            ]);
+            show_error('Report PDF could not be generated on this server.', 500);
+        }
+
+        report_export_log('pdf_render_ok', [
+            'filename' => $filename,
+            'bytes'    => strlen($output),
+        ]);
+
+        $this->_send_headers('application/pdf', $filename);
+        echo $output;
+        exit;
     }
 
     /**
