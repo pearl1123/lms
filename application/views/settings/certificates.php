@@ -46,6 +46,21 @@
                value="<?= htmlspecialchars($c['cert_expiry_days'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
         <p class="stg-help">Optional platform default; individual courses can override in the course workspace.</p>
       </div>
+      <div class="stg-field">
+        <label class="stg-label" for="stg_cert_pdf_template">PDF template</label>
+        <select class="stg-input" id="stg_cert_pdf_template" name="settings[certificates][pdf_template]">
+          <?php
+          $this->load->helper('certificate_pdf');
+          $active_tpl = $c['pdf_template'] ?? 'official_lcp_certificate';
+          foreach (ka_cert_allowed_templates() as $slug => $label):
+          ?>
+          <option value="<?= htmlspecialchars($slug, ENT_QUOTES, 'UTF-8') ?>"<?= $active_tpl === $slug ? ' selected' : '' ?>>
+            <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+        <p class="stg-help">Default layout for newly generated certificate PDFs. Use Regenerate on an existing certificate to apply a template change.</p>
+      </div>
     </div>
   </div>
 </section>

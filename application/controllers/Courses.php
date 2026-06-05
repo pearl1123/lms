@@ -19,6 +19,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property Notification_model    $notification_model
  * @property Course_phase2_model   $course_phase2
  * @property Certificate_service   $certificate_service
+ * @property Course_completion_service $course_completion_service
  * @property Notification_service  $notification_service
  * @property Event_dispatcher      $event_dispatcher
  * @property CI_Output               $output   Loaded by CI_Controller (JSON helpers use $this->output)
@@ -58,6 +59,7 @@ class Courses extends CI_Controller {
         $this->load->model('User_model',   'user_model');
         $this->load->model('Course_model',             'course_model');
         $this->load->library('assessment_service');
+        $this->load->library('course_completion_service');
         $this->load->helper('url');
 
         // ── Auth guard ────────────────────────────────────────
@@ -529,9 +531,30 @@ class Courses extends CI_Controller {
             if ( ! $this->course_model->has_approved_enrollment($user->id, (int) $module->course_id)) {
                 redirect('courses/enrollment_pending/' . (int) $module->course_id);
             }
+
+            // Server-enforced pre-test gate for required pre-assessments.
+            $flow = $this->assessment_service->get_module_flow_state((int) $user->id, $mid);
+            $pre_required = ! empty($flow['pre_assessment']['required']);
+            $pre_passed = ! empty($flow['pre_assessment']['passed']);
+            if ($pre_required && ! $pre_passed) {
+                $pre_list = $this->course_model->get_assessments($mid, 'pre');
+                if (! empty($pre_list) && ! empty($pre_list[0]->id)) {
+                    $this->session->set_flashdata(
+                        'error',
+                        'You must pass the required pre-assessment before accessing this module content.'
+                    );
+                    redirect('assessments/take/' . (int) $pre_list[0]->id);
+                }
+            }
+
+            // Resume-learning signal: persist active module state once learner opens module page.
+            $this->course_model->start_module((int) $user->id, $mid);
+            log_message('debug', 'Resume tracking: start_module user=' . (int) $user->id . ' module=' . $mid);
         }
 
         $all_modules = $this->course_model->get_modules((int) $module->course_id, $user->id);
+        $course_state = $this->course_completion_service
+            ->evaluate_user_course_state((int) $user->id, (int) $module->course_id);
 
         $prev_module = null;
         $next_module = null;
@@ -554,6 +577,29 @@ class Courses extends CI_Controller {
 
         $my_progress = $this->course_model->get_module_progress($user->id, $mid);
 
+        $resume_server = $this->course_model->get_module_resume_state((int) $user->id, $mid);
+        $resume_from_state = (array) ($course_state['resume'] ?? []);
+        if ((int) ($resume_from_state['module_id'] ?? 0) === $mid && empty($resume_server['position'])) {
+            if (! empty($resume_from_state['timestamp_seconds'])) {
+                $resume_server = ['type' => 'video', 'position' => (float) $resume_from_state['timestamp_seconds'], 'meta' => []];
+            } elseif (! empty($resume_from_state['page_number'])) {
+                $resume_server = ['type' => 'pdf', 'position' => (float) $resume_from_state['page_number'], 'meta' => []];
+            } elseif (! empty($resume_from_state['slide_index'])) {
+                $resume_server = ['type' => 'slides', 'position' => (float) $resume_from_state['slide_index'], 'meta' => []];
+            }
+            log_message('debug', 'resume state mismatch reconciled user=' . (int) $user->id . ' course=' . (int) $module->course_id . ' module=' . $mid);
+        }
+        $resume_hints    = [];
+        if ($this->input->get('t') !== null && $this->input->get('t') !== '') {
+            $resume_hints = ['type' => 'video', 'position' => (float) $this->input->get('t')];
+        } elseif ($this->input->get('page') !== null && $this->input->get('page') !== '') {
+            $resume_hints = ['type' => 'pdf', 'position' => (float) $this->input->get('page')];
+        } elseif ($this->input->get('slide') !== null && $this->input->get('slide') !== '') {
+            $resume_hints = ['type' => 'slides', 'position' => (float) $this->input->get('slide')];
+        } elseif ($this->input->get('scroll') !== null && $this->input->get('scroll') !== '') {
+            $resume_hints = ['type' => 'scroll', 'position' => (float) $this->input->get('scroll')];
+        }
+
         $player = $this->assessment_service->course_module_play_context(
             (int) $user->id,
             (string) ($user->role ?? ''),
@@ -563,6 +609,8 @@ class Courses extends CI_Controller {
 
         $lms_rt = ka_lms_resolve_return_target($user, $this->input->get('return_url'));
 
+        $this->load->model('Learning_notes_model', 'learning_notes_model');
+
         $data = [
             'user'              => $user,
             'page_title'        => $module->title,
@@ -571,7 +619,9 @@ class Courses extends CI_Controller {
             'all_modules'       => $all_modules,
             'prev_module'       => $prev_module,
             'next_module'       => $next_module,
-            'my_progress'       => $my_progress,
+            'my_progress'          => $my_progress,
+            'resume_server_state'  => $resume_server,
+            'resume_query_hints'   => $resume_hints,
             'pre_blocked'       => $player['pre_blocked'],
             'pre_assessment'    => $player['pre_assessment'],
             'post_assessments'  => $player['post_assessments'],
@@ -587,6 +637,7 @@ class Courses extends CI_Controller {
             'can_start_post_assessment'       => $this->assessment_service->can_start_post_assessment((int) $user->id, $mid),
             'lms_return_target'               => $lms_rt,
             'lms_return_q'                    => ka_lms_return_q($lms_rt),
+            'ln_notes_ready'                  => $this->learning_notes_model->table_ready(),
             'breadcrumbs'       => [
                 ['label' => 'Dashboard',      'url' => 'dashboard'],
                 ['label' => 'Course Catalog', 'url' => 'courses'],
@@ -634,15 +685,18 @@ class Courses extends CI_Controller {
             }
         }
 
-        $uid     = (int) $user->id;
-        $modules = $this->course_model->get_modules($cid, $uid);
-        $agg     = $this->assessment_service->get_course_progress_aggregate($uid, $cid, $modules);
+        $uid = (int) $user->id;
+        $state = $this->course_completion_service->evaluate_user_course_state($uid, $cid);
+        $total = count((array) ($state['module_states'] ?? []));
+        $done  = count(array_filter((array) ($state['module_states'] ?? []), static function ($ms) {
+            return ! empty($ms['completed']);
+        }));
 
         return $this->_complete_module_json([
             'ok'                      => true,
-            'course_progress_percent' => (int) $agg['course_progress_percent'],
-            'completed_modules'       => (int) $agg['completed_modules'],
-            'total_modules'           => (int) $agg['total_modules'],
+            'course_progress_percent' => (int) ($state['progress_percent'] ?? 0),
+            'completed_modules'       => (int) $done,
+            'total_modules'           => (int) $total,
         ]);
     }
 
@@ -691,6 +745,53 @@ class Courses extends CI_Controller {
             'post_assessment_passed'    => ! empty($summary['post_assessment_passed']),
             'progress_percent'          => (int) $summary['progress_percent'],
             'can_start_post_assessment' => $this->assessment_service->can_start_post_assessment((int) $user->id, $mid),
+        ]);
+    }
+
+    /**
+     * POST JSON — persist module resume position (video/audio/pdf/slides).
+     * URL: index.php/courses/save_resume_state/{module_id}
+     *
+     * @param int|null $module_id
+     */
+    public function save_resume_state($module_id = null)
+    {
+        if (strtolower((string) $this->input->method()) !== 'post') {
+            show_404();
+        }
+
+        $user = $this->user;
+        $mid  = (int) $module_id;
+        if ($mid < 1) {
+            return $this->_complete_module_json(['ok' => false, 'message' => 'Invalid module.']);
+        }
+
+        $module = $this->course_model->get_module($mid);
+        if ( ! $module) {
+            return $this->_complete_module_json(['ok' => false, 'message' => 'Module not found.']);
+        }
+
+        if (in_array((string) ($user->role ?? ''), ['employee', 'student'], true)) {
+            if ( ! $this->course_model->has_approved_enrollment((int) $user->id, (int) $module->course_id)) {
+                return $this->_complete_module_json(['ok' => false, 'message' => 'Not enrolled.']);
+            }
+        }
+
+        $raw = $this->input->raw_input_stream;
+        $payload = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+        if ( ! is_array($payload)) {
+            $payload = [
+                'type'     => $this->input->post('type'),
+                'position' => $this->input->post('position'),
+                'meta'     => $this->input->post('meta'),
+            ];
+        }
+
+        $ok = $this->course_model->save_module_resume_state((int) $user->id, $mid, $payload);
+
+        return $this->_complete_module_json([
+            'ok'      => $ok,
+            'message' => $ok ? 'Resume saved.' : 'Could not save resume.',
         ]);
     }
 
@@ -750,10 +851,8 @@ class Courses extends CI_Controller {
 
         $this->assessment_service->invalidate_course_progress_aggregate_cache($uid, $course_id);
         usleep(100000);
-        $modules = $this->course_model->get_modules($course_id, $uid);
-
-        // Certificate gate: DB-only; pass prefetch so gate uses same snapshot as logs.
-        $course_completed = $this->assessment_service->is_course_fully_completed($uid, $course_id, $modules);
+        $state = $this->course_completion_service->evaluate_user_course_state($uid, $course_id);
+        $course_completed = ! empty($state['is_completed']);
 
         $incomplete_result = $this->db
             ->select('COUNT(*) AS c', false)
@@ -776,15 +875,13 @@ class Courses extends CI_Controller {
             'completed' => $course_completed,
         ]));
 
-        // UI / catalog only — same DB snapshot as completion gate (not used for certificate decision).
-        $agg_ui = $this->assessment_service->get_course_progress_aggregate($uid, $course_id, $modules);
-        $progress_pct = (int) ($agg_ui['course_progress_percent'] ?? 0);
+        $progress_pct = (int) ($state['progress_percent'] ?? 0);
 
         $certificate_url = null;
         $certificate = null;
         $certificate_generated_now = false;
 
-        if ($course_completed) {
+        if ($course_completed && ! empty($state['is_certificate_eligible'])) {
             log_message('debug', 'CERT CHECK PASS');
 
             $this->load->library('certificate_service');
@@ -822,6 +919,8 @@ class Courses extends CI_Controller {
                     'certificate_id' => (int) $certificate->id,
                 ]);
             }
+        } elseif ($course_completed && empty($state['is_certificate_eligible'])) {
+            log_message('debug', 'Certificate ineligible but previously eligible user=' . $uid . ' course=' . $course_id);
         }
 
         $payload = [

@@ -1,10 +1,10 @@
 <?php
 /**
- * KABAGA Academy — Flash Alert Partial
+ * kaBAGA Academy — Flash Alert Partial
  * Rendered by ka_merge_layout_vars() as $alerts_partial_html; content views echo that string.
  *
  * Expects $flash_messages (array key => message) from ka_merge_layout_vars().
- * Renders Tabler-style alerts (matching the KABAGA design system).
+ * Renders Tabler-style alerts (matching the kaBAGA Academy design system).
  * Also injects SweetAlert2 CDN once and exposes window.KA helpers for JS.
  */
 defined('BASEPATH') OR exit('No direct script access allowed');
@@ -15,7 +15,7 @@ $flash_messages = $flash_messages ?? [];
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <script src="<?= base_url('assets/js/swal_helper.js') ?>"></script>
 <style>
-  /* ── KABAGA-branded SweetAlert2 overrides ── */
+  /* ── kaBAGA-branded SweetAlert2 overrides ── */
   .swal2-popup {
     border-radius: 16px !important;
     font-family: var(--tblr-font-sans-serif, 'DM Sans', sans-serif) !important;
@@ -50,7 +50,7 @@ $flash_messages = $flash_messages ?? [];
   }
   .swal2-icon { margin-bottom: 1rem !important; }
 
-  /* ── Inline Tabler alerts (KABAGA colours) ── */
+  /* ── Inline Tabler alerts (kaBAGA colours) ── */
   .ka-alert {
     display: flex; align-items: flex-start; gap: .75rem;
     padding: .875rem 1.125rem; border-radius: 10px;
@@ -228,10 +228,12 @@ KA.enrollRetryConfirm = function(url) {
 };
 
 /**
- * KA.toast(type, message) — small non-blocking toast
+ * KA.toast(type, message, opts) — small non-blocking toast
  * type: 'success' | 'error' | 'warning' | 'info'
+ * opts.timer {number} optional ms (default 4200; libraries use 3000)
  */
-KA.toast = function(type, message) {
+KA.toast = function(type, message, opts) {
+  opts = opts || {};
   const iconColors = {
     success: '#22c55e',
     error:   '#dc2626',
@@ -243,7 +245,7 @@ KA.toast = function(type, message) {
     toast:             true,
     position:          'top-end',
     showConfirmButton: false,
-    timer:             4200,
+    timer:             opts.timer !== undefined ? opts.timer : 4200,
     timerProgressBar:  true,
     didOpen: function(toast) {
       toast.addEventListener('mouseenter', Swal.stopTimer);

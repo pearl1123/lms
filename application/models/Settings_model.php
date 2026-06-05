@@ -17,12 +17,12 @@ class Settings_model extends CI_Model {
     {
         return [
             'general' => [
-                'lms_name'           => 'KABAGA Academy',
+                'lms_name'           => 'kaBAGA Academy',
                 'organization_name'  => 'Lung Center of the Philippines',
                 'support_email'      => '',
                 'timezone'           => 'Asia/Manila',
                 'date_format'        => 'M j, Y',
-                'homepage_title'     => 'KABAGA Academy | Learning Management',
+                'homepage_title'     => 'kaBAGA Academy | Learning Management',
                 'maintenance_mode'   => '0',
             ],
             'branding' => [
@@ -46,6 +46,7 @@ class Settings_model extends CI_Model {
                 'default_signatory'    => '',
                 'default_signatory_title' => '',
                 'cert_expiry_days'     => '',
+                'pdf_template'         => 'premium_lcp_certificate',
             ],
             'notifications' => [
                 'smtp_host'       => '',
@@ -54,7 +55,7 @@ class Settings_model extends CI_Model {
                 'smtp_pass'       => '',
                 'smtp_encryption' => 'tls',
                 'from_email'      => '',
-                'from_name'       => 'KABAGA Academy',
+                'from_name'       => 'kaBAGA Academy',
                 'invite_email'    => '1',
                 'approval_email'  => '1',
                 'certificate_email' => '1',
@@ -74,6 +75,12 @@ class Settings_model extends CI_Model {
             ],
             'advanced' => [
                 'debug_mode' => '0',
+            ],
+            'etd' => [
+                'f2f_notice_html'            => '<p><strong>Venue:</strong> Report to the training room listed in your invitation.</p><p><strong>Dress code:</strong> Business casual unless otherwise stated.</p><p><strong>Attendance:</strong> Sign in at the registration desk. Late arrivals may not receive credit.</p>',
+                'managerial_category_slugs'  => 'management,managerial,leadership',
+                'retake_full_course_enabled' => '1',
+                'hyflex_label_map'           => 'hybrid:HyFlex',
             ],
         ];
     }

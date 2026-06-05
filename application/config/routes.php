@@ -51,6 +51,20 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 */
 $route['default_controller'] = 'Auth';
 $route['dashboard'] = 'Dashboard/index';
+$route['progress'] = 'Progress/index';
+$route['libraries'] = 'libraries_portal/index';
+$route['libraries/assessment_choices/get_by_question/(:num)'] = 'libraries/assessment_choices/get_by_question/$1';
+$route['my_progress'] = 'Progress/index';
+$route['my_profile'] = 'Profile/index';
+$route['my_notes'] = 'learning_notes/index';
+$route['learning_notes'] = 'learning_notes/index';
+$route['learning_notes/api_list'] = 'learning_notes/api_list';
+$route['learning_notes/api_save'] = 'learning_notes/api_save';
+$route['learning_notes/api_update/(:num)'] = 'learning_notes/api_update/$1';
+$route['learning_notes/api_delete/(:num)'] = 'learning_notes/api_delete/$1';
+$route['learning_notes/api_toggle_pin/(:num)'] = 'learning_notes/api_toggle_pin/$1';
+$route['learning_notes/api_toggle_favorite/(:num)'] = 'learning_notes/api_toggle_favorite/$1';
+$route['settings/profile'] = 'Profile/index';
 
 // Auth routes
 $route['auth/login'] = 'Auth/login';
@@ -59,6 +73,22 @@ $route['auth/logout'] = 'Auth/logout';
 $route['auth/forgot-password'] = 'Auth/forgot_password';
 $route['auth/forgot_password'] = 'Auth/forgot_password';
 $route['auth/forgot_password_process'] = 'Auth/forgot_password_process';
+$route['auth/register'] = 'Auth/register';
+$route['auth/register_process'] = 'Auth/register_process';
+$route['auth/check_employee'] = 'Auth/check_employee';
+
+// User management (Aauth access control)
+$route['users'] = 'Users/index';
+$route['users/access_data/(:num)'] = 'Users/access_data/$1';
+$route['users/group_add'] = 'Users/group_add';
+$route['users/group_remove'] = 'Users/group_remove';
+$route['users/permissions_save'] = 'Users/permissions_save';
+
+// Permission management (group matrix)
+$route['permissions'] = 'Permissions/index';
+$route['permissions/groups'] = 'Permissions/groups';
+$route['permissions/group_save'] = 'Permissions/group_save';
+$route['permissions/sync'] = 'Permissions/sync';
 
 // Course routes
 $route['courses'] = 'Courses/index';
@@ -67,6 +97,10 @@ $route['courses/enroll/(:num)'] = 'Courses/enroll/$1';
 $route['courses/accept_invitation/(:num)'] = 'courses/accept_invitation/$1';
 $route['courses/reject_invitation/(:num)'] = 'courses/reject_invitation/$1';
 $route['courses/complete_module/(:num)'] = 'courses/complete_module/$1';
+$route['courses/save_resume_state/(:num)'] = 'courses/save_resume_state/$1';
+$route['my_courses'] = 'My_courses/index';
+$route['my-learning'] = 'My_courses/index';
+$route['leaderboard'] = 'error_pages/under_construction';
 $route['manage_courses/modules/(:num)'] = 'manage_courses/modules/$1';
 $route['manage_courses/publish/(:num)'] = 'manage_courses/publish/$1';
 $route['manage_courses/unpublish/(:num)'] = 'manage_courses/unpublish/$1';
@@ -80,6 +114,7 @@ $route['courses/video_checkpoint_submit']  = 'assessments/video_checkpoint_submi
 // Legacy course player URLs (backward compatible)
 $route['courses/youtube_quizzes/(:num)']   = 'assessments/video_checkpoints/$1';
 $route['courses/youtube_quiz_submit']      = 'assessments/video_checkpoint_submit';
+$route['assessments/integrity_analytics'] = 'assessments/integrity_analytics';
 $route['assessments/migrate_youtube_checkpoints'] = 'assessments/migrate_video_checkpoints';
 $route['assessments/save_checkpoint_meta']         = 'assessments/save_checkpoint_meta';
 $route['assessments/ajax_auto_generate_checkpoints'] = 'assessments/ajax_auto_generate_checkpoints';

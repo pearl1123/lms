@@ -47,6 +47,9 @@ class Reports extends CI_Controller {
             redirect('dashboard');
         }
 
+        $this->load->helper('permission');
+        ka_gate_permission($user, 'reports.view', 'dashboard');
+
         $this->user = $user;
     }
 

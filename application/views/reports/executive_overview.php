@@ -14,6 +14,7 @@ $insights = $report['insights'] ?? [];
       ['label' => 'Certificates issued', 'value' => $kpis['certificates_total'] ?? 0, 'delta' => $deltas['certificates']['label'] ?? '', 'sub' => ($kpis['certificates_week'] ?? 0) . ' this week'],
       ['label' => 'Pending approvals', 'value' => $kpis['pending_approvals'] ?? 0, 'delta' => null, 'sub' => 'Enrollment queue'],
       ['label' => 'At-risk learners', 'value' => $kpis['at_risk_count'] ?? 0, 'delta' => null, 'sub' => 'Low progress enrollees'],
+      ['label' => 'Learning notes', 'value' => $kpis['learning_notes_total'] ?? 0, 'delta' => null, 'sub' => 'Learner-captured insights'],
     ];
     foreach ($cards as $card):
     ?>

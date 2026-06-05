@@ -1,0 +1,196 @@
+/**
+ * Registration page — cosmetic overrides only (scoped to .wmis-register-page).
+ * Does not change layout structure; fixes overflow clipping + polishes form UI.
+ */
+
+/* Fix: login page overflow:hidden clipped the tall register form (submit below fold). */
+.wmis-register-page {
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  min-height: 100vh;
+}
+
+.wmis-register-page .page-center {
+  min-height: auto;
+  padding-top: 1.25rem;
+  padding-bottom: 2rem;
+  align-items: flex-start;
+}
+
+.wmis-register-page .page {
+  overflow: visible;
+}
+
+/* Wider card so fields breathe; still centered single-column layout. */
+.wmis-register-page .wmis-register-card {
+  max-width: 440px;
+  width: 100%;
+  border-radius: 14px;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 10px 32px rgba(15, 23, 42, 0.1);
+  border-color: #c8dcfb;
+}
+
+.wmis-register-page .wmis-register-card .card-body {
+  padding: 1.35rem 1.5rem 1.5rem;
+}
+
+/* Form spacing & inputs */
+.wmis-register-page .form-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.35rem;
+}
+
+.wmis-register-page .form-control,
+.wmis-register-page .form-control-plaintext {
+  font-size: 0.9375rem;
+  border-radius: 9px;
+  border-color: #cbd5e1;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.wmis-register-page .form-control:focus {
+  border-color: #2b6cb0;
+  box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.18);
+}
+
+.wmis-register-page .mb-2,
+.wmis-register-page .mb-3 {
+  margin-bottom: 0.95rem !important;
+}
+
+.wmis-register-page .form-control-plaintext.bg-light {
+  background: #f8fafc !important;
+  min-height: 2.5rem;
+}
+
+.wmis-register-page #employee_status {
+  font-size: 0.8125rem;
+  min-height: 1.2rem;
+}
+
+/* Use global .btn-primary from custom.css (same as login Sign in). */
+.wmis-register-page #checkEmployeeBtn {
+  font-size: 0.8rem;
+  border-radius: 0 12px 12px 0;
+}
+
+.wmis-register-page .input-group .form-control {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Submit — visibility only; colors from .btn-primary */
+.wmis-register-page .wmis-register-submit {
+  display: block !important;
+  visibility: visible !important;
+  position: relative;
+  z-index: 2;
+  margin-top: 0.25rem;
+}
+
+.wmis-register-page .wmis-register-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 575.98px) {
+  .wmis-register-page .input-group {
+    flex-direction: column;
+  }
+
+  .wmis-register-page .input-group .form-control {
+    border-radius: 9px !important;
+  }
+
+  .wmis-register-page #checkEmployeeBtn {
+    width: 100%;
+    margin-top: 0.5rem;
+    border-radius: 12px !important;
+  }
+}
+
+:root[data-theme="dark"] .wmis-register-page .wmis-register-card {
+  border-color: #334155;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme="dark"] .wmis-register-page .form-control-plaintext.bg-light {
+  background: rgba(15, 23, 42, 0.5) !important;
+}
+
+/* Forgot password — match login/register auth shell */
+.wmis-forgot-page .wmis-forgot-card {
+  max-width: 420px;
+  width: 100%;
+  border-radius: 14px;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 10px 32px rgba(15, 23, 42, 0.1);
+  border-color: #c8dcfb;
+}
+
+.wmis-forgot-page .wmis-forgot-card .card-body {
+  padding: 1.35rem 1.5rem 1.5rem;
+}
+
+.wmis-forgot-page .wmis-forgot-helper {
+  max-width: 32ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.wmis-forgot-page .form-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.35rem;
+}
+
+.wmis-forgot-page .form-control {
+  font-size: 0.9375rem;
+  border-radius: 10px;
+  border-color: #cbd5e1;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.wmis-forgot-page .form-control:focus {
+  border-color: #2b6cb0;
+  box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.18);
+}
+
+.wmis-forgot-page .wmis-forgot-submit {
+  margin-top: 0.25rem;
+  padding: 0.8rem 1rem;
+  font-weight: 700;
+  border-radius: 10px;
+}
+
+.wmis-forgot-page .wmis-forgot-submit.is-loading {
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.wmis-forgot-page .wmis-forgot-submit .btn-spinner {
+  display: inline-block;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: ka-auth-spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes ka-auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+:root[data-theme="dark"] .wmis-forgot-page .wmis-forgot-card {
+  border-color: #334155;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+}

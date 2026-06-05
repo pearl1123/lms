@@ -19,13 +19,13 @@ $page_title       = 'Page not found';
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title><?= htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8') ?> — KABAGA Academy</title>
+  <title><?= htmlspecialchars($page_title, ENT_QUOTES, 'UTF-8') ?> — kaBAGA Academy</title>
   <link rel="stylesheet" href="<?= function_exists('base_url') ? base_url('assets/css/ka-saas-tokens.css') : '' ?>"/>
   <link rel="stylesheet" href="<?= function_exists('base_url') ? base_url('assets/css/error_fallback.css') : '' ?>"/>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="ef-standalone-body">
-<?php include dirname(__DIR__) . DIRECTORY_SEPARATOR . '_fallback_card.php'; ?>
+<?php include dirname(__DIR__) . DIRECTORY_SEPARATOR . 'fallback_card.php'; ?>
 <p class="ef-standalone-foot">
   <a href="<?= html_escape($ef_login_url) ?>">Sign in</a>
 </p>

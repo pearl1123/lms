@@ -427,6 +427,17 @@
     function onEditAssessmentTypeChange() {
       var box = document.getElementById('editCheckpointFields');
       if (box) box.classList.toggle('visible', isCheckpointMode());
+      var randWrap = document.getElementById('editRandomizeField');
+      var randCb = document.getElementById('editRandomizeQuestions');
+      if (randWrap) {
+        randWrap.style.display = isCheckpointMode() ? 'none' : '';
+      }
+      if (randCb) {
+        randCb.disabled = isCheckpointMode();
+        if (isCheckpointMode()) {
+          randCb.checked = false;
+        }
+      }
     }
 
     function syncCheckpointQuestionUi() {

@@ -25,7 +25,7 @@ $thumb_gradients = [
 <?php echo $alerts_partial_html ?? ''; ?>
 
 <!-- ============================================================
-     KABAGA ACADEMY — My Courses (Admin)
+     kaBAGA Academy — My Courses (Admin)
 ============================================================ -->
 <style>
 /* ── Page header bar ── */
@@ -297,7 +297,7 @@ a.mc-kpi--clickable:focus-visible {
 <div class="mc-topbar animate__animated animate__fadeIn animate__fast">
   <div class="mc-topbar-left">
     <h2>Course Management</h2>
-    <p>Manage, publish and archive all courses across KABAGA Academy</p>
+    <p>Manage, publish and archive all courses across kaBAGA Academy</p>
   </div>
   <div class="mc-topbar-right">
     <div class="mc-view-toggle" id="mcViewToggle">

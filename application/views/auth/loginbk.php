@@ -7,7 +7,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
-  <title>KABAGA Academy</title>
+  <title>kaBAGA Academy</title>
 
   <!-- Tabler CSS -->
   <link href="<?= base_url('assets/tabler/css/tabler.min.css'); ?>" rel="stylesheet"/>
@@ -99,7 +99,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
       <!-- LOGO -->
       <a href="<?= base_url(''); ?>" class="navbar-brand navbar-brand-autodark login-logo d-flex justify-content-center">
-        <img src="<?= base_url('assets/tabler/img/logo.png'); ?>" height="160" alt="KABAGA Academy Logo">
+        <img src="<?= base_url('assets/tabler/img/logo.png'); ?>" height="160" alt="kaBAGA Academy Logo">
       </a>
 
       <!-- FLASH & VALIDATION MESSAGES -->
@@ -166,7 +166,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
   <div class="col-12 col-lg-6 col-xl-8 d-none d-lg-flex right-panel justify-content-center align-items-center min-vh-100"
        style="background-image: url('<?= base_url('assets/tabler/img/KA_bg.jpg'); ?>');">
     <div class="right-panel-content">
-      <h2>Welcome to KABAGA Academy</h2>
+      <h2>Welcome to kaBAGA Academy</h2>
       <p>Empowering learners with the skills of tomorrow.</p>
     </div>
   </div>

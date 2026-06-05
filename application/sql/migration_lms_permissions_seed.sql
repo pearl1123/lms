@@ -1,0 +1,12 @@
+-- LMS Permission Engine seed (reference)
+-- Prefer PHP sync: visit /users or /permissions/groups (auto-sync when empty)
+-- or POST /permissions/sync as admin.
+--
+-- Tables populated (missing rows only):
+--   aauth_perm_module_main, aauth_perm_module_sub, aauth_perms
+--   aauth_groups, aauth_perm_to_group
+--
+-- Manifest: application/config/lms_permissions.php
+-- Service:  application/libraries/Permission_seed_service.php
+--
+-- Also run if not applied: application/sql/migration_user_access_audit.sql

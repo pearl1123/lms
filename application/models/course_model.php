@@ -42,6 +42,7 @@ class Course_model extends CI_Model {
     {
         parent::__construct();
         $this->load->database();
+        $this->load->library('course_completion_service');
     }
 
     // =========================================================
@@ -446,6 +447,7 @@ class Course_model extends CI_Model {
                 return false;
             }
             if ($st === 'rejected') {
+                $this->reset_course_learning_state((int) $user_id, (int) $course_id);
                 $data = [
                     'status'       => $target_status,
                     'enrolled_at'  => date('Y-m-d H:i:s'),
@@ -543,21 +545,14 @@ class Course_model extends CI_Model {
             ? $result->result()
             : [];
 
-        $total_modules = $this->count_modules($course_id);
-        if ( ! class_exists('Assessment_service', false)) {
-            require_once APPPATH . 'libraries/Assessment_service.php';
-        }
-        $assessment_service = new Assessment_service();
-
         foreach ($students as $s) {
             $sid = (int) $s->id;
-            if ($total_modules < 1 || $sid < 1) {
+            if ($sid < 1) {
                 $s->progress_pct = 0;
                 continue;
             }
-            $modules         = $this->get_modules((int) $course_id, $sid);
-            $agg             = $assessment_service->get_course_progress_aggregate($sid, (int) $course_id, $modules);
-            $s->progress_pct = (int) $agg['course_progress_percent'];
+            $state = $this->course_completion_service->evaluate_user_course_state($sid, (int) $course_id);
+            $s->progress_pct = (int) ($state['progress_percent'] ?? 0);
         }
 
         return $students;
@@ -747,6 +742,168 @@ class Course_model extends CI_Model {
         $data['user_id']   = (int) $user_id;
         $data['module_id'] = (int) $module_id;
         return (bool) $this->db->insert('module_progress', $data);
+    }
+
+    /**
+     * Reset module progress for full-course retake (non-managerial post-assessment failure).
+     *
+     * @param int $user_id
+     * @param int $module_id
+     * @return bool
+     */
+    public function reset_module_progress_for_retake($user_id, $module_id)
+    {
+        $existing = $this->get_module_progress($user_id, $module_id);
+        if ( ! $existing) {
+            return true;
+        }
+
+        log_message('debug', 'ETD retake: reset module_progress user=' . (int) $user_id . ' module=' . (int) $module_id);
+
+        return (bool) $this->db
+            ->where('user_id', (int) $user_id)
+            ->where('module_id', (int) $module_id)
+            ->update('module_progress', [
+                'status'       => 'not_started',
+                'completed_at' => null,
+                'score'        => null,
+            ]);
+    }
+
+    /**
+     * Reset a learner's saved state for a course (used on rejected->resubmitted and stale approvals).
+     *
+     * @param int $user_id
+     * @param int $course_id
+     * @return bool
+     */
+    public function reset_course_learning_state($user_id, $course_id)
+    {
+        $uid = (int) $user_id;
+        $cid = (int) $course_id;
+        if ($uid < 1 || $cid < 1) {
+            return false;
+        }
+
+        log_message('debug', 'Enrollment reset learning state user=' . $uid . ' course=' . $cid);
+
+        $module_ids = $this->db
+            ->select('id')
+            ->from('course_modules')
+            ->where('course_id', $cid)
+            ->where('archived', 0)
+            ->get()
+            ->result_array();
+        $module_ids = array_map('intval', array_column($module_ids, 'id'));
+
+        if ( ! empty($module_ids)) {
+            $this->db
+                ->where('user_id', $uid)
+                ->where_in('module_id', $module_ids)
+                ->delete('module_progress');
+
+            // Clean checkpoint and assessment answers for a true fresh start.
+            $assessment_ids = $this->db
+                ->select('id')
+                ->from('lib_assessments')
+                ->where_in('module_id', $module_ids)
+                ->where('archived', 0)
+                ->get()
+                ->result_array();
+            $assessment_ids = array_map('intval', array_column($assessment_ids, 'id'));
+
+            if ( ! empty($assessment_ids)) {
+                $this->db
+                    ->where('user_id', $uid)
+                    ->where_in('assessment_id', $assessment_ids)
+                    ->delete('assessment_answers');
+            }
+        }
+
+        if ($this->db->table_exists('lib_certificates')) {
+            $this->db
+                ->where('user_id', $uid)
+                ->where('course_id', $cid)
+                ->where('archived', 0)
+                ->update('lib_certificates', [
+                    'archived'           => 1,
+                    'date_last_modified' => date('Y-m-d H:i:s'),
+                ]);
+            log_message('debug', 'Enrollment reset: archived certificates user=' . $uid . ' course=' . $cid);
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether module_progress has resume_state column (migration_state_resume.sql).
+     */
+    public function module_progress_has_resume_column()
+    {
+        return $this->db->field_exists('resume_state', 'module_progress');
+    }
+
+    /**
+     * @param int $user_id
+     * @param int $module_id
+     * @return array{type:string,position:float,meta:array}
+     */
+    public function get_module_resume_state($user_id, $module_id)
+    {
+        if ( ! $this->module_progress_has_resume_column()) {
+            return ka_resume_normalize_state(null);
+        }
+
+        $row = $this->get_module_progress($user_id, $module_id);
+        if ( ! $row || empty($row->resume_state)) {
+            return ka_resume_normalize_state(null);
+        }
+
+        return ka_resume_normalize_state($row->resume_state);
+    }
+
+    /**
+     * Persist resume JSON for a module (upserts in_progress row).
+     *
+     * @param int   $user_id
+     * @param int   $module_id
+     * @param array $state
+     * @return bool
+     */
+    public function save_module_resume_state($user_id, $module_id, array $state)
+    {
+        if ( ! $this->module_progress_has_resume_column()) {
+            return false;
+        }
+
+        $uid = (int) $user_id;
+        $mid = (int) $module_id;
+        if ($uid < 1 || $mid < 1) {
+            return false;
+        }
+
+        $normalized = ka_resume_normalize_state($state);
+        if ($normalized['type'] === '' && $normalized['position'] <= 0) {
+            return false;
+        }
+
+        $this->start_module($uid, $mid);
+        $json = json_encode($normalized);
+
+        $ok = (bool) $this->db
+            ->where('user_id', $uid)
+            ->where('module_id', $mid)
+            ->update('module_progress', ['resume_state' => $json]);
+
+        if ($ok) {
+            log_message(
+                'debug',
+                'Resume saved user=' . $uid . ' module=' . $mid . ' type=' . $normalized['type']
+                . ' pos=' . $normalized['position']
+            );
+        }
+
+        return $ok;
     }
 
     /**
@@ -996,21 +1153,12 @@ class Course_model extends CI_Model {
             return 0;
         }
 
-        if ( ! class_exists('Assessment_service', false)) {
-            require_once APPPATH . 'services/Assessment_service.php';
-        }
-        $service = new Assessment_service();
-
         $sum = 0;
         $cnt = 0;
         foreach ($enrollments->result() as $enrollment) {
             $uid     = (int) $enrollment->user_id;
-            $modules = $this->get_modules($cid, $uid);
-            if (empty($modules)) {
-                continue;
-            }
-            $agg = $service->get_course_progress_aggregate($uid, $cid, $modules);
-            $sum += (int) ($agg['course_progress_percent'] ?? 0);
+            $state = $this->course_completion_service->evaluate_user_course_state($uid, $cid);
+            $sum += (int) ($state['progress_percent'] ?? 0);
             $cnt++;
         }
 
@@ -1036,22 +1184,16 @@ class Course_model extends CI_Model {
             return [];
         }
 
-        if ( ! class_exists('Assessment_service', false)) {
-            require_once APPPATH . 'libraries/Assessment_service.php';
-        }
-        $assessment_service = new Assessment_service();
-
         $courses = [];
         foreach ($enrolled_ids as $course_id) {
             $cid = (int) $course_id;
-            $modules = $this->get_modules($cid, $uid);
-            $agg     = $assessment_service->get_course_progress_aggregate($uid, $cid, $modules);
-            $pct     = (int) $agg['course_progress_percent'];
+            $state = $this->course_completion_service->evaluate_user_course_state($uid, $cid);
+            $pct = (int) ($state['progress_percent'] ?? 0);
             if ($pct > 0 && $pct < 100) {
                 $course = $this->get_course($cid);
                 if ($course) {
                     $course->progress_pct = $pct;
-                    $course->module_count = (int) $agg['total_modules'];
+                    $course->module_count = count((array) ($state['module_states'] ?? []));
                     $courses[]            = $course;
                 }
             }
@@ -1306,7 +1448,7 @@ class Course_model extends CI_Model {
         $CI =& get_instance();
         $CI->load->model('Course_phase2_model', 'course_phase2');
 
-        return $CI->course_phase2->user_manages_course((int) $user_id, (int) $course_id);
+        return $CI->{'course_phase2'}->user_manages_course((int) $user_id, (int) $course_id);
     }
 
     // =========================================================

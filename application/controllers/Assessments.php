@@ -247,6 +247,51 @@ class Assessments extends CI_Controller {
         $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
+    /**
+     * GET assessments/integrity_analytics — pre/post integrity dashboard (managers).
+     */
+    public function integrity_analytics()
+    {
+        $this->_require_manager();
+
+        $filter_id = (int) $this->input->get('assessment_id');
+        $ids       = $filter_id > 0 ? [$filter_id] : [];
+
+        $this->load->model('Assessment_integrity_model', 'assessment_integrity_model');
+        $this->load->library('assessment_integrity_service');
+
+        $option_rows = $this->assessment_integrity_model->get_assessment_overview_rows([]);
+        $assessment_options = [];
+        foreach ($option_rows as $row) {
+            $assessment_options[(int) $row->id] = (string) ($row->title ?? 'Assessment #' . (int) $row->id);
+        }
+
+        if ($filter_id > 0) {
+            $a = $this->assessment_model->get_assessment($filter_id);
+            if ($a) {
+                $this->_check_ownership($a);
+            }
+        }
+
+        $dashboard = $this->assessment_integrity_service->build_dashboard($ids);
+
+        $data = [
+            'user'               => $this->user,
+            'page_title'         => 'Integrity Analytics',
+            'dashboard'          => $dashboard,
+            'filter_assessment'  => $filter_id,
+            'assessment_options' => $assessment_options,
+            'breadcrumbs'        => [
+                ['label' => 'Dashboard',   'url' => 'dashboard'],
+                ['label' => 'Assessments', 'url' => 'assessments'],
+                ['label' => 'Integrity Analytics'],
+            ],
+            'view' => 'assessments/integrity_analytics',
+        ];
+
+        $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
+    }
+
     // =========================================================
     // take($id) — Employee takes an assessment
     // =========================================================
@@ -270,7 +315,6 @@ class Assessments extends CI_Controller {
             redirect('courses/view/' . $assessment->course_id);
         }
 
-        // Already answered — redirect to results
         if ($this->assessment_model->has_answered($user->id, $id)) {
             redirect('assessments/result/' . $id);
         }
@@ -289,7 +333,18 @@ class Assessments extends CI_Controller {
             redirect('courses/module/' . (int) $assessment->module_id);
         }
 
-        $questions = $this->assessment_model->get_questions($id);
+        $enrollment_id = null;
+        $enrollment    = $this->course_model->get_enrollment((int) $user->id, (int) $assessment->course_id);
+        if ($enrollment) {
+            $enrollment_id = (int) $enrollment->id;
+        }
+
+        $questions = $this->assessment_model->get_questions_for_attempt(
+            $id,
+            $assessment,
+            (int) $user->id,
+            $enrollment_id
+        );
         if (empty($questions)) {
             log_message('debug', 'ASSESSMENT ID: ' . $id);
             log_message('debug', 'QUESTIONS COUNT: 0');
@@ -324,6 +379,7 @@ class Assessments extends CI_Controller {
             'page_title'  => 'Take Assessment — ' . $assessment->title,
             'assessment'  => $assessment,
             'questions'   => $questions,
+            'randomized'  => etd_assessment_randomize_enabled($assessment),
             'breadcrumbs' => [
                 ['label' => 'Dashboard',   'url'  => 'dashboard'],
                 ['label' => 'Assessments', 'url'  => 'assessments'],
@@ -333,6 +389,56 @@ class Assessments extends CI_Controller {
         ];
 
         $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
+    }
+
+    /**
+     * GET — retake post/pre assessment (category-aware: full module reset vs. assessment only).
+     */
+    public function retake($id = null)
+    {
+        if ( ! $id || $this->user->role !== 'employee') {
+            redirect('assessments');
+        }
+
+        $id         = (int) $id;
+        $assessment = $this->assessment_model->get_assessment($id);
+        if ( ! $assessment) {
+            show_404();
+        }
+        $this->_reject_checkpoint_assessment($assessment);
+
+        if ( ! $this->assessment_model->has_answered($this->user->id, $id)) {
+            redirect('assessments/take/' . $id);
+        }
+
+        $summary = $this->assessment_model->get_user_assessment_result_summary($this->user->id, $id);
+        if ( ! empty($summary['passed'])) {
+            $this->session->set_flashdata('info', 'You already passed this assessment.');
+            redirect('assessments/result/' . $id);
+        }
+
+        $course = $this->course_model->get_course((int) $assessment->course_id);
+        $full   = etd_retake_requires_full_course($course);
+
+        log_message('debug', 'ETD retake: user=' . (int) $this->user->id . ' assessment=' . $id . ' full_course=' . ($full ? '1' : '0'));
+
+        if ($full && (int) ($assessment->module_id ?? 0) > 0) {
+            $this->course_model->reset_module_progress_for_retake((int) $this->user->id, (int) $assessment->module_id);
+            $this->assessment_model->clear_user_assessment_attempt($this->user->id, $id);
+            $pre_list = $this->assessment_model->get_assessments((int) $assessment->module_id, 'pre');
+            foreach ($pre_list as $pre) {
+                $this->assessment_model->clear_user_assessment_attempt($this->user->id, (int) $pre->id);
+            }
+            $this->session->set_flashdata(
+                'warning',
+                'Your module progress was reset. Please complete all lessons and checkpoints before retaking the post-assessment.'
+            );
+            redirect('courses/module/' . (int) $assessment->module_id);
+        }
+
+        $this->assessment_model->clear_user_assessment_attempt($this->user->id, $id);
+        $this->session->set_flashdata('success', 'You may retake this assessment now.');
+        redirect('assessments/take/' . $id);
     }
 
     // =========================================================
@@ -364,6 +470,8 @@ class Assessments extends CI_Controller {
 
         $result = $this->assessment_model
             ->submit_answers($this->user->id, $id, $answers);
+
+        $this->assessment_model->finalize_attempt_order_on_submit((int) $this->user->id, $id);
 
         $msg = 'Assessment submitted successfully! '
              . $result['auto_scored'] . ' question(s) auto-scored.';
@@ -436,6 +544,12 @@ class Assessments extends CI_Controller {
         $user_answers= $this->assessment_model->get_user_answers($user->id, $id);
         $result      = $this->assessment_model->get_result($user->id, $id);
 
+        $course      = $this->course_model->get_course((int) $assessment->course_id);
+        $summary     = $this->assessment_model->get_user_assessment_result_summary($user->id, $id);
+        $can_retake  = in_array($assessment->type ?? '', ['pre', 'post'], true)
+            && empty($summary['passed'])
+            && empty($summary['pending_essays']);
+
         $data = [
             'user'         => $user,
             'page_title'   => 'Assessment Result — ' . $assessment->title,
@@ -443,6 +557,9 @@ class Assessments extends CI_Controller {
             'questions'    => $questions,
             'user_answers' => $user_answers,
             'result'       => $result,
+            'can_retake'   => $can_retake,
+            'retake_full_course' => $can_retake && etd_retake_requires_full_course($course),
+            'retake_url'   => base_url('index.php/assessments/retake/' . $id),
             'breadcrumbs'  => [
                 ['label' => 'Dashboard',   'url' => 'dashboard'],
                 ['label' => 'Assessments', 'url' => 'assessments'],
@@ -653,6 +770,11 @@ class Assessments extends CI_Controller {
                     ];
                     $skip_insert = false;
 
+                    if (in_array($post_type, ['pre', 'post'], true)
+                        && $this->assessment_model->assessments_randomize_column_ready()) {
+                        $payload['randomize_questions'] = $this->input->post('randomize_questions') ? 1 : 0;
+                    }
+
                     if ($post_type === 'checkpoint') {
                         $vd = (int) $this->input->post('video_duration_seconds');
                         if ( ! $checkpoint_auto) {
@@ -821,6 +943,11 @@ class Assessments extends CI_Controller {
                         'modified_by' => $this->user->id,
                         'module_id'   => $this->input->post('module_id'),
                     ];
+                    if (in_array($post_type, ['pre', 'post'], true)
+                        && $this->assessment_model->assessments_randomize_column_ready()) {
+                        $upd['randomize_questions'] = $this->input->post('randomize_questions') ? 1 : 0;
+                    }
+
                     if ($post_type === 'checkpoint') {
                         $vd = (int) $this->input->post('video_duration_seconds');
                         $ts_val = filter_var(
@@ -888,6 +1015,7 @@ class Assessments extends CI_Controller {
             'questions'   => $questions,
             'modules'     => $modules,
             'checkpoint_schema_ready' => $this->assessment_model->assessments_checkpoint_schema_ready(),
+            'randomize_column_ready'  => $this->assessment_model->assessments_randomize_column_ready(),
             'checkpoint_workspace'    => $checkpoint_workspace,
             'use_checkpoint_workspace'=> $use_workspace,
             'breadcrumbs' => [

@@ -74,7 +74,7 @@ if ($is_admin && $posted_owner > 0) {
               <option value="">-- Select --</option>
               <?php foreach ($modalities as $m): ?>
               <option value="<?= (int) $m->modality_id ?>" <?= set_select('modality_id', $m->modality_id) ?>>
-                <?= htmlspecialchars($m->modality_desc, ENT_QUOTES, 'UTF-8') ?>
+                <?= htmlspecialchars(etd_modality_display_label($m->modality_desc ?? ''), ENT_QUOTES, 'UTF-8') ?>
               </option>
               <?php endforeach; ?>
             </select>
@@ -82,13 +82,13 @@ if ($is_admin && $posted_owner > 0) {
           </div>
 
           <?php if ($phase2_ready): ?>
-          <?php $is_edit_form = false; include APPPATH . 'views/manage_courses/_phase2_init.php'; ?>
-          <?php $this->load->view('manage_courses/_phase2_assets_links', get_defined_vars()); ?>
+          <?php $is_edit_form = false; include APPPATH . 'views/manage_courses/phase2_init.php'; ?>
+          <?php $this->load->view('manage_courses/phase2_assets_links', get_defined_vars()); ?>
           <div class="crs-p2-stack crs-create-quick-p2">
-            <?php $this->load->view('manage_courses/_phase2_alerts_block', get_defined_vars()); ?>
-            <?php $this->load->view('manage_courses/_phase2_block_categories', get_defined_vars()); ?>
+            <?php $this->load->view('manage_courses/phase2_alerts_block', get_defined_vars()); ?>
+            <?php $this->load->view('manage_courses/phase2_block_categories', get_defined_vars()); ?>
           </div>
-          <?php $this->load->view('manage_courses/_phase2_scripts', get_defined_vars()); ?>
+          <?php $this->load->view('manage_courses/phase2_scripts', get_defined_vars()); ?>
           <?php if (form_error('category_id')): ?><div class="crs-error"><?= form_error('category_id') ?></div><?php endif; ?>
           <?php else: ?>
           <div class="crs-form-group">

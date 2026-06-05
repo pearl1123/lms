@@ -4,7 +4,7 @@ $year = date('Y');
 ?>
 
 <!-- ============================================================
-     KABAGA ACADEMY — Footer
+     kaBAGA Academy — Footer
      Premium LMS Layout — Lung Center of the Philippines
 ============================================================ -->
 
@@ -82,10 +82,10 @@ $year = date('Y');
     <!-- Brand -->
     <a href="<?= base_url('dashboard'); ?>" class="ka-footer-brand">
       <div class="ka-footer-logo">
-        <img src="<?= base_url('assets/tabler/img/logo.png'); ?>" alt="KABAGA Academy">
+        <img src="<?= base_url('assets/tabler/img/logo.png'); ?>" alt="kaBAGA Academy">
       </div>
       <div class="ka-footer-brand-text">
-        <span class="ka-footer-brand-name">KABAGA Academy</span>
+        <span class="ka-footer-brand-name">kaBAGA Academy</span>
         <span class="ka-footer-brand-org">Lung Center of the Philippines</span>
       </div>
     </a>

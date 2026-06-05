@@ -202,7 +202,7 @@ $coming_soon_types = ['slides', 'audio'];
 
   <!-- ── LEFT COLUMN ── -->
   <div>
-    <?php $this->load->view('manage_courses/_edit_course_workspace', get_defined_vars()); ?>
+    <?php $this->load->view('manage_courses/edit_course_workspace', get_defined_vars()); ?>
   </div>
 
   <!-- ── RIGHT SIDEBAR ── -->

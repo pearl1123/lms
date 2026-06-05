@@ -315,8 +315,34 @@ class Notification_service {
         );
     }
 
-    // Reserved extension points (future channels)
-    // public function send_email(...) {}
+    /**
+     * Optional SMTP email (Settings → Notifications). Does not replace in-app notifications.
+     *
+     * @return array{ok:bool,message:string}
+     */
+    public function send_email($to, $subject, $html_body)
+    {
+        $this->CI->load->library('Email_service');
+        if ( ! isset($this->CI->email_service)) {
+            return ['ok' => false, 'message' => 'Email service unavailable.'];
+        }
+
+        return $this->CI->email_service->send($to, $subject, $html_body);
+    }
+
+    /**
+     * @param string $template_key invite|approval|certificate|reminder|reassessment
+     */
+    public function send_email_template($to, $template_key, array $vars = [])
+    {
+        $this->CI->load->library('Email_service');
+        if ( ! isset($this->CI->email_service)) {
+            return ['ok' => false, 'message' => 'Email service unavailable.'];
+        }
+
+        return $this->CI->email_service->send_template($to, $template_key, $vars);
+    }
+
     // public function send_push(...) {}
     // public function broadcast_websocket(...) {}
 

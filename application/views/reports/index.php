@@ -61,6 +61,7 @@ $charts = $report['charts'] ?? [];
       <?php
       $this->load->view('reports/executive_overview', get_defined_vars());
       $this->load->view('reports/learning_analytics', get_defined_vars());
+      $this->load->view('reports/learning_notes_analytics', get_defined_vars());
       $this->load->view('reports/course_performance', get_defined_vars());
       $this->load->view('reports/learner_insights', get_defined_vars());
       $this->load->view('reports/certificate_analytics', get_defined_vars());

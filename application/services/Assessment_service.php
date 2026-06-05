@@ -30,7 +30,8 @@ class Assessment_service {
      * @var \CI_Controller&object{
      *     course_model: \Course_model,
      *     assessment_model: \assessment_model,
-     *     video_checkpoint_model: \Module_video_checkpoint_model
+     *     video_checkpoint_model: \Module_video_checkpoint_model,
+     *     course_completion_service: \Course_completion_service
      * }
      */
     protected $CI;
@@ -155,7 +156,13 @@ class Assessment_service {
         $is_video = ($module && $eff_type === 'video');
         $pre_required = ! $is_video || ! empty($pre_assessment->is_required);
         if ($pre_assessment && in_array($role, ['employee', 'student'], true) && $pre_required) {
-            $pre_blocked = ! $this->CI->assessment_model->has_answered($uid, (int) $pre_assessment->id);
+            $pre_attempted = $this->CI->assessment_model->has_answered($uid, (int) $pre_assessment->id);
+            if ($pre_attempted) {
+                $pre_result = $this->CI->assessment_model->get_result($uid, (int) $pre_assessment->id);
+                $pre_blocked = ! $this->is_passing_assessment_result((array) $pre_result);
+            } else {
+                $pre_blocked = true;
+            }
         }
 
         $post_assessments = [];
@@ -393,7 +400,7 @@ class Assessment_service {
      *   progress_percent:int
      * }
      */
-    protected function module_progress_summary_from_flow(array $flow)
+    public function module_progress_summary_from_flow(array $flow)
     {
         $checkpoints_total     = (int) ($flow['checkpoints']['total'] ?? 0);
         $checkpoints_completed = (int) ($flow['checkpoints']['completed'] ?? 0);
@@ -459,75 +466,40 @@ class Assessment_service {
     {
         $uid = (int) $user_id;
         $cid = (int) $course_id;
-
-        $cache_key            = $uid . ':' . $cid;
+        $cache_key = $uid . ':' . $cid;
         $used_internal_modules = ($modules === null);
         if ($used_internal_modules && isset(self::$course_progress_agg_cache[$cache_key])) {
             return self::$course_progress_agg_cache[$cache_key];
         }
 
-        if ($modules === null) {
-            $modules = $this->CI->course_model->get_modules($cid, $uid);
-        }
-
-        $summaries  = [];
-        $sum_pct      = 0;
-        $weighted_pct = 0;
-        $weight_total = 0;
-        $completed    = 0;
-        $n            = is_array($modules) ? count($modules) : 0;
-
-        foreach ($modules as $m) {
-            $mid = (int) $m->id;
-            $s   = $this->get_module_progress_summary($uid, $mid);
-            // DB completion is authoritative for LMS progress averages (flow-only % can stay at 80
-            // while module_progress.status is completed — averaging then blocks course-level 100%).
-            if (($m->status ?? '') === 'completed') {
-                $s['progress_percent']       = 100;
-                $s['video_completed']        = true;
-                $s['post_assessment_passed'] = true;
+        $state = $this->_course_completion_service()->evaluate_user_course_state($uid, $cid);
+        $summaries = [];
+        $completed = 0;
+        foreach ((array) ($state['module_states'] ?? []) as $ms) {
+            $mid = (int) ($ms['module_id'] ?? 0);
+            if ($mid < 1) {
+                continue;
             }
-            $summaries[$mid] = $s;
-            $progress = (int) ($s['progress_percent'] ?? 0);
-            $weight   = max(0, (float) ($m->weight_percentage ?? 0));
-            $sum_pct += $progress;
-            $weighted_pct += $progress * $weight;
-            $weight_total += $weight;
-            if ($progress >= 100) {
+            $pct = (int) ($ms['progress_percent'] ?? 0);
+            $done = ! empty($ms['completed']);
+            if ($done) {
                 $completed++;
             }
-        }
-
-        if ($n === 0) {
-            $course_pct = 0;
-        } elseif (abs($weight_total - 100.0) <= 0.01) {
-            $course_pct = (int) round($weighted_pct / 100);
-        } elseif ($sum_pct === 0) {
-            $course_pct = 0;
-        } else {
-            $course_pct = (int) round($sum_pct / $n);
+            $summaries[$mid] = [
+                'checkpoints_total'      => 0,
+                'checkpoints_completed'  => 0,
+                'video_completed'        => $pct >= 80,
+                'post_assessment_passed' => $pct >= 100,
+                'progress_percent'       => $pct,
+            ];
         }
 
         $out = [
-            'course_progress_percent' => $course_pct,
+            'course_progress_percent' => (int) ($state['progress_percent'] ?? 0),
             'completed_modules'       => $completed,
-            'total_modules'           => $n,
+            'total_modules'           => count((array) ($state['module_states'] ?? [])),
             'module_summaries'        => $summaries,
         ];
-
-        $dbg = $out;
-        if ( ! empty($dbg['module_summaries'])) {
-            $sums = [];
-            foreach ($dbg['module_summaries'] as $mid => $s) {
-                $sums[(string) $mid] = [
-                    'pct'  => $s['progress_percent'] ?? null,
-                    'post' => ! empty($s['post_assessment_passed']),
-                    'vid'  => ! empty($s['video_completed']),
-                ];
-            }
-            $dbg['module_summaries'] = $sums;
-        }
-        log_message('debug', 'COURSE PROGRESS DEBUG: ' . json_encode($dbg));
 
         if ($used_internal_modules) {
             self::$course_progress_agg_cache[$cache_key] = $out;
@@ -547,24 +519,24 @@ class Assessment_service {
      */
     public function is_course_fully_completed($user_id, $course_id, $modules_prefetched = null)
     {
-        $modules = $modules_prefetched;
-        if ($modules === null) {
-            $modules = $this->CI->course_model->get_modules((int) $course_id, (int) $user_id);
+        $state = $this->_course_completion_service()
+            ->evaluate_user_course_state((int) $user_id, (int) $course_id);
+
+        return ! empty($state['is_completed']);
+    }
+
+    /**
+     * Lazy resolve to prevent circular service-loading recursion.
+     *
+     * @return Course_completion_service
+     */
+    private function _course_completion_service()
+    {
+        if ( ! isset($this->CI->course_completion_service) || ! $this->CI->course_completion_service) {
+            $this->CI->load->library('course_completion_service');
         }
 
-        log_message('debug', 'CERT DEBUG MODULES: ' . json_encode($modules));
-
-        if (empty($modules)) {
-            return false;
-        }
-
-        foreach ($modules as $m) {
-            if (($m->status ?? '') !== 'completed') {
-                return false;
-            }
-        }
-
-        return true;
+        return $this->CI->course_completion_service;
     }
 
     /**
@@ -667,9 +639,9 @@ class Assessment_service {
         $video_unlocked = true;
         $pre_required = ! $content_video || ! empty($pre->is_required);
         if ($content_video && $pre && $pre_required) {
-            $video_unlocked = $pre_attempted;
+            $video_unlocked = $pre_passed;
         } elseif ( ! $content_video && $pre) {
-            $video_unlocked = $pre_attempted;
+            $video_unlocked = $pre_passed;
         }
 
         // --- Phase 4: Post-assessment (locked until video segment complete on video modules) ---
@@ -707,8 +679,8 @@ class Assessment_service {
 
         $post_can_retry = ! empty($post_raw) && $post_unlocked;
 
-        // Completion: strict post pass only (post unreachable until video completes when posts exist on video modules).
-        $can_mark_complete = $post_passed;
+        // Completion: post pass required; when pre is required it must also be passed.
+        $can_mark_complete = $post_passed && (! $pre_required || $pre_passed);
 
         return [
             'pre_assessment' => [

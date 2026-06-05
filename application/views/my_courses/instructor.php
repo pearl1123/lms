@@ -30,7 +30,7 @@ $thumb_gradients = [
 <?php $this->load->view('layouts/alerts'); ?>
 
 <!-- ============================================================
-     KABAGA ACADEMY — My Courses (Instructor / Teacher)
+     kaBAGA Academy — My Courses (Instructor / Teacher)
 ============================================================ -->
 <style>
 /* ── Topbar ── */

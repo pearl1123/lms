@@ -93,8 +93,8 @@ if ($use_workspace) {
         ['id' => 'settings', 'label' => 'Settings', 'icon' => '⚙', 'active' => false],
         ['id' => 'publish', 'label' => 'Publish', 'icon' => '↗', 'active' => false],
     ];
-    $shell_partial      = 'assessments/_checkpoint_workspace_content';
-    $shell_rail_partial = ! empty($checkpoint_workspace['panels']) ? 'assessments/_checkpoint_navigator_rail' : '';
+    $shell_partial      = 'assessments/checkpoint_workspace_content';
+    $shell_rail_partial = ! empty($checkpoint_workspace['panels']) ? 'assessments/checkpoint_navigator_rail' : '';
 } else {
     $shell_editor['nav'] = [
         ['id' => 'overview', 'label' => 'Overview', 'icon' => '◆', 'active' => true],
@@ -102,11 +102,11 @@ if ($use_workspace) {
         ['id' => 'settings', 'label' => 'Settings', 'icon' => '⚙', 'active' => false],
         ['id' => 'publish', 'label' => 'Publish', 'icon' => '↗', 'active' => false],
     ];
-    $shell_partial      = 'assessments/_edit_exam_content';
+    $shell_partial      = 'assessments/edit_exam_content';
     $shell_rail_partial = '';
 }
 
-$this->load->view('assessments/_assessment_editor_shell', get_defined_vars());
+$this->load->view('assessments/assessment_editor_shell', get_defined_vars());
 ?>
 
 <?php if ( ! $use_workspace): ?>
@@ -150,6 +150,9 @@ $this->load->view('assessments/_assessment_editor_shell', get_defined_vars());
       <div id="mfChoicesSection" class="mf-group">
         <label class="mf-label" id="mfChoicesLabel">Answer Choices</label>
         <div class="choices-list" id="choicesList"></div>
+        <div id="choiceHint" style="margin-top:.5rem;font-size:.75rem;color:var(--ka-text-muted,#64748b);line-height:1.4;">
+          Click ✓ on a choice to mark it as the correct answer. Only one correct answer allowed.
+        </div>
         <button type="button" class="add-choice-btn" onclick="addChoice()">+ Add choice</button>
       </div>
       <div id="mfLikertNote" style="display:none;background:var(--ka-accent,#e8f4fd);border-radius:8px;padding:.75rem 1rem;font-size:.8125rem;">Likert scale: 1–5 rating.</div>

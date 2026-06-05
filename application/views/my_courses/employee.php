@@ -2,6 +2,8 @@
 <?php
 $enrolled_courses  = $enrolled_courses ?? [];
 $invited_courses   = $invited_courses ?? [];
+$pending_enrollments = $pending_enrollments ?? [];
+$rejected_enrollments = $rejected_enrollments ?? [];
 $available_courses = $available_courses ?? [];
 $categories        = $categories ?? [];
 
@@ -78,6 +80,12 @@ $thumb_gradients = [
   <button type="button" class="ec-tab" data-pane="invited">
     Invited Courses <span class="ec-tab-badge"><?= count($invited_courses) ?></span>
   </button>
+  <button type="button" class="ec-tab" data-pane="pending">
+    Pending <span class="ec-tab-badge"><?= count($pending_enrollments) ?></span>
+  </button>
+  <button type="button" class="ec-tab" data-pane="rejected">
+    Rejected <span class="ec-tab-badge"><?= count($rejected_enrollments) ?></span>
+  </button>
   <button type="button" class="ec-tab" data-pane="available">
     Available Courses <span class="ec-tab-badge"><?= count($available_courses) ?></span>
   </button>
@@ -106,7 +114,7 @@ $thumb_gradients = [
   <div class="ec-grid" id="enrolledGrid">
     <?php if ( ! empty($enrolled_courses)): ?>
       <?php foreach ($enrolled_courses as $i => $course): ?>
-        <?php $this->load->view('my_courses/_learning_card', ['mode' => 'enrolled', 'course' => $course, 'i' => $i, 'thumb_gradients' => $thumb_gradients]); ?>
+        <?php $this->load->view('my_courses/learning_card', ['mode' => 'enrolled', 'course' => $course, 'i' => $i, 'thumb_gradients' => $thumb_gradients]); ?>
       <?php endforeach; ?>
     <?php else: ?>
       <div class="ec-empty ec-empty--fullwidth">
@@ -123,7 +131,7 @@ $thumb_gradients = [
   <div class="ec-grid" id="invitedGrid">
     <?php if ( ! empty($invited_courses)): ?>
       <?php foreach ($invited_courses as $i => $course): ?>
-        <?php $this->load->view('my_courses/_learning_card', ['mode' => 'invited', 'course' => $course, 'i' => $i, 'thumb_gradients' => $thumb_gradients]); ?>
+        <?php $this->load->view('my_courses/learning_card', ['mode' => 'invited', 'course' => $course, 'i' => $i, 'thumb_gradients' => $thumb_gradients]); ?>
       <?php endforeach; ?>
     <?php else: ?>
       <div class="ec-empty ec-empty--fullwidth">
@@ -135,11 +143,41 @@ $thumb_gradients = [
   </div>
 </section>
 
+<section class="ec-pane" id="pane-pending" aria-label="Pending enrollment requests">
+  <div class="ec-grid" id="pendingGrid">
+    <?php if ( ! empty($pending_enrollments)): ?>
+      <?php foreach ($pending_enrollments as $i => $course): ?>
+        <?php $this->load->view('my_courses/learning_card', ['mode' => 'pending', 'course' => $course, 'i' => $i, 'thumb_gradients' => $thumb_gradients]); ?>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <div class="ec-empty ec-empty--fullwidth">
+        <h4>No pending enrollment requests</h4>
+        <p>Enrollment requests waiting for approval will appear here.</p>
+      </div>
+    <?php endif; ?>
+  </div>
+</section>
+
+<section class="ec-pane" id="pane-rejected" aria-label="Rejected enrollment history">
+  <div class="ec-grid" id="rejectedGrid">
+    <?php if ( ! empty($rejected_enrollments)): ?>
+      <?php foreach ($rejected_enrollments as $i => $course): ?>
+        <?php $this->load->view('my_courses/learning_card', ['mode' => 'rejected', 'course' => $course, 'i' => $i, 'thumb_gradients' => $thumb_gradients]); ?>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <div class="ec-empty ec-empty--fullwidth">
+        <h4>No rejected requests</h4>
+        <p>Your rejected enrollment requests will remain visible here for history and re-request actions.</p>
+      </div>
+    <?php endif; ?>
+  </div>
+</section>
+
 <section class="ec-pane" id="pane-available" aria-label="Available courses">
   <div class="ec-grid" id="availableGrid">
     <?php if ( ! empty($available_courses)): ?>
       <?php foreach ($available_courses as $i => $course): ?>
-        <?php $this->load->view('my_courses/_learning_card', ['mode' => 'available', 'course' => $course, 'i' => $i, 'thumb_gradients' => $thumb_gradients]); ?>
+        <?php $this->load->view('my_courses/learning_card', ['mode' => 'available', 'course' => $course, 'i' => $i, 'thumb_gradients' => $thumb_gradients]); ?>
       <?php endforeach; ?>
     <?php else: ?>
       <div class="ec-empty ec-empty--fullwidth">

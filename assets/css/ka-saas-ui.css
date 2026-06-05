@@ -1,5 +1,5 @@
 /**
- * KABAGA Academy — Phase 4 SaaS UI primitives (cards, forms, tables, empty, modals, toasts)
+ * kaBAGA Academy — Phase 4 SaaS UI primitives (cards, forms, tables, empty, modals, toasts)
  * Scoped under .ka-saas-shell where possible; global utilities where needed (SweetAlert2).
  */
 
@@ -303,3 +303,70 @@
   color: var(--ka-danger, #d63939);
   font-weight: var(--ka-font-weight-bold);
 }
+
+/* ── Standard LMS avatar (Phase 4) ─────────────────────────── */
+.ka-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--ka-primary, #6dabcf), var(--ka-navy, #1a3a5c));
+  box-shadow: 0 2px 8px rgba(26, 58, 92, 0.18);
+}
+.ka-avatar--sm { width: 32px; height: 32px; font-size: 0.6875rem; }
+.ka-avatar--md { width: 40px; height: 40px; font-size: 0.8125rem; }
+.ka-avatar--lg { width: 72px; height: 72px; font-size: 1.125rem; }
+.ka-avatar--xl { width: 96px; height: 96px; font-size: 1.375rem; }
+.ka-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ka-avatar-initials {
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.ka-avatar-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+.ka-nav-user .ka-nav-user-avatar-wrap { margin-right: 0; }
+.ka-nav-user .ka-avatar--sm { box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12); }
+
+/* Face-to-Face advisory */
+.etd-f2f-notice {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0 1.25rem;
+  border-radius: var(--ka-radius-lg, 12px);
+  border: 1px solid #fde68a;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  box-shadow: var(--ka-shadow-sm, 0 1px 3px rgba(15, 23, 42, 0.06));
+}
+.etd-f2f-notice-icon { color: #b45309; flex-shrink: 0; margin-top: 2px; }
+.etd-f2f-notice-title { font-size: 0.9375rem; font-weight: 700; color: #92400e; margin: 0 0 0.35rem; }
+.etd-f2f-notice-content { font-size: 0.8125rem; color: #78350f; line-height: 1.55; }
+.etd-f2f-notice-content p { margin: 0 0 0.5rem; }
+.cd-modality-pill {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--ka-accent, #e8f4fd);
+  color: var(--ka-navy, #1a3a5c);
+  margin-bottom: 0.75rem;
+}
+.take-randomized-badge { color: var(--ka-navy, #1a3a5c); font-weight: 600; }
+.res-retake-lead { font-size: 0.8125rem; color: var(--ka-text-muted); margin: 0 0 0.75rem; line-height: 1.5; }
+.res-back-btn--primary { background: var(--ka-primary); color: #fff; border-color: transparent; }

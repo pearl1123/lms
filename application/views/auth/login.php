@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>KABAGA Academy</title>
+  <title>kaBAGA Academy</title>
   <script>
     (function() {
       var key = "wmis-theme";
@@ -47,16 +47,22 @@
       <div class="card card-md login-card-future">
         <div class="card-body">
           <div class="login-brand">
-            <img src="<?= base_url('assets/img/LMS-LOGO.png'); ?>" alt="WMIS logo" class="wmis-logo-login" />
-            <div class="wmis-logo-subtext">KABAGA Academy</div>
+            <img src="<?= base_url('assets/img/LMS-LOGO.png'); ?>"
+                 alt="kaBAGA Academy"
+                 class="wmis-logo-login"
+                 onerror="this.onerror=null;this.src='<?= base_url('assets/img/wmis-logo.svg'); ?>';" />
+            <div class="wmis-logo-subtext">kaBAGA Academy</div>
             <div class="wmis-logo-hospital">LUNG CENTER OF THE PHILIPPINES</div>
           </div>
           <h4 class="h4 text-center mb-1">Empowering learners with the skills of tomorrow.</h4>
           </br>
           <?php
-          $flash_messages = $flash_messages ?? [];
+          $flash_messages    = $flash_messages ?? [];
+          $csrf_field_name   = $csrf_field_name ?? '';
+          $csrf_hash         = $csrf_hash ?? '';
+          $error             = $error ?? '';
           ?>
-          <?php if (($error ?? '') !== ''): ?>
+          <?php if ($error !== ''): ?>
             <div class="alert alert-danger"><?= html_escape($error); ?></div>
           <?php endif; ?>
           <?php if ( ! empty($flash_messages['error'])): ?>
@@ -66,8 +72,8 @@
             <div class="alert alert-success"><?= $flash_messages['success']; ?></div>
           <?php endif; ?>
           <form method="post" action="<?= html_escape($login_form_action ?? '') ?>" autocomplete="off">
-          <?php if (($csrf_field_name ?? '') !== '' && ($csrf_hash ?? '') !== ''): ?>
-          <input type="hidden" name="<?= html_escape($csrf_field_name) ?>" value="<?= html_escape($csrf_hash) ?>">
+          <?php if ($csrf_field_name !== '' && $csrf_hash !== ''): ?>
+          <input type="hidden" name="<?= html_escape($csrf_field_name); ?>" value="<?= html_escape($csrf_hash); ?>">
           <?php endif; ?>
           <div class="mb-3">
             <label class="form-label">Employee ID</label>
@@ -90,7 +96,7 @@
               <input class="form-check-input" type="checkbox" name="remember_me" value="1" <?= ! empty($remember_me_checked ?? false) ? 'checked' : ''; ?>>
               <span class="form-check-label">Remember me</span>
             </label>
-            <a href="<?= html_escape($forgot_password_url ?? ''); ?>" class="login-forgot-link">Forgot password?</a>
+            <a href="<?= html_escape(! empty($forgot_password_url) ? $forgot_password_url : site_url('auth/forgot-password')); ?>" class="login-forgot-link">Forgot password?</a>
           </div>
           <div class="form-footer d-flex gap-2">
             <button type="submit" class="btn btn-primary w-100">Sign in</button>
@@ -101,8 +107,7 @@
       </div>
     </div>
   </div>
-  <script src="<?= base_url('assets/vendor/tabler/js/tabler.min.js'); ?>"></script>
-  <script src="<?= base_url('assets/js/app.js?v=20260319controlroomtheme01'); ?>"></script>
+  <script src="<?= base_url('assets/tabler/js/demo-theme.min.js'); ?>"></script>
 </body>
 
 </html>

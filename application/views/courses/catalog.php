@@ -25,7 +25,7 @@ $thumb_gradients = [
 <link rel="stylesheet" href="<?= base_url('assets/css/module.css') ?>">
 
 <!-- ============================================================
-     KABAGA ACADEMY — Course Catalog
+     kaBAGA Academy — Course Catalog
 ============================================================ -->
 <style>
 /* ── Hero ── */
@@ -289,7 +289,7 @@ $thumb_gradients = [
 <!-- ══ Hero ═════════════════════════════════════════════════ -->
 <div class="cat-hero animate__animated animate__fadeIn animate__fast">
   <div class="cat-hero-body">
-    <p class="cat-hero-eyebrow">KABAGA Academy</p>
+    <p class="cat-hero-eyebrow">kaBAGA Academy</p>
     <h2 class="cat-hero-title">Course Catalog</h2>
     <p class="cat-hero-sub">
       Discover and enroll in training programs designed for Lung Center employees

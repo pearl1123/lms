@@ -8,6 +8,7 @@ $segment   = isset($nc['segment_1']) ? trim((string) $nc['segment_1']) : '';
 $seg2      = isset($nc['segment_2']) ? trim((string) $nc['segment_2']) : '';
 $announcements_active = in_array($segment, ['announcements', 'notifications'], true);
 $user_role        = $nc['user_role'] ?? 'employee';
+$perm_engine      = ! empty($nc['perm_engine']);
 $user_role_label  = $nc['user_role_label'] ?? 'Employee';
 $full_name        = $nc['full_name'] ?? 'User';
 $emp_id           = $nc['employee_id'] ?? '';
@@ -16,7 +17,7 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
 ?>
 
 <!-- ============================================================
-     KABAGA ACADEMY — Sidebar Navigation
+     kaBAGA Academy — Sidebar Navigation
 ============================================================ -->
 
 <style>
@@ -65,6 +66,12 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
     font-size:0.6875rem; font-weight:700;
     text-transform:uppercase; letter-spacing:0.1em;
     color:rgba(255,255,255,0.35);
+  }
+  .ka-nav-submenu-label {
+    padding:0.5rem 0.875rem 0.2rem 2rem;
+    font-size:0.625rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:0.08em;
+    color:rgba(255,255,255,0.35); list-style:none;
   }
   .ka-nav-list { list-style:none; margin:0; padding:0 0.625rem; }
   .ka-nav-item { margin-bottom:2px; }
@@ -157,10 +164,10 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
   <!-- Brand -->
   <a href="<?= base_url('index.php/dashboard') ?>" class="ka-sidebar-brand">
     <div class="ka-sidebar-brand-logo">
-      <img src="<?= base_url('assets/img/LMS-LOGO.png') ?>" alt="KABAGA Academy">
+      <img src="<?= base_url('assets/img/LMS-LOGO.png') ?>" alt="kaBAGA Academy">
     </div>
     <div class="ka-sidebar-brand-text">
-      <span class="ka-sidebar-brand-name">KABAGA Academy</span>
+      <span class="ka-sidebar-brand-name">kaBAGA Academy</span>
       <span class="ka-sidebar-brand-sub">Lung Center of the Philippines</span>
     </div>
   </a>
@@ -226,16 +233,42 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
         </a>
       </li>
 
-      <?php if ($user_role === 'admin'): ?>
-      <!-- Libraries menu -->
+      <?php if ($user_role === 'admin'):
+        $lib_seg2 = $seg2 ?? '';
+        $lib_menu_open = ($segment === 'libraries' && $lib_seg2 !== '');
+        $lib_nav_groups = ka_library_nav_groups();
+      ?>
+      <!-- Libraries -->
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/libraries') ?>"
-           class="ka-nav-link <?= $segment === 'libraries' ? 'active' : '' ?>">
+           class="ka-nav-link <?= $segment === 'libraries' ? 'active' : '' ?>"
+           data-bs-toggle="collapse"
+           data-bs-target="#librariesMenu"
+           aria-expanded="<?= $lib_menu_open ? 'true' : 'false' ?>">
           <svg class="ka-nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 19h16M4 14h16M4 9h16M4 4h16"/>
           </svg>
           Libraries
+          <svg class="ka-nav-caret" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
         </a>
+        <ul class="ka-nav-submenu collapse <?= $lib_menu_open ? 'show' : '' ?>" id="librariesMenu">
+          <?php foreach ($lib_nav_groups as $lib_group): ?>
+          <li class="ka-nav-submenu-label"><?= htmlspecialchars($lib_group['label'], ENT_QUOTES) ?></li>
+          <?php foreach ($lib_group['items'] as $lib_item):
+            $lib_key = $lib_item['key'];
+            $lib_path = 'libraries/' . $lib_key;
+          ?>
+          <li>
+            <a href="<?= base_url('index.php/' . $lib_path) ?>"
+               class="ka-nav-link <?= $lib_seg2 === $lib_key ? 'active' : '' ?>">
+              <?= htmlspecialchars($lib_item['title'], ENT_QUOTES) ?>
+            </a>
+          </li>
+          <?php endforeach; ?>
+          <?php endforeach; ?>
+        </ul>
       </li>
       <?php endif; ?>
 
@@ -244,6 +277,19 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
     <!-- ── PROGRESS ── -->
     <p class="ka-nav-section">Progress</p>
     <ul class="ka-nav-list">
+
+      <li class="ka-nav-item">
+        <a href="<?= base_url('index.php/learning_notes') ?>"
+           class="ka-nav-link <?= in_array($segment, ['learning_notes', 'my_notes'], true) ? 'active' : '' ?>">
+          <svg class="ka-nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          My Notes
+        </a>
+      </li>
 
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/progress') ?>"
@@ -289,12 +335,22 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
 
     </ul>
 
-    <!-- ── MANAGEMENT — admin & teacher only ── -->
-    <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
+    <!-- ── MANAGEMENT — admin & teacher (permission-aware when engine active) ── -->
+    <?php
+    $show_mgmt = in_array($user_role, ['admin', 'teacher'], true)
+        && (
+            ! $perm_engine
+            || ka_nav_can('manage_courses', $user_role)
+            || ka_nav_can('users', $user_role)
+            || ka_nav_can('reports', $user_role)
+            || ka_nav_can('settings', $user_role)
+        );
+    ?>
+    <?php if ($show_mgmt): ?>
     <p class="ka-nav-section">Management</p>
     <ul class="ka-nav-list">
 
-      <?php if ($user_role === 'admin'): ?>
+      <?php if ($user_role === 'admin' && ka_nav_can('manage_courses', $user_role)): ?>
       <li class="ka-nav-item">
         <a href="#manageCoursesMenu"
            class="ka-nav-link <?= in_array($segment, ['manage_courses', 'categories']) ? 'active' : '' ?>"
@@ -331,7 +387,9 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
           </li>
         </ul>
       </li>
+      <?php endif; ?>
 
+      <?php if (ka_nav_can('users', $user_role)): ?>
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/users') ?>"
            class="ka-nav-link <?= $segment === 'users' ? 'active' : '' ?>">
@@ -341,10 +399,24 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
-          Users &amp; Enrollees
+          User Management
         </a>
       </li>
+      <?php if (ka_nav_can('permissions', $user_role)): ?>
+      <li class="ka-nav-item">
+        <a href="<?= base_url('index.php/permissions/groups') ?>"
+           class="ka-nav-link <?= $segment === 'permissions' ? 'active' : '' ?>">
+          <svg class="ka-nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          Group Permissions
+        </a>
+      </li>
+      <?php endif; ?>
+      <?php endif; ?>
 
+      <?php if (ka_nav_can('reports', $user_role)): ?>
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/reports') ?>"
            class="ka-nav-link <?= $segment === 'reports' ? 'active' : '' ?>">
@@ -357,7 +429,9 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
           Reports &amp; Analytics
         </a>
       </li>
+      <?php endif; ?>
 
+      <?php if (ka_nav_can('settings', $user_role)): ?>
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/settings') ?>"
            class="ka-nav-link <?= $segment === 'settings' ? 'active' : '' ?>">

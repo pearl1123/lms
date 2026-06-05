@@ -1,0 +1,227 @@
+/* Assessment Integrity Analytics — complements assessments.css / ka-saas-ui */
+
+.asx-topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.asx-btn-secondary {
+  background: #fff;
+  color: var(--ka-primary, #1e40af);
+  border: 1px solid rgba(30, 64, 175, 0.25);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.asx-btn-secondary:hover {
+  background: #f8fafc;
+  border-color: var(--ka-primary, #1e40af);
+}
+
+.aint-workspace {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 0 2rem;
+}
+
+.aint-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.aint-eyebrow {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  margin: 0 0 0.25rem;
+}
+
+.aint-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 0.35rem;
+  color: #0f172a;
+}
+
+.aint-subtitle {
+  color: #475569;
+  margin: 0 0 0.5rem;
+  max-width: 42rem;
+}
+
+.aint-meta {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.aint-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.aint-select {
+  min-width: 220px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+}
+
+.aint-link-back {
+  font-size: 0.875rem;
+  color: var(--ka-primary, #1e40af);
+  text-decoration: none;
+}
+
+.aint-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.aint-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.aint-card-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.aint-card-meta {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin: 0.25rem 0 0;
+}
+
+.aint-health {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.aint-health--excellent { background: #dcfce7; color: #166534; }
+.aint-health--good { background: #dbeafe; color: #1e40af; }
+.aint-health--review { background: #fef3c7; color: #92400e; }
+.aint-health--critical { background: #fee2e2; color: #991b1b; }
+
+.aint-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.aint-kpi {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+}
+
+.aint-kpi--warn {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.aint-kpi-lbl {
+  display: block;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.aint-kpi-val {
+  display: block;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.aint-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 1rem 0 0.75rem;
+}
+
+.aint-hint {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin: -0.5rem 0 0.75rem;
+}
+
+.aint-table-wrap {
+  overflow-x: auto;
+}
+
+.aint-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.aint-table th,
+.aint-table td {
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.aint-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.aint-q-text {
+  max-width: 280px;
+}
+
+.aint-diff {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.aint-diff--easy { background: #dcfce7; color: #166534; }
+.aint-diff--moderate { background: #e0e7ff; color: #3730a3; }
+.aint-diff--hard { background: #fee2e2; color: #991b1b; }
+
+.aint-rating {
+  font-weight: 600;
+}
+
+.aint-empty {
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 12px;
+}

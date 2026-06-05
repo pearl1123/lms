@@ -28,10 +28,15 @@ $type_colors = [
     <p><?= $is_manager ? 'Manage pre, post, and video checkpoint assessments for your course modules' : 'Your assigned assessments' ?></p>
   </div>
   <?php if ($is_manager): ?>
-  <a href="<?= base_url('index.php/assessments/create') ?>" class="asx-btn asx-btn-primary">
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    New Assessment
-  </a>
+  <div class="asx-topbar-actions">
+    <a href="<?= base_url('index.php/assessments/integrity_analytics') ?>" class="asx-btn asx-btn-secondary">
+      Integrity Analytics
+    </a>
+    <a href="<?= base_url('index.php/assessments/create') ?>" class="asx-btn asx-btn-primary">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Assessment
+    </a>
+  </div>
   <?php endif; ?>
 </div>
 

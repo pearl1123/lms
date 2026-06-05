@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 /**
- * KA_Controller — Base controller for KABAGA Academy
+ * KA_Controller — Base controller for kaBAGA Academy
  *
  * Provides:
  *   - Authenticated user guard (runs on every request)
@@ -29,14 +29,18 @@ class KA_Controller extends CI_Controller {
     /** @var object Authenticated user stdClass */
     protected $auth_user;
 
+    /** @var array<string, bool> Effective permission names for auth user */
+    protected $user_permissions = [];
+
     public function __construct()
     {
         parent::__construct();
         $this->load->library('session');
         $this->load->model('User_model', 'user_model');
-        $this->load->helper(['url', 'form']);
+        $this->load->helper(['url', 'form', 'permission']);
 
         $this->_boot_auth();
+        $this->_load_user_permissions();
     }
 
     // =========================================================
@@ -75,6 +79,7 @@ class KA_Controller extends CI_Controller {
             'employee_id' => $user->employee_id,
             'role'        => $user->role,
             'status'      => $user->status,
+            'avatar_path' => $user->avatar_path ?? '',
         ]);
     }
 
@@ -111,6 +116,64 @@ class KA_Controller extends CI_Controller {
     protected function require_manager()
     {
         $this->require_role(['admin', 'teacher', 'instructor'], 'my_courses');
+    }
+
+    /**
+     * Abort unless the user has at least one of the named permissions.
+     * Falls back to require_role('admin') when the permission engine has no seed data.
+     *
+     * @param string|string[] $permissions
+     * @param string          $redirect_to
+     */
+    protected function require_permission($permissions, $redirect_to = 'dashboard')
+    {
+        $permissions = array_values(array_filter(array_map('trim', (array) $permissions)));
+        if ($permissions === []) {
+            return;
+        }
+
+        $this->load->model('Permission_model', 'permission_model');
+
+        if ( ! $this->permission_model->engine_is_active()) {
+            if ($this->auth_user->role === 'admin') {
+                return;
+            }
+            $this->require_role('admin', $redirect_to);
+
+            return;
+        }
+
+        if ($this->permission_model->user_has_any((int) $this->auth_user->id, $permissions)) {
+            return;
+        }
+
+        $this->flash('error', 'You do not have permission to access that page.');
+        redirect($redirect_to);
+    }
+
+    /**
+     * @return bool
+     */
+    protected function user_can($permission_name)
+    {
+        $permission_name = trim((string) $permission_name);
+        if ($permission_name === '') {
+            return true;
+        }
+
+        $this->load->model('Permission_model', 'permission_model');
+
+        if ( ! $this->permission_model->engine_is_active()) {
+            return $this->auth_user->role === 'admin';
+        }
+
+        return $this->permission_model->user_has((int) $this->auth_user->id, $permission_name);
+    }
+
+    private function _load_user_permissions()
+    {
+        $this->load->model('Permission_model', 'permission_model');
+        $this->user_permissions = $this->permission_model->get_effective_map((int) $this->auth_user->id);
     }
 
     // =========================================================
@@ -213,3 +276,6 @@ class KA_Controller extends CI_Controller {
         return $val !== null ? $val : $default;
     }
 }
+
+// CI3 only auto-loads KA_Controller.php; secondary bases must be required explicitly.
+require_once APPPATH . 'core/KA_Library_controller.php';

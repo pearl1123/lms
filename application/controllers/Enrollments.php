@@ -5,6 +5,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Instructor / admin enrollment approvals.
  *
  * @property Course_model        $course_model
+ * @property Course_phase2_model $course_phase2
  * @property Event_dispatcher    $event_dispatcher
  */
 class Enrollments extends KA_Controller {
@@ -97,11 +98,15 @@ class Enrollments extends KA_Controller {
         $this->course_model->set_enrollment_status($eid, $status);
 
         if ($status === 'approved') {
+            // QA hardening: prevent stale progress from previous rejected/old attempts.
+            $this->course_model->reset_course_learning_state((int) $row->user_id, (int) $row->course_id);
+            log_message('debug', 'Enrollment approved; learning state reset user=' . (int) $row->user_id . ' course=' . (int) $row->course_id);
             $this->event_dispatcher->dispatch('enrollment.approved', [
                 'user_id'   => (int) $row->user_id,
                 'course_id' => (int) $row->course_id,
             ]);
         } else {
+            log_message('debug', 'Enrollment rejected user=' . (int) $row->user_id . ' course=' . (int) $row->course_id);
             $this->event_dispatcher->dispatch('enrollment.rejected', [
                 'user_id'   => (int) $row->user_id,
                 'course_id' => (int) $row->course_id,

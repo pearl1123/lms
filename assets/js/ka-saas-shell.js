@@ -1,5 +1,5 @@
 /**
- * KABAGA Academy — Phase 4 shell UX (Escape closes top modal)
+ * kaBAGA Academy — Phase 4 shell UX (Escape closes top modal)
  */
 (function () {
   'use strict';

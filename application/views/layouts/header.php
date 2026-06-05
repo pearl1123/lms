@@ -7,7 +7,14 @@ defined('BASEPATH') OR exit('No direct script access allowed');
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
-  <title><?= isset($page_title) ? $page_title . ' — KABAGA Academy' : 'KABAGA Academy | Lung Center of the Philippines' ?></title>
+  <?php
+  $ka_branding = $ka_branding ?? ka_branding_settings();
+  $ka_page_lms = htmlspecialchars((string) ($ka_branding['lms_name'] ?? 'kaBAGA Academy'), ENT_QUOTES, 'UTF-8');
+  ?>
+  <title><?= isset($page_title) ? htmlspecialchars($page_title, ENT_QUOTES) . ' — ' . $ka_page_lms : $ka_page_lms . ' | Lung Center of the Philippines' ?></title>
+  <?php if ( ! empty($ka_branding['favicon_url'])): ?>
+  <link rel="icon" href="<?= htmlspecialchars($ka_branding['favicon_url'], ENT_QUOTES) ?>">
+  <?php endif; ?>
 
   <!-- Tabler CSS -->
   <link href="<?= base_url('assets/tabler/css/tabler.min.css'); ?>" rel="stylesheet"/>
@@ -31,14 +38,14 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
   <style>
     /* ============================================================
-       KABAGA ACADEMY — Global Design System
+       kaBAGA Academy — Global Design System
        Brand: Lung Center of the Philippines
        Palette: #6dabcf (primary), #1a3a5c (deep navy), #f0f6fa (bg)
     ============================================================ */
 
     :root {
-      --ka-primary:       #6dabcf;
-      --ka-primary-dark:  #5a9ec1;
+      --ka-primary:       <?= htmlspecialchars($ka_branding['accent_color'] ?? '#6dabcf', ENT_QUOTES) ?>;
+      --ka-primary-dark:  <?= htmlspecialchars($ka_branding['accent_color'] ?? '#5a9ec1', ENT_QUOTES) ?>;
       --ka-primary-deep:  #4a8eb0;
       --ka-navy:          #1a3a5c;
       --ka-navy-mid:      #254d75;

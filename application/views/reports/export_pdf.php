@@ -138,7 +138,7 @@ $charts    = $workspace['charts'] ?? [];
 </head>
 <body>
   <div class="hdr">
-    <p class="brand">KABAGA Academy — LMS Analytics</p>
+    <p class="brand">kaBAGA Academy — LMS Analytics</p>
     <h1>Executive Analytics Summary</h1>
     <p class="sub">Platform learning performance and organizational training health</p>
     <p class="meta-row">
@@ -220,6 +220,6 @@ $charts    = $workspace['charts'] ?? [];
     <tr><td><strong>Active employees</strong></td><td><?= number_format((int) ($hr['employee_count'] ?? 0)) ?></td></tr>
   </table>
 
-  <div class="footer">Confidential — KABAGA Academy LMS · Generated <?= date('Y-m-d H:i') ?></div>
+  <div class="footer">Confidential — kaBAGA Academy LMS · Generated <?= date('Y-m-d H:i') ?></div>
 </body>
 </html>

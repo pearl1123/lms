@@ -26,6 +26,11 @@ $total = count($questions);
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
         <?= $total ?> question<?= $total !== 1 ? 's' : '' ?>
       </div>
+      <?php if ( ! empty($randomized)): ?>
+      <div class="take-hero-meta-item take-randomized-badge" title="Question and answer order is shuffled for this attempt">
+        🔀 Randomized
+      </div>
+      <?php endif; ?>
     </div>
     <div class="take-progress-bar">
       <div class="take-progress-fill" id="takeProgressFill" style="width:0%"></div>

@@ -44,6 +44,9 @@ class Settings extends CI_Controller {
             redirect('dashboard');
         }
 
+        $this->load->helper('permission');
+        ka_gate_permission($user, 'settings.view', 'dashboard');
+
         $this->user = $user;
     }
 

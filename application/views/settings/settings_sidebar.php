@@ -3,6 +3,7 @@
   <button type="button" class="stg-nav-link is-active" role="tab" data-stg-tab="general" id="stg-nav-general" aria-controls="stg-panel-general">General</button>
   <button type="button" class="stg-nav-link" role="tab" data-stg-tab="branding" id="stg-nav-branding">Branding</button>
   <button type="button" class="stg-nav-link" role="tab" data-stg-tab="learning" id="stg-nav-learning">Learning</button>
+  <button type="button" class="stg-nav-link" role="tab" data-stg-tab="etd" id="stg-nav-etd">ETD / Learner UX</button>
   <button type="button" class="stg-nav-link" role="tab" data-stg-tab="certificates" id="stg-nav-certificates">Certificates</button>
   <button type="button" class="stg-nav-link" role="tab" data-stg-tab="notifications" id="stg-nav-notifications">Notifications</button>
   <button type="button" class="stg-nav-link" role="tab" data-stg-tab="hrmis" id="stg-nav-hrmis">HRMIS</button>
@@ -10,4 +11,7 @@
   <button type="button" class="stg-nav-link" role="tab" data-stg-tab="storage" id="stg-nav-storage">Storage</button>
   <button type="button" class="stg-nav-link" role="tab" data-stg-tab="integrations" id="stg-nav-integrations">Integrations <span class="stg-nav-badge">Soon</span></button>
   <button type="button" class="stg-nav-link" role="tab" data-stg-tab="advanced" id="stg-nav-advanced">Advanced</button>
+  <?php if (($user->role ?? '') === 'admin'): ?>
+  <a href="<?= base_url('index.php/libraries') ?>" class="stg-nav-link stg-nav-link--external">Libraries</a>
+  <?php endif; ?>
 </nav>

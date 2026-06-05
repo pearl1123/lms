@@ -129,6 +129,10 @@ $module_app_context = [
     'videoCompletedInitial'      => (bool) $video_completed_init,
     'hasPostAssessments'         => (bool) ! empty($post_assessments),
     'firstPostAssessmentHref'    => (string) $first_post_take_url,
+    'resumeSaveUrl'              => base_url('index.php/courses/save_resume_state/' . (int) ($module->id ?? 0)),
+    'resumeUserId'               => (int) ($user->id ?? 0),
+    'resumeServerState'          => isset($resume_server_state) && is_array($resume_server_state) ? $resume_server_state : [],
+    'resumeQueryHints'           => isset($resume_query_hints) && is_array($resume_query_hints) ? $resume_query_hints : [],
 ];
 $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES;
 ?>
@@ -513,6 +517,33 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
   </div>
 </div>
 
+<?php
+$ln_map = [
+    'video'        => 'video',
+    'pdf'          => 'pdf',
+    'slides'       => 'slides',
+    'audio'        => 'audio',
+    'meeting_link' => 'general',
+];
+$ln_content_type = $ln_map[$eff_type] ?? 'general';
+$ln_notes_ready  = ! empty($ln_notes_ready);
+$this->load->view('components/learning_notes_sidebar', get_defined_vars());
+?>
+<link rel="stylesheet" href="<?= base_url('assets/css/learning_notes.css') ?>">
+<script>
+window.LN_NOTES_CONFIG = <?= json_encode([
+    'enabled'      => ! empty($ln_notes_ready),
+    'apiBase'      => site_url('learning_notes'),
+    'userId'       => (int) ($user->id ?? 0),
+    'courseId'     => (int) ($module->course_id ?? 0),
+    'moduleId'     => (int) ($module->id ?? 0),
+    'contentType'  => $ln_content_type ?? ($ln_map[$eff_type] ?? 'general'),
+    'csrfName'     => $csrf_field_name ?? '',
+    'csrfHash'     => $csrf_hash ?? '',
+], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;
+</script>
+<script src="<?= base_url('assets/js/learning_notes.js') ?>"></script>
+
 <script>
 kaApplyAppContext(<?= json_encode([
   'catalog' => [],
@@ -521,7 +552,32 @@ kaApplyAppContext(<?= json_encode([
   'assessments' => [],
 ], $_ctx_flags) ?>);
 </script>
+<script src="<?= base_url('assets/js/lms_resume.js') ?>"></script>
 <script src="<?= base_url('assets/js/module.js') ?>"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof window.LMS_RESUME === 'undefined') return;
+  var C = (window.kaAppContext && window.kaAppContext.module) ? window.kaAppContext.module : {};
+  if (!C.modulePage || C.isCompleted) return;
+  window.LMS_RESUME.init({
+    userId: C.resumeUserId || 0,
+    moduleId: C.moduleId || 0,
+    courseId: C.courseId || 0,
+    contentType: C.contentType || '',
+    saveUrl: C.resumeSaveUrl || '',
+    csrfName: C.csrfName || '',
+    csrfHash: C.csrfHash || '',
+    serverState: C.resumeServerState || null,
+    queryHints: C.resumeQueryHints || null,
+    onYoutubeReady: function(sec) {
+      if (window.mvResumeSeekYoutube) window.mvResumeSeekYoutube(sec);
+    },
+    getYoutubeSeconds: function() {
+      return (window.mvGetYoutubeSeconds && window.mvGetYoutubeSeconds()) || 0;
+    }
+  });
+});
+</script>
 <?php if ( ! empty($youtube_video_id)): ?>
 <script src="https://www.youtube.com/iframe_api"></script>
 <?php endif; ?>

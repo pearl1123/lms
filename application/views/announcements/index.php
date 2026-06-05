@@ -15,7 +15,7 @@ $first_name = explode(' ', trim($full_name))[0];
 if ($role === 'admin') {
     $hero_eyebrow = 'System & LMS Center';
     $hero_title   = 'All Announcements & Alerts';
-    $hero_sub     = 'Monitor system notices, course updates, and reminders sent across KABAGA Academy.';
+    $hero_sub     = 'Monitor system notices, course updates, and reminders sent across kaBAGA Academy.';
 } elseif ($role === 'teacher' || $role === 'instructor') {
     $hero_eyebrow = 'Instructor Updates';
     $hero_title   = 'Announcements for your classes';

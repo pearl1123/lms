@@ -1,0 +1,93 @@
+/**
+ * Minimalist certificate — clean bordered layout (alternate template).
+ */
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+@page { size: A4 landscape; margin: 12mm; }
+
+html, body { width: 273mm; height: 186mm; }
+
+body.cert-minimal {
+  font-family: DejaVu Sans, sans-serif;
+  background: #fff;
+  color: #1e293b;
+  border: 1.5pt solid #1a3a5c;
+  padding: 14mm 16mm;
+  position: relative;
+}
+
+.cert-minimal__org {
+  text-align: center;
+  font-size: 10pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 6mm;
+}
+
+.cert-minimal__title {
+  text-align: center;
+  font-size: 32pt;
+  font-weight: 700;
+  color: #1a3a5c;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 8mm;
+}
+
+.cert-minimal__presented {
+  text-align: center;
+  font-size: 10pt;
+  color: #64748b;
+  margin-bottom: 3mm;
+}
+
+.cert-name {
+  text-align: center;
+  font-size: 26pt;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4mm;
+  line-height: 1.2;
+  padding: 0 8mm;
+}
+
+.cert-name--sm { font-size: 20pt; }
+.cert-name--xs { font-size: 16pt; }
+
+.cert-minimal__body {
+  text-align: center;
+  font-size: 10pt;
+  line-height: 1.5;
+  color: #334155;
+  max-width: 210mm;
+  margin: 0 auto 10mm;
+}
+
+.cert-minimal__sig-section {
+  position: absolute;
+  bottom: 16mm;
+  left: 16mm;
+  right: 16mm;
+}
+
+.cert-minimal__sig-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.cert-minimal__sig-table td { text-align: center; vertical-align: top; padding: 0 4mm; }
+.cert-minimal__sig-name { font-size: 9pt; font-weight: 700; margin-bottom: 1mm; }
+.cert-minimal__sig-line { border-top: 0.6pt solid #334155; width: 75%; margin: 0 auto; min-height: 8mm; }
+.cert-minimal__sig-img { max-height: 10mm; max-width: 38mm; }
+.cert-minimal__sig-role { font-size: 7.5pt; color: #64748b; line-height: 1.35; }
+
+.cert-minimal__footer {
+  position: absolute;
+  bottom: 6mm;
+  left: 16mm;
+  right: 16mm;
+  text-align: center;
+  font-size: 6.5pt;
+  color: #94a3b8;
+  border-top: 0.4pt solid #e2e8f0;
+  padding-top: 1.5mm;
+}

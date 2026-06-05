@@ -7,7 +7,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 <head>
 
 <meta charset="utf-8">
-<title>KABAGA LMS Dashboard</title>
+<title>kaBAGA Academy LMS Dashboard</title>
 
 <link href="<?= base_url('assets/tabler/css/tabler.min.css') ?>" rel="stylesheet">
 

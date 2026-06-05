@@ -9,6 +9,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * @property CI_DB_mysqli_driver $db
  * @property Assessment_service $assessment_service
+ * @property Course_completion_service $course_completion_service
  * @property Course_model       $course_model
  * @property Course_phase2_model $course_phase2
  */
@@ -21,6 +22,7 @@ class dashboard_model extends CI_Model {
         $this->load->model('Course_model', 'course_model');
         $this->load->model('Course_phase2_model', 'course_phase2');
         $this->load->library('assessment_service');
+        $this->load->library('course_completion_service');
     }
 
     /**
@@ -391,20 +393,15 @@ class dashboard_model extends CI_Model {
 
         foreach ($courses as $c) {
             $cid               = (int) $c->course_id;
-            $modules           = $this->course_model->get_modules($cid, $uid);
-            $agg               = $this->assessment_service->get_course_progress_aggregate($uid, $cid, $modules);
-            $c->module_count   = (int) ($agg['total_modules'] ?? 0);
-            $c->modules_done   = (int) ($agg['completed_modules'] ?? 0);
-            $c->progress_pct   = (int) ($agg['course_progress_percent'] ?? 0);
+            $state             = $this->course_completion_service->evaluate_user_course_state($uid, $cid);
+            $module_states     = (array) ($state['module_states'] ?? []);
+            $c->module_count   = count($module_states);
+            $c->modules_done   = count(array_filter($module_states, static function ($m) {
+                return ! empty($m['completed']);
+            }));
+            $c->progress_pct   = (int) ($state['progress_percent'] ?? 0);
             $c->course_progress_percent = $c->progress_pct;
-
-            $c->resume_url = site_url('course/' . $cid);
-            foreach ($modules as $m) {
-                if (($m->status ?? '') !== 'completed') {
-                    $c->resume_url = site_url('courses/module/' . (int) $m->id);
-                    break;
-                }
-            }
+            $c->resume_url = $this->course_completion_service->build_resume_url($uid, $cid);
 
             $enrolled_ts       = strtotime((string) ($c->enrolled_at ?? '')) ?: 0;
             $last_completed    = $last_done_map[$cid] ?? null;
@@ -526,15 +523,10 @@ class dashboard_model extends CI_Model {
             return null;
         }
 
-        $cid     = (int) $best->course_id;
-        $modules = $this->course_model->get_modules($cid, $uid);
-        $next    = null;
-        foreach ($modules as $m) {
-            if (($m->status ?? '') !== 'completed') {
-                $next = $m;
-                break;
-            }
-        }
+        $cid   = (int) $best->course_id;
+        $state = $this->course_completion_service->evaluate_user_course_state($uid, $cid);
+        $next_id = (int) ($state['next_module_id'] ?? 0);
+        $next = $next_id > 0 ? $this->course_model->get_module($next_id) : null;
 
         $remain = max(0, (int) ($best->module_count ?? 0) - (int) ($best->modules_done ?? 0));
         $plan   = $remain === 0
@@ -542,7 +534,7 @@ class dashboard_model extends CI_Model {
             : ($remain === 1 ? '1 module left' : $remain . ' modules left');
 
         $hero                     = clone $best;
-        $hero->resume_url         = $next !== null ? site_url('courses/module/' . (int) $next->id) : site_url('course/' . $cid);
+        $hero->resume_url         = $this->course_completion_service->build_resume_url($uid, $cid);
         $hero->outline_url        = site_url('course/' . $cid);
         $hero->next_module_id      = $next ? (int) $next->id : null;
         $hero->next_module_title   = $next ? (string) $next->title : '';
@@ -1201,18 +1193,28 @@ class dashboard_model extends CI_Model {
      * @param int $course_id
      * @return int
      */
-    private function _enrollment_progress_pct($user_id, $course_id)
+    /**
+     * Module player URL with saved resume query (video page, PDF page, etc.).
+     *
+     * @param int $user_id
+     * @param int $module_id
+     * @return string
+     */
+    private function _resume_module_url($user_id, $module_id)
     {
-        $uid     = (int) $user_id;
-        $cid     = (int) $course_id;
-        $modules = $this->course_model->get_modules($cid, $uid);
-        if (empty($modules)) {
-            return 0;
+        $module = $this->course_model->get_module((int) $module_id);
+        if ( ! $module) {
+            return site_url('courses');
         }
 
-        $agg = $this->assessment_service->get_course_progress_aggregate($uid, $cid, $modules);
+        return $this->course_completion_service->build_resume_url((int) $user_id, (int) $module->course_id);
+    }
 
-        return (int) ($agg['course_progress_percent'] ?? 0);
+    private function _enrollment_progress_pct($user_id, $course_id)
+    {
+        $state = $this->course_completion_service->evaluate_user_course_state((int) $user_id, (int) $course_id);
+
+        return (int) ($state['progress_percent'] ?? 0);
     }
 
     /**

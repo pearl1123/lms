@@ -8,8 +8,46 @@
  * @var string|null $cta_href     Optional link URL
  * @var string|null $cta_label    Optional CTA label
  * @var string      $modifier     Extra CSS classes e.g. "ka-empty--wide"
- * @var string|null $id          Optional HTML id
+ * @var string|null $id           Optional HTML id
+ * @var string      $variant      no_data|coming_soon|under_construction|custom
  */
+$variant = isset($variant) ? strtolower(trim((string) $variant)) : 'custom';
+
+if ($variant !== 'custom') {
+    $presets = [
+        'no_data' => [
+            'emoji'       => '📭',
+            'title'       => 'No data yet',
+            'description' => 'There is nothing to show in this section right now.',
+        ],
+        'coming_soon' => [
+            'emoji'       => '🚀',
+            'title'       => 'Coming soon',
+            'description' => 'This feature is on the roadmap and will be available in a future release.',
+        ],
+        'under_construction' => [
+            'emoji'       => '🛠️',
+            'title'       => 'Under construction',
+            'description' => 'We are building this workspace. Check back soon or use the main menu.',
+        ],
+    ];
+    if (isset($presets[$variant])) {
+        $p = $presets[$variant];
+        if (empty($title)) {
+            $title = $p['title'];
+        }
+        if (empty($description)) {
+            $description = $p['description'];
+        }
+        if (empty($emoji) || $emoji === '📦') {
+            $emoji = $p['emoji'];
+        }
+        if ($modifier === '') {
+            $modifier = 'ka-empty--' . str_replace('_', '-', $variant);
+        }
+    }
+}
+
 $emoji       = isset($emoji) ? (string) $emoji : '📦';
 $title       = isset($title) ? (string) $title : 'Nothing here yet';
 $description = isset($description) ? (string) $description : '';

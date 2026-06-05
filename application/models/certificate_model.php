@@ -34,6 +34,7 @@ class certificate_model extends CI_Model {
         parent::__construct();
         $this->load->database();
         $this->load->helper('ka_format');
+        $this->load->library('course_completion_service');
     }
 
     // =========================================================
@@ -49,184 +50,19 @@ class certificate_model extends CI_Model {
      */
     public function check_eligibility($user_id, $course_id)
     {
-        $checks = [
-            'all_modules_complete' => false,
-            'post_assessments_done'=> false,
-            'no_existing_cert'     => false,
-        ];
-
-        // ── 1. Already has certificate? ───────────────────────
-        $existing = $this->get_certificate($user_id, $course_id);
-        if ($existing) {
-            $checks['no_existing_cert'] = false;
-            return [
-                'eligible' => false,
-                'reason'   => 'already_issued',
-                'checks'   => $checks,
-            ];
-        }
-        $checks['no_existing_cert'] = true;
-
-        // ── 2. All modules completed? ─────────────────────────
-        $total_modules = (int) $this->db
-            ->where('course_id', (int) $course_id)
-            ->where('archived',  0)
-            ->count_all_results('course_modules');
-
-        if ($total_modules === 0) {
-            return [
-                'eligible' => false,
-                'reason'   => 'no_modules',
-                'checks'   => $checks,
-            ];
-        }
-
-        $completed_result = $this->db
-            ->select('COUNT(*) AS cnt', false)
-            ->from('module_progress mp')
-            ->join('course_modules cm', 'cm.id = mp.module_id', 'inner')
-            ->where('cm.course_id', (int) $course_id)
-            ->where('cm.archived',  0)
-            ->where('mp.user_id',   (int) $user_id)
-            ->where('mp.status',    'completed')
-            ->get();
-        $completed_row = ($completed_result && $completed_result->num_rows() > 0)
-            ? $completed_result->row()
-            : null;
-        $completed_modules = $completed_row ? (int) $completed_row->cnt : 0;
-
-        $checks['all_modules_complete'] = ($completed_modules >= $total_modules);
-
-        if ( ! $checks['all_modules_complete']) {
-            return [
-                'eligible' => false,
-                'reason'   => 'modules_incomplete',
-                'checks'   => $checks,
-                'progress' => ['done' => $completed_modules, 'total' => $total_modules],
-            ];
-        }
-
-        // ── 3. All POST assessments attempted? ────────────────
-        // Get all module IDs for this course
-        $mod_result = $this->db
-            ->select('id')
-            ->where('course_id', (int) $course_id)
-            ->where('archived',  0)
-            ->get('course_modules');
-
-        $module_ids = $mod_result ? array_column($mod_result->result_array(), 'id') : [];
-
-        if ( ! empty($module_ids)) {
-            // Get all POST assessments for these modules
-            $post_assessments = $this->db
-                ->select('la.id, la.module_id')
-                ->from('lib_assessments la')
-                ->where_in('la.module_id', $module_ids)
-                ->where('la.type',     'post')
-                ->where('la.archived', 0)
-                ->get();
-
-            $post_assessment_rows = $post_assessments ? $post_assessments->result() : [];
-
-            if ( ! empty($post_assessment_rows)) {
-                // For each post assessment, check: attempted AND score >= pass threshold
-                $all_passed  = true;
-                $not_passed  = [];
-                foreach ($post_assessment_rows as $pa) {
-                    // Get question IDs for this assessment
-                    $q_ids_result = $this->db
-                        ->select('id')
-                        ->where('assessment_id', $pa->id)
-                        ->where('archived',      0)
-                        ->get('lib_assessment_questions');
-
-                    if ( ! $q_ids_result || $q_ids_result->num_rows() === 0) {
-                        // Assessment has no questions — skip it
-                        continue;
-                    }
-
-                    $q_ids = array_column($q_ids_result->result_array(), 'id');
-
-                    // Check if user has submitted answers
-                    $answers = $this->db
-                        ->select('score')
-                        ->where_in('question_id', $q_ids)
-                        ->where('user_id',  (int) $user_id)
-                        ->where('archived', 0)
-                        ->get('assessment_answers');
-
-                    if ( ! $answers || $answers->num_rows() === 0) {
-                        // Not attempted at all
-                        $all_passed = false;
-                        $not_passed[] = ['reason' => 'not_attempted', 'assessment_id' => $pa->id];
-                        break;
-                    }
-
-                    // Calculate score (average of scored questions)
-                    $sum    = 0;
-                    $scored = 0;
-                    $pending= 0;
-                    foreach ($answers->result() as $row) {
-                        if ($row->score !== null) {
-                            $sum += (float) $row->score;
-                            $scored++;
-                        } else {
-                            $pending++;
-                        }
-                    }
-
-                    // If answers have pending (essay not graded yet), not eligible
-                    if ($pending > 0) {
-                        $all_passed = false;
-                        $not_passed[] = ['reason' => 'pending_grading', 'assessment_id' => $pa->id];
-                        break;
-                    }
-
-                    $min_pass = ka_assessment_pass_threshold();
-                    // Must meet pass threshold
-                    $avg_score = $scored > 0 ? round($sum / $scored, 2) : 0;
-                    if ($avg_score < $min_pass) {
-                        $all_passed = false;
-                        $not_passed[] = [
-                            'reason'        => 'score_too_low',
-                            'assessment_id' => $pa->id,
-                            'score'         => $avg_score,
-                        ];
-                        break;
-                    }
-                }
-
-                $checks['post_assessments_done'] = $all_passed;
-
-                if ( ! $all_passed) {
-                    $first_fail = $not_passed[0] ?? [];
-                    $fail_reason = isset($first_fail['reason']) ? $first_fail['reason'] : 'not_attempted';
-                    if ($fail_reason === 'pending_grading') {
-                        $reason = 'post_assessment_pending';
-                    } elseif ($fail_reason === 'score_too_low') {
-                        $reason = 'post_assessment_failed';
-                    } else {
-                        $reason = 'post_assessment_missing';
-                    }
-                    return [
-                        'eligible'    => false,
-                        'reason'      => $reason,
-                        'checks'      => $checks,
-                        'failed_info' => $first_fail,
-                    ];
-                }
-            } else {
-                // No post assessments configured — requirement auto-passes
-                $checks['post_assessments_done'] = true;
-            }
-        } else {
-            $checks['post_assessments_done'] = true;
-        }
+        $state = $this->course_completion_service
+            ->evaluate_user_course_state((int) $user_id, (int) $course_id);
+        $eligible = ! empty($state['is_certificate_eligible']);
 
         return [
-            'eligible' => true,
-            'reason'   => 'eligible',
-            'checks'   => $checks,
+            'eligible' => $eligible,
+            'reason'   => $eligible ? 'eligible' : 'course_completion_service_ineligible',
+            'checks'   => [
+                'all_modules_complete' => ! empty($state['is_completed']),
+                'post_assessments_done'=> (($state['assessment_state']['post'] ?? 'pending') === 'completed'),
+                'no_existing_cert'     => ! empty($state['is_certificate_eligible']),
+            ],
+            'state'    => $state,
         ];
     }
 
@@ -512,7 +348,9 @@ class certificate_model extends CI_Model {
     {
         $CI =& get_instance();
         $CI->load->model('Course_phase2_model', 'course_phase2');
-        $course_ids = $CI->course_phase2->get_instructor_course_ids((int) $instructor_id);
+        /** @var Course_phase2_model $course_phase2 */
+        $course_phase2 = $CI->{'course_phase2'};
+        $course_ids = $course_phase2->get_instructor_course_ids((int) $instructor_id);
         if (empty($course_ids)) {
             return [];
         }

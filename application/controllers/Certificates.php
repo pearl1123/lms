@@ -5,8 +5,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * Routes:
  *   GET  index.php/certificates                  → List (employee: mine / admin+teacher: all)
- *   GET  index.php/certificates/view/{id}        → Certificate detail + audit log
+ *   GET  index.php/certificates/preview/{id}    → Raw HTML preview (same as PDF template)
  *   GET  index.php/certificates/download/{id}    → Stream PDF to browser
+ *   POST index.php/certificates/regenerate/{id}  → Rebuild PDF (admin/teacher)
  *   GET  index.php/certificates/verify/{code}    → Public verification page
  *   POST index.php/certificates/check/{course_id}→ Auto-issue if eligible
  *   POST index.php/certificates/revoke/{id}      → Admin/teacher revoke
@@ -165,6 +166,8 @@ class Certificates extends KA_Controller {
             $this->session->set_userdata($viewed_key, true);
         }
 
+        $this->load->helper('certificate_pdf');
+
         $this->render('certificates/view', [
             'page_title' => 'Certificate — ' . $cert->course_title,
             'cert'       => $cert,
@@ -174,6 +177,49 @@ class Certificates extends KA_Controller {
             ['label' => 'Certificates', 'url' => 'certificates'],
             ['label' => $cert->course_title],
         ]);
+    }
+
+    // =========================================================
+    // preview($id) — Raw certificate HTML (same template as PDF)
+    // =========================================================
+    public function preview($id = null)
+    {
+        if ( ! $id) {
+            show_404();
+        }
+        $id = (int) $id;
+
+        $cert = $this->certificate_model->get_by_id($id);
+        if ( ! $cert) {
+            show_404();
+        }
+
+        if ($this->auth_user->role === 'employee'
+            && (int) $cert->user_id !== (int) $this->auth_user->id) {
+            show_404();
+        }
+
+        $this->load->helper('certificate_pdf');
+
+        $signatories = $this->certificate_model->resolve_signatories_for_pdf(
+            (int) ($cert->course_id ?? 0),
+            $cert->signatory_name ?? '',
+            $cert->signatory_title ?? ''
+        );
+
+        $html = ka_cert_render_template_html($cert, $signatories, [
+            'cert_debug' => ka_cert_is_debug_mode(),
+        ]);
+
+        if (ob_get_length()) {
+            @ob_end_clean();
+        }
+
+        header('Content-Type: text/html; charset=UTF-8');
+        header('X-Frame-Options: SAMEORIGIN');
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        echo $html;
+        exit;
     }
 
     // =========================================================
@@ -210,13 +256,67 @@ class Certificates extends KA_Controller {
 
         $full_path = FCPATH . $cert->file_path;
         $filename  = 'Certificate_' . $cert->certificate_code . '.pdf';
+        log_message('debug', 'Certificate download start cert_id=' . $id . ' path=' . $full_path);
+
+        if (ob_get_length()) {
+            @ob_end_clean();
+        }
 
         header('Content-Type: application/pdf');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
         header('Content-Length: ' . filesize($full_path));
-        header('Cache-Control: private, max-age=0, must-revalidate');
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        header('Last-Modified: ' . gmdate('D, d M Y H:i:s', filemtime($full_path)) . ' GMT');
         readfile($full_path);
         exit;
+    }
+
+    // =========================================================
+    // regenerate($id) — Rebuild PDF with current template (admin/teacher)
+    // =========================================================
+    public function regenerate($id = null)
+    {
+        if ( ! $id) {
+            redirect('certificates');
+        }
+        $id = (int) $id;
+
+        $role = strtolower($this->auth_user->role ?? '');
+        if ( ! in_array($role, ['admin', 'teacher'], true)) {
+            show_404();
+        }
+
+        $cert = $this->certificate_model->get_by_id($id);
+        if ( ! $cert) {
+            show_404();
+        }
+
+        if ($role === 'teacher') {
+            $owned = $this->certificate_model->get_certificates_by_instructor($this->auth_user->id);
+            $allowed = false;
+            foreach ($owned as $row) {
+                if ((int) ($row->id ?? 0) === $id) {
+                    $allowed = true;
+                    break;
+                }
+            }
+            if ( ! $allowed) {
+                show_404();
+            }
+        }
+
+        $this->load->library('certificate_service');
+        $path = $this->certificate_service->regenerate_pdf_for_row($cert);
+
+        if ($path) {
+            $this->flash('success', 'Certificate PDF regenerated with the latest template.');
+            redirect('certificates/download/' . $id);
+        }
+
+        $this->flash('error', 'Certificate PDF could not be regenerated. Please try again.');
+        redirect('certificates/view/' . $id);
     }
 
     // =========================================================
@@ -341,7 +441,7 @@ class Certificates extends KA_Controller {
     // =========================================================
 
     /**
-     * Generate a branded KABAGA Academy certificate PDF via DOMPDF.
+     * Generate a branded kaBAGA Academy certificate PDF via DOMPDF.
      *
      * Install DOMPDF:
      *   Option A (Composer):    composer require dompdf/dompdf

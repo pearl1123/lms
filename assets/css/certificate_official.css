@@ -1,0 +1,310 @@
+/**
+ * LCP Official Certificate — PPTX-measured layout
+ * Source: assets/forms/Sample Certificate for LMS.pptx
+ * Canvas: 297mm × 210mm (A4 landscape) · DOMPDF
+ *
+ * Z-index stack: 1 waves top · 2 wave bottom · 3 content · 4 signatories · 5 serial
+ */
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+@page {
+  size: A4 landscape;
+  margin: 0;
+}
+
+html, body {
+  width: 297mm;
+  height: 210mm;
+}
+
+body {
+  background: #ffffff;
+}
+
+.cert-page {
+  position: relative;
+  width: 297mm;
+  height: 210mm;
+  background: #ffffff;
+}
+
+/* z-index: 1 — behind all text */
+.layer-wave-top {
+  position: absolute;
+  left: -18.57mm;
+  top: 10.01mm;
+  width: 319.29mm;
+  height: 65.92mm;
+  z-index: 1;
+}
+
+.layer-wave-top img {
+  width: 100%;
+  height: 100%;
+}
+
+/* z-index: 2 — behind signatory text */
+.layer-wave-bottom {
+  position: absolute;
+  left: -17.75mm;
+  top: 174.45mm;
+  width: 277.07mm;
+  height: 76.75mm;
+  z-index: 2;
+}
+
+.layer-wave-bottom img {
+  width: 100%;
+  height: 100%;
+}
+
+/* z-index: 3 — logo row (icon + org name text) */
+.layer-logo {
+    position: absolute;
+    left: 50%;
+    top: 10mm;
+    transform: translateX(-50%);
+    width: auto;
+    height: auto;
+    z-index: 3;
+    display: block;
+    text-align: center;
+}
+
+.logo-img {
+    width: 90mm;
+    height: auto;
+}
+
+.org-name {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 9pt;
+    font-weight: normal;
+    color: #004AAD;
+    white-space: nowrap;
+    line-height: 1;
+}
+
+/* CERTIFICATE */
+.layer-title {
+  position: absolute;
+  left: 21mm;
+  top: 34.56mm;
+  width: 255mm;
+  height: 32.9mm;
+  z-index: 3;
+  font-family: 'Hammersmith One', Helvetica, DejaVu Sans, sans-serif;
+  font-size: 70pt;
+  font-weight: normal;
+  color: #004aad;
+  text-align: center;
+  line-height: 1;
+  overflow: visible;
+}
+
+.layer-subtitle {
+  position: absolute;
+  left: 21mm;
+  top: 59.38mm;
+  width: 255mm;
+  height: 14.29mm;
+  z-index: 3;
+  font-family: 'Hammersmith One', Helvetica, DejaVu Sans, sans-serif;
+  font-size: 30pt;
+  font-weight: normal;
+  color: #004aad;
+  text-align: center;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.layer-presented {
+  position: absolute;
+  left: 55.15mm;
+  top: 78.48mm;
+  width: 186.71mm;
+  height: 9.44mm;
+  z-index: 3;
+  font-family: 'Montserrat', Helvetica, DejaVu Sans, sans-serif;
+  font-size: 13pt;
+  font-weight: normal;
+  color: #000000;
+  text-align: center;
+  line-height: 1;
+}
+
+.layer-name {
+  position: absolute;
+  left: 26.4mm;
+  top: 90.34mm;
+  width: 244.2mm;
+  height: 28.84mm;
+  z-index: 3;
+  font-family: 'Parisienne', 'Brush Script MT', cursive;
+  font-size: 52pt;
+  font-weight: normal;
+  color: #004aad;
+  text-align: center;
+  line-height: 1;
+}
+
+.layer-name-line {
+  display: block;
+  position: absolute;
+  left: 66.26mm;
+  top: 115.79mm;
+  width: 164.47mm;
+  height: 0.75pt;
+  background: #000000;
+  border: none;
+  z-index: 3;
+}
+
+.layer-body {
+  position: absolute;
+  left: 35.3mm;
+  top: 120.5mm;
+  width: 226.39mm;
+  height: 22.68mm;
+  z-index: 3;
+  font-family: 'Montserrat', Helvetica, DejaVu Sans, sans-serif;
+  font-size: 16pt;
+  font-weight: normal;
+  color: #000000;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* z-index: 4 — signatories above bottom wave */
+.layer-sig-left-name,
+.layer-sig-right-name {
+  position: absolute;
+  z-index: 4;
+  font-family: 'Montserrat', Helvetica, DejaVu Sans, sans-serif;
+  font-size: 10pt;
+  font-weight: normal;
+  color: #000000;
+  text-align: center;
+  line-height: 1;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.layer-sig-left-name {
+  left: 74mm;
+  top: 167.75mm;
+  width: 69.17mm;
+  height: 6.69mm;
+}
+
+.layer-sig-right-name {
+  left: 168.6mm;
+  top: 167.75mm;
+  width: 64.03mm;
+  height: 6.69mm;
+}
+
+.layer-sig-left-line,
+.layer-sig-right-line {
+  position: absolute;
+  z-index: 4;
+  height: 0;
+  border-top: 0.75pt solid #000000;
+}
+
+.layer-sig-left-line {
+  left: 78.79mm;
+  top: 175.86mm;
+  width: 59.58mm;
+}
+
+.layer-sig-right-line {
+  left: 172.27mm;
+  top: 175.72mm;
+  width: 59.58mm;
+}
+
+.layer-sig-left-titles,
+.layer-sig-right-titles {
+  position: absolute;
+  z-index: 4;
+  font-family: 'Montserrat', Helvetica, DejaVu Sans, sans-serif;
+  font-size: 7pt;
+  font-weight: normal;
+  color: #ffffff;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.layer-sig-left-titles {
+  left: 71.97mm;
+  top: 176.98mm;
+  width: 73.22mm;
+  height: 9.61mm;
+}
+
+.layer-sig-right-titles {
+  left: 170.02mm;
+  top: 176.98mm;
+  width: 62.84mm;
+  height: 9.61mm;
+}
+
+/* Signature graphic — inside signatory column, above underline */
+.layer-sig-left-signature,
+.layer-sig-right-signature {
+  position: absolute;
+  z-index: 4;
+  text-align: center;
+  overflow: hidden;
+  height: 10mm;
+}
+
+.layer-sig-left-signature {
+  left: 78.79mm;
+  top: 172mm;
+  width: 59.58mm;
+}
+
+.layer-sig-right-signature {
+  left: 172.27mm;
+  top: 172mm;
+  width: 59.58mm;
+}
+
+.layer-sig-left-signature .sig-image,
+.layer-sig-right-signature .sig-image {
+  display: block;
+  margin: 0 auto;
+  max-height: 10mm;
+  max-width: 100%;
+}
+
+/* z-index: 5 */
+.layer-cert-serial {
+  position: absolute;
+  bottom: 2mm;
+  right: 6mm;
+  z-index: 5;
+  font-family: 'Montserrat', Helvetica, DejaVu Sans, sans-serif;
+  font-size: 7pt;
+  color: #666666;
+  text-align: right;
+}
+
+.layer-cert-verify {
+  position: absolute;
+  bottom: 2mm;
+  left: 6mm;
+  z-index: 5;
+  font-family: 'Montserrat', Helvetica, DejaVu Sans, sans-serif;
+  font-size: 6pt;
+  color: #888888;
+  max-width: 100mm;
+  word-break: break-all;
+}

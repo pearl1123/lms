@@ -17,6 +17,7 @@ class Reports_model extends CI_Model {
         $this->load->model('dashboard_model');
         $this->load->model('Course_model', 'course_model');
         $this->load->model('Course_phase2_model', 'course_phase2');
+        $this->load->model('Learning_notes_model', 'learning_notes_model');
     }
 
     /**
@@ -37,6 +38,7 @@ class Reports_model extends CI_Model {
         $range_days = $this->_range_to_days($range);
         $at_risk = $this->dashboard_model->get_instructor_struggling_learners($course_ids, 20);
         $active_window = $this->_count_active_learners_days($range_days);
+        $notes_analytics = $this->learning_notes_model->get_admin_analytics(8);
 
         $kpis = [
             'total_learners'      => (int) ($analytics['total_employees'] ?? 0),
@@ -52,6 +54,7 @@ class Reports_model extends CI_Model {
             'pending_approvals'   => (int) ($stats['pending_requests_count'] ?? 0),
             'at_risk_count'       => count($at_risk),
             'active_in_range'     => $active_window,
+            'learning_notes_total'=> (int) ($notes_analytics['total_notes'] ?? 0),
         ];
 
         return [
@@ -60,7 +63,8 @@ class Reports_model extends CI_Model {
             'kpis'                => $kpis,
             'kpi_deltas'          => $this->_build_kpi_deltas($charts, $kpis),
             'charts'              => $charts,
-            'insights'            => $this->_build_insights($kpis, $at_risk),
+            'insights'            => $this->_build_insights($kpis, $at_risk, $notes_analytics),
+            'learning_notes'      => $notes_analytics,
             'top_courses'         => $this->_enrich_top_courses($admin['courses']['top_by_enrollments'] ?? []),
             'struggling'          => $at_risk,
             'active_learners'     => $this->get_top_active_learners(10, $range_days ?? 30),
@@ -612,9 +616,17 @@ class Reports_model extends CI_Model {
      * @param object[]          $at_risk
      * @return array<int,array{type:string,text:string}>
      */
-    private function _build_insights(array $kpis, array $at_risk)
+    private function _build_insights(array $kpis, array $at_risk, array $notes_analytics = [])
     {
         $insights = [];
+
+        $notes_total = (int) ($notes_analytics['total_notes'] ?? 0);
+        if ($notes_total > 0) {
+            $insights[] = [
+                'type' => 'info',
+                'text' => number_format($notes_total) . ' personal learning notes captured across the platform.',
+            ];
+        }
 
         if ((int) ($kpis['pending_approvals'] ?? 0) > 0) {
             $insights[] = [

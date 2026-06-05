@@ -5,6 +5,7 @@ $stats           = $dashboard_data['stats'] ?? [];
 $charts          = $dashboard_data['charts'] ?? [];
 $courses_bucket  = $dashboard_data['courses'] ?? [];
 $top_courses     = $courses_bucket['top_by_enrollments'] ?? [];
+$latest_enrollments = $courses_bucket['latest_enrollments'] ?? [];
 $pending_rows    = $dashboard_data['requests'] ?? [];
 $activity_feed   = $dashboard_data['notifications'] ?? [];
 
@@ -128,6 +129,34 @@ $dash_icon = static function ($type_key) {
         <?php endif; ?>
       </div>
     </article>
+  </section>
+
+  <section class="db-card db-card--elevated" style="margin-top:1rem;">
+    <header class="db-card-header db-dash-panel-head">
+      <h2 class="db-card-title">Active course enrollees</h2>
+      <span class="db-dash-muted">Latest approved enrollments</span>
+    </header>
+    <div class="db-card-body">
+      <?php if (! empty($latest_enrollments)): ?>
+        <div class="db-table-wrap">
+          <table class="db-dash-table">
+            <thead><tr><th>Learner</th><th>Employee ID</th><th>Course</th><th>Enrolled</th></tr></thead>
+            <tbody>
+              <?php foreach (array_slice($latest_enrollments, 0, 10) as $row): ?>
+                <tr>
+                  <td><?= htmlspecialchars((string) ($row->fullname ?? 'Learner')); ?></td>
+                  <td><?= htmlspecialchars((string) ($row->employee_id ?? '—')); ?></td>
+                  <td><?= htmlspecialchars((string) ($row->course_title ?? '—')); ?></td>
+                  <td><?= ! empty($row->enrolled_at) ? htmlspecialchars(date('M j, Y', strtotime($row->enrolled_at))) : '—'; ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php else: ?>
+        <div class="db-dash-empty-state">No active enrollees yet.</div>
+      <?php endif; ?>
+    </div>
   </section>
 
   <section class="db-card db-card--elevated">

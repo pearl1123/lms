@@ -6,7 +6,7 @@
       <!-- Modal Header / Logo -->
       <div class="text-center p-4">
         <a href="<?= base_url(); ?>" class="navbar-brand navbar-brand-autodark mb-3 d-inline-block">
-          <img src="<?= base_url('assets/tabler/img/logo.png'); ?>" height="120" alt="KABAGA Logo" class="shadow-sm rounded-circle">
+          <img src="<?= base_url('assets/tabler/img/logo.png'); ?>" height="120" alt="kaBAGA Academy Logo" class="shadow-sm rounded-circle">
         </a>
         <h4 class="fw-bold text-primary mb-2 animate__animated animate__fadeInUp animate__faster">Create Your Account</h4>
         <p class="text-muted animate__animated animate__fadeInUp animate__faster animate__delay-0-1s">Register quickly and start your learning journey today!</p>
@@ -94,7 +94,7 @@
     <!-- Enterprise Terms Slide Panel -->
     <div id="termsPanel" class="terms-panel bg-white shadow-lg rounded-start">
       <div class="terms-header d-flex justify-content-between align-items-center p-3 border-bottom">
-        <h5 class="m-0">KABAGA Academy Terms & Policies</h5>
+        <h5 class="m-0">kaBAGA Academy Terms & Policies</h5>
         <button type="button" id="closeTermsPanel" class="btn-close"></button>
       </div>
       <div class="terms-body d-flex">
@@ -120,7 +120,7 @@
           <section id="acceptance">
             <h6 class="fw-bold">1. Acceptance of Terms</h6>
             <p>
-              By accessing or using KABAGA Academy, the Learning Management System (LMS) for the Lung Center of the Philippines,
+              By accessing or using kaBAGA Academy, the Learning Management System (LMS) for the Lung Center of the Philippines,
               you acknowledge that you have read, understood, and agree to comply with these Terms and Policies.
               If you do not agree with any part, you must immediately discontinue use.
             </p>

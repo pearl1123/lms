@@ -1,5 +1,5 @@
 /**
- * KABAGA Academy — SweetAlert2 helpers (consistent SaaS dialogs).
+ * kaBAGA Academy — SweetAlert2 helpers (consistent SaaS dialogs).
  * Requires SweetAlert2 (Swal) loaded before this script.
  */
 (function (global) {
@@ -176,6 +176,14 @@
       confirmButtonText: 'Yes, submit request',
       cancelButtonText: 'Cancel',
       confirmButtonColor: COLORS.primary,
+    },
+    archiveLibrary: {
+      title: 'Archive this library item?',
+      html: 'The item will be hidden but can be restored later.',
+      icon: 'warning',
+      confirmButtonText: 'Archive',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: COLORS.warning,
     },
   };
 

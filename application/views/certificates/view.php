@@ -4,6 +4,16 @@ $cert      = $cert      ?? null;
 $logs      = $logs      ?? [];
 $user_role = strtolower($user->role ?? 'employee');
 if ( ! $cert) return;
+
+$this->load->helper('certificate_pdf');
+$pdf_template_label = ka_cert_allowed_templates()[ka_cert_resolve_template(null, $cert)] ?? '';
+$pdf_cache_bust = '';
+if ( ! empty($cert->file_path)) {
+    $pdf_full = FCPATH . ltrim(str_replace(['../', '..\\'], '', (string) $cert->file_path), '/\\');
+    if (is_file($pdf_full)) {
+        $pdf_cache_bust = '?v=' . filemtime($pdf_full);
+    }
+}
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
 <style>
@@ -35,6 +45,9 @@ if ( ! $cert) return;
 .certv-code {
   font-family:monospace;font-size:.875rem;font-weight:700;
   color:#c9a84c;letter-spacing:.08em;
+}
+.certv-pdf-note {
+  font-size:.6875rem;color:rgba(255,255,255,.55);margin:0 0 .625rem;line-height:1.45;
 }
 .certv-actions { display:flex;flex-direction:column;gap:.625rem;margin-top:1.5rem; }
 .certv-btn {
@@ -93,10 +106,10 @@ if ( ! $cert) return;
   <!-- Certificate Preview -->
   <div class="certv-preview">
     <div class="certv-body">
-      <div class="certv-label">KABAGA Academy · Lung Center of the Philippines</div>
+      <div class="certv-label">kaBAGA Academy · Lung Center of the Philippines</div>
       <div class="certv-cert-title">CERTIFICATE OF COMPLETION</div>
 
-      <div class="certv-seal">KABAGA<br>ACADEMY<br>LCP</div>
+      <div class="certv-seal">kaBAGA<br>Academy<br>LCP</div>
 
       <div class="certv-by">This certifies that</div>
       <div class="certv-name"><?= htmlspecialchars(strtoupper($cert->student_name)) ?></div>
@@ -113,14 +126,25 @@ if ( ! $cert) return;
       <div class="certv-code"><?= htmlspecialchars($cert->certificate_code) ?></div>
 
       <div class="certv-actions">
-        <a href="<?= base_url('index.php/certificates/download/'.$cert->id) ?>"
+        <p class="certv-pdf-note">
+          Card above is a summary. Download opens the official PDF certificate<?= $pdf_template_label !== '' ? ' (' . htmlspecialchars($pdf_template_label) . ')' : '' ?>.
+        </p>
+        <a href="<?= base_url('index.php/certificates/download/'.$cert->id . $pdf_cache_bust) ?>"
            class="certv-btn certv-btn-download">
           ⬇ Download PDF Certificate
         </a>
         <a href="<?= base_url('index.php/certificates/verify/'.$cert->certificate_code) ?>"
-           class="certv-btn certv-btn-verify" target="_blank">
+           class="certv-btn certv-btn-verify" target="_blank" rel="noopener">
           🔗 Verify Certificate
         </a>
+        <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
+        <form method="post" action="<?= base_url('index.php/certificates/regenerate/'.$cert->id) ?>" style="margin:0;">
+          <input type="hidden" name="<?= html_escape($csrf_field_name ?? '') ?>" value="<?= html_escape($csrf_hash ?? '') ?>">
+          <button type="submit" class="certv-btn certv-btn-verify" style="width:100%;border:0;cursor:pointer;">
+            ↻ Regenerate PDF
+          </button>
+        </form>
+        <?php endif; ?>
       </div>
     </div>
   </div>

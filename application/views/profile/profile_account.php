@@ -14,7 +14,7 @@ $can_edit_any = ! empty($editable['email']) || ! empty($editable['contact_number
   <div class="prf-card">
     <div class="prf-card-hdr">
       <h2 class="prf-card-title">Account overview</h2>
-      <p class="prf-card-kicker">Your identity in KABAGA Academy and how you appear across the LMS.</p>
+      <p class="prf-card-kicker">Your identity in kaBAGA Academy and how you appear across the LMS.</p>
     </div>
     <div class="prf-card-body">
       <dl class="prf-dl">

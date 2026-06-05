@@ -1,0 +1,315 @@
+/* User Management — extends libx-workspace */
+.umgmt-workspace .umgmt-select {
+  min-width: 140px;
+  max-width: 200px;
+}
+
+.umgmt-filters {
+  flex-wrap: wrap;
+}
+
+.umgmt-badge {
+  display: inline-flex;
+  padding: 0.2rem 0.55rem;
+  border-radius: 500px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.umgmt-badge-active { background: #16a34a; }
+.umgmt-badge-inactive { background: #64748b; }
+
+.umgmt-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  justify-content: center;
+}
+
+.umgmt-page-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--ka-border, #e2e8f0);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ka-text, #1e293b);
+  text-decoration: none;
+}
+
+.umgmt-page-link.is-active,
+.umgmt-page-link:hover {
+  background: #1c4f87;
+  border-color: #1c4f87;
+  color: #fff;
+}
+
+.umgmt-modal .modal-title {
+  font-weight: 800;
+}
+
+.umgmt-modal-sub {
+  font-size: 0.82rem;
+  color: var(--ka-text-muted, #64748b);
+}
+
+.umgmt-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2.5rem;
+  color: var(--ka-text-muted, #64748b);
+}
+
+.umgmt-spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid #cbd5e1;
+  border-top-color: #1c4f87;
+  border-radius: 50%;
+  animation: umgmt-spin 0.7s linear infinite;
+}
+
+@keyframes umgmt-spin {
+  to { transform: rotate(360deg); }
+}
+
+.umgmt-tabs {
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--ka-border, #e2e8f0);
+}
+
+.umgmt-tabs .nav-link {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--ka-text-muted, #64748b);
+}
+
+.umgmt-tabs .nav-link.active {
+  color: #1c4f87;
+}
+
+.umgmt-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.25rem;
+}
+
+.umgmt-info-item label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ka-text-muted, #64748b);
+  margin-bottom: 0.15rem;
+}
+
+.umgmt-info-item span {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.umgmt-group-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.umgmt-group-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.umgmt-group-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--ka-border, #e2e8f0);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  background: var(--ka-bg, #f8fafc);
+}
+
+.umgmt-hint {
+  font-size: 0.8rem;
+  color: var(--ka-text-muted, #64748b);
+  margin-bottom: 0.75rem;
+}
+
+.umgmt-matrix-wrap {
+  overflow: auto;
+  max-height: 420px;
+  border: 1px solid var(--ka-border, #e2e8f0);
+  border-radius: 12px;
+}
+
+.umgmt-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.umgmt-matrix th,
+.umgmt-matrix td {
+  padding: 0.5rem 0.45rem;
+  border-bottom: 1px solid var(--ka-border, #e2e8f0);
+  vertical-align: top;
+}
+
+.umgmt-matrix th {
+  position: sticky;
+  top: 0;
+  background: var(--ka-bg, #f8fafc);
+  z-index: 1;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.68rem;
+}
+
+.umgmt-matrix .umgmt-module {
+  font-weight: 700;
+  color: #1c4f87;
+  white-space: nowrap;
+}
+
+.umgmt-cell-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 4.5rem;
+}
+
+.umgmt-cell-checks label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.68rem;
+  margin: 0;
+  cursor: pointer;
+}
+
+.umgmt-cell-checks input {
+  margin: 0;
+}
+
+.umgmt-matrix-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.umgmt-effective-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.umgmt-effective-col h6 {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ka-text-muted, #64748b);
+  margin-bottom: 0.5rem;
+}
+
+.umgmt-effective-final {
+  grid-column: 1 / -1;
+  border-top: 1px dashed var(--ka-border, #e2e8f0);
+  padding-top: 0.75rem;
+}
+
+.umgmt-perm-chips {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 1.5rem;
+}
+
+.umgmt-perm-chips li {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1c4f87;
+  border: 1px solid #bfdbfe;
+}
+
+.umgmt-effective-final .umgmt-perm-chips li {
+  background: #ecfdf5;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.umgmt-perm-chips .umgmt-empty-chip {
+  background: transparent;
+  border: none;
+  color: var(--ka-text-muted, #94a3b8);
+  font-style: italic;
+}
+
+/* Permission tree (user modal) */
+.umgmt-perm-tree-wrap {
+  border: 1px solid var(--ka-border, #e2e8f0);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  max-height: 420px;
+  overflow-y: auto;
+  background: #f8fafc;
+}
+
+.umgmt-tree-module { margin-bottom: 1rem; }
+.umgmt-tree-module-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--ka-navy, #1a3a5c);
+  margin-bottom: 0.35rem;
+}
+
+.umgmt-tree-subs { list-style: none; margin: 0; padding: 0 0 0 0.75rem; }
+.umgmt-tree-sub { margin-bottom: 0.5rem; }
+.umgmt-tree-sub-name { font-weight: 600; font-size: 0.82rem; color: #475569; }
+.umgmt-tree-actions { list-style: none; margin: 0.25rem 0 0 1rem; padding: 0; }
+.umgmt-tree-actions li { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.25rem; font-size: 0.8rem; }
+.umgmt-tree-code { font-size: 0.72rem; color: #64748b; }
+
+.umgmt-matrix-details summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--ka-text-muted, #64748b);
+  margin-bottom: 0.5rem;
+}
+
+/* Group permission matrix */
+.umgmt-gmatrix-wrap { overflow-x: auto; }
+.umgmt-gmatrix { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.umgmt-gmatrix th,
+.umgmt-gmatrix td { border: 1px solid var(--ka-border, #e2e8f0); padding: 0.4rem 0.55rem; white-space: nowrap; }
+.umgmt-gmatrix thead th { background: #f1f5f9; font-weight: 700; position: sticky; top: 0; z-index: 2; }
+.umgmt-gmatrix-sticky { position: sticky; left: 0; z-index: 3; background: #fff; min-width: 180px; }
+.umgmt-gmatrix-sticky2 { position: sticky; left: 180px; z-index: 3; background: #fff; min-width: 200px; }
+.umgmt-gmatrix-group { min-width: 90px; text-align: center; font-size: 0.72rem; }
+.umgmt-gmatrix-cb { width: 1rem; height: 1rem; cursor: pointer; }
+.umgmt-gmatrix-ro { font-weight: 700; color: #16a34a; }
+
+@media (max-width: 768px) {
+  .umgmt-info-grid,
+  .umgmt-effective-grid {
+    grid-template-columns: 1fr;
+  }
+}

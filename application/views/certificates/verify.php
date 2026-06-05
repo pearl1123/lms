@@ -103,7 +103,7 @@ $code = $code ?? '';
       </div>
       <div class="verify-field">
         <span class="verify-field-label">Issuing Authority</span>
-        <span class="verify-field-value">KABAGA Academy, Lung Center of the Philippines</span>
+        <span class="verify-field-value">kaBAGA Academy, Lung Center of the Philippines</span>
       </div>
       <div class="verify-code-badge"><?= htmlspecialchars($cert->certificate_code) ?></div>
     </div>
@@ -128,7 +128,7 @@ $code = $code ?? '';
 
   <!-- Info note -->
   <div style="text-align:center;margin-top:1.25rem;font-size:.75rem;color:var(--ka-text-muted,#64748b);">
-    This verification service is provided by KABAGA Academy, Lung Center of the Philippines.<br>
+    This verification service is provided by kaBAGA Academy, Lung Center of the Philippines.<br>
     Certificates are issued automatically upon successful completion of all course requirements.
   </div>
 

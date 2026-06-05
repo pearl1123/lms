@@ -188,6 +188,26 @@ $type_colors = ['multiple_choice'=>'#3b82f6','essay'=>'#f59f00','likert'=>'#22c5
       </div>
     </div>
 
+    <?php if ( ! empty($can_retake)): ?>
+    <div class="res-panel res-panel--retake animate__animated animate__fadeInUp animate__fast" style="animation-delay:.04s;">
+      <div class="res-panel-body">
+        <p class="res-retake-lead">
+          <?php if ( ! empty($retake_full_course)): ?>
+            This course requires revisiting all module content before you can retake the post-assessment.
+          <?php else: ?>
+            You may retake this assessment without repeating the full module.
+          <?php endif; ?>
+        </p>
+        <a href="<?= htmlspecialchars($retake_url ?? '', ENT_QUOTES) ?>"
+           class="res-back-btn res-back-btn--primary js-ka-retake-confirm"
+           data-ka-confirm-title="<?= ! empty($retake_full_course) ? 'Restart module and retake?' : 'Retake assessment now?' ?>"
+           data-ka-confirm-text="<?= ! empty($retake_full_course) ? 'This will reset module progress and start over.' : 'This will clear your previous attempt.' ?>">
+          <?= ! empty($retake_full_course) ? 'Restart module &amp; retake' : 'Retake assessment' ?>
+        </a>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <div class="res-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.05s;">
       <div class="res-panel-body">
         <a href="<?= base_url('index.php/assessments') ?>" class="res-back-btn">← Back to Assessments</a>
@@ -200,3 +220,34 @@ $type_colors = ['multiple_choice'=>'#3b82f6','essay'=>'#f59f00','likert'=>'#22c5
 
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var nodes = document.querySelectorAll('.js-ka-retake-confirm');
+  nodes.forEach(function (el) {
+    el.addEventListener('click', function (evt) {
+      evt.preventDefault();
+      var href = el.getAttribute('href');
+      if (!href) {
+        return;
+      }
+      if (window.KA_SWAL && typeof KA_SWAL.SwalConfirm === 'function') {
+        KA_SWAL.SwalConfirm({
+          title: el.getAttribute('data-ka-confirm-title') || 'Continue?',
+          text: el.getAttribute('data-ka-confirm-text') || 'You are about to continue.',
+          icon: 'warning',
+          confirmButtonText: 'Yes, continue',
+          cancelButtonText: 'Cancel',
+          confirmButtonColor: '#f59f00'
+        }).then(function (result) {
+          if (result.isConfirmed) {
+            window.location.href = href;
+          }
+        });
+        return;
+      }
+      window.location.href = href;
+    });
+  });
+});
+</script>

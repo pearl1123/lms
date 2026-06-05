@@ -9,12 +9,27 @@ class User_model extends CI_Model {
     public function __construct()
     {
         parent::__construct();
-        $this->hrmis_db = $this->load->database("hrmis", TRUE);
+        $this->load->helper('registration');
+        $this->hrmis_db = $this->load->database('hrmis', true);
     }
 
-    /* ===== GET HRMIS EMPLOYEE (ACTIVE ONLY) ===== */
+    /**
+     * ACTIVE employee from HRMIS tblemployee (idno must match normalized LCP######).
+     *
+     * @param string $employee_id
+     * @return object|null
+     */
     public function get_hrmis_employee($employee_id)
     {
+        $employee_id = normalize_employee_id($employee_id);
+        if ( ! is_valid_lcp_employee_id($employee_id)) {
+            return null;
+        }
+
+        if ( ! $this->hrmis_db) {
+            return null;
+        }
+
         return $this->hrmis_db
             ->where('idno', $employee_id)
             ->where('status', 'ACTIVE')
@@ -23,7 +38,69 @@ class User_model extends CI_Model {
     }
 
     /**
-     * Sync LMS office label from HRMIS Department (display only; visibility uses live HRMIS lookup).
+     * Validate employee for registration (format + ACTIVE HRMIS).
+     *
+     * @param string $employee_id
+     * @return array{ok:bool, message:string, employee:object|null}
+     */
+    public function validate_employee_for_registration($employee_id)
+    {
+        $employee_id = normalize_employee_id($employee_id);
+
+        if ( ! is_valid_lcp_employee_id($employee_id)) {
+            return [
+                'ok'       => false,
+                'message'  => 'Employee ID must be in the format LCP###### (e.g. LCP880201).',
+                'employee' => null,
+            ];
+        }
+
+        $hr = $this->get_hrmis_employee($employee_id);
+        if ( ! $hr) {
+            return [
+                'ok'       => false,
+                'message'  => HRMIS_REGISTRATION_BLOCK_MESSAGE,
+                'employee' => null,
+            ];
+        }
+
+        return [
+            'ok'       => true,
+            'message'  => '',
+            'employee' => $hr,
+        ];
+    }
+
+    /**
+     * Build insert row from HRMIS only (never from POST identity fields).
+     *
+     * @param object $hr
+     * @param string $password_hash
+     * @return array
+     */
+    public function build_registration_row_from_hrmis($hr, $password_hash)
+    {
+        $employee_id = normalize_employee_id($hr->idno ?? '');
+        $email       = trim((string) ($hr->emailadd ?? ''));
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $email = strtolower($employee_id) . '@lms.local';
+        }
+
+        return [
+            'employee_id'      => $employee_id,
+            'email'            => $email,
+            'fullname'         => hrmis_employee_display_name($hr),
+            'password'         => $password_hash,
+            'role'             => 'employee',
+            'office'           => trim((string) ($hr->Department ?? '')),
+            'employment_type'  => trim((string) ($hr->Position ?? '')),
+            'status'           => 'active',
+            'created_at'       => date('Y-m-d H:i:s'),
+        ];
+    }
+
+    /**
+     * Sync LMS profile labels from HRMIS.
      *
      * @param int         $user_id
      * @param string|null $employee_id
@@ -41,7 +118,7 @@ class User_model extends CI_Model {
             return false;
         }
 
-        $emp_id = $employee_id !== null ? trim((string) $employee_id) : trim((string) ($user->employee_id ?? ''));
+        $emp_id = $employee_id !== null ? normalize_employee_id($employee_id) : normalize_employee_id($user->employee_id ?? '');
         if ($emp_id === '') {
             return false;
         }
@@ -52,26 +129,50 @@ class User_model extends CI_Model {
         }
 
         return (bool) $this->db->where('id', $uid)->update($this->table, [
-            'office' => trim((string) ($hr->Department ?? '')),
+            'office'          => trim((string) ($hr->Department ?? '')),
+            'employment_type' => trim((string) ($hr->Position ?? '')),
+            'fullname'        => hrmis_employee_display_name($hr),
         ]);
     }
 
-    /* ===== CHECK IF REGISTERED ===== */
+    /**
+     * @param string $employee_id
+     */
     public function is_registered($employee_id)
     {
-        $user = $this->db->get_where($this->table, ['employee_id' => $employee_id])->row();
-        return (bool) $user;
+        $employee_id = normalize_employee_id($employee_id);
+        if ($employee_id === '') {
+            return false;
+        }
+
+        return (bool) $this->db
+            ->where('employee_id', $employee_id)
+            ->where('DELETED', 0)
+            ->get($this->table, 1)
+            ->row();
     }
 
-    /* ===== REGISTER USER ===== */
+    /**
+     * @param array $data
+     * @return bool
+     */
     public function register_user($data)
     {
-        return $this->db->insert($this->table, $data);
+        return (bool) $this->db->insert($this->table, $data);
     }
 
-    /* ===== LOGIN WITH LOCKOUT PROTECTION ===== */
+    /**
+     * @param string $employee_id
+     * @param string $password
+     * @return object|string|false
+     */
     public function login($employee_id, $password)
     {
+        $employee_id = normalize_employee_id($employee_id);
+        if ($employee_id === '') {
+            return false;
+        }
+
         $user = $this->db
             ->where('employee_id', $employee_id)
             ->where('status', 'active')
@@ -79,28 +180,38 @@ class User_model extends CI_Model {
             ->get($this->table)
             ->row();
 
-        if (!$user) return false;
+        // Legacy accounts may have non-uppercase employee_id (pre-hardening).
+        if ( ! $user) {
+            $user = $this->db
+                ->where('LOWER(employee_id)', strtolower($employee_id))
+                ->where('status', 'active')
+                ->where('DELETED', 0)
+                ->get($this->table)
+                ->row();
+        }
 
-        // Check lockout
+        if ( ! $user) {
+            return false;
+        }
+
         if ($user->locked_until && strtotime($user->locked_until) > time()) {
             return 'locked';
         }
 
-        // Wrong password
-        if (!password_verify($password, $user->password)) {
-            $attempts = $user->failed_attempts + 1;
+        if ( ! password_verify($password, $user->password)) {
+            $attempts = (int) $user->failed_attempts + 1;
             $update   = ['failed_attempts' => $attempts];
             if ($attempts >= 5) {
                 $update['locked_until'] = date('Y-m-d H:i:s', strtotime('+15 minutes'));
             }
             $this->db->where('id', $user->id)->update($this->table, $update);
+
             return false;
         }
 
-        // Success — reset lockout, record last login
         $this->db->where('id', $user->id)->update($this->table, [
             'failed_attempts' => 0,
-            'locked_until'    => NULL,
+            'locked_until'    => null,
             'last_login'      => date('Y-m-d H:i:s'),
             'last_activity'   => date('Y-m-d H:i:s'),
         ]);
@@ -108,16 +219,14 @@ class User_model extends CI_Model {
         return $user;
     }
 
-    /* ===== GET USER BY ID ===== */
     public function get_user($id)
     {
         return $this->db->get_where($this->table, ['id' => $id])->row();
     }
 
-    /* ===== GET ALL USERS ===== */
     public function get_all_users($include_deleted = false)
     {
-        if (! $include_deleted) {
+        if ( ! $include_deleted) {
             $this->db->where('DELETED', 0);
         }
 

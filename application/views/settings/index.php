@@ -32,6 +32,7 @@
       $this->load->view('settings/general', get_defined_vars());
       $this->load->view('settings/branding', get_defined_vars());
       $this->load->view('settings/learning', get_defined_vars());
+      $this->load->view('settings/etd', get_defined_vars());
       $this->load->view('settings/certificates', get_defined_vars());
       $this->load->view('settings/notifications', get_defined_vars());
       $this->load->view('settings/hrmis', get_defined_vars());

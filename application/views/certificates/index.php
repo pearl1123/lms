@@ -182,7 +182,7 @@ $is_admin           = ! empty($is_admin);
     <?php foreach ($certificates as $i => $cert): ?>
     <div class="cert-card" style="animation-delay:<?= $i * 0.05 ?>s;">
       <div class="cert-card-banner">
-        <div class="cert-card-seal">KABAGA<br>ACADEMY<br>LCP</div>
+        <div class="cert-card-seal">kaBAGA<br>Academy<br>LCP</div>
         <div class="cert-card-ribbon">✓ Verified</div>
       </div>
       <div class="cert-card-body">

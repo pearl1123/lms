@@ -164,8 +164,15 @@ class assessment_model extends CI_Model {
     public function get_assessment($assessment_id)
     {
         $extra_cols = '';
+        if ($this->assessments_randomize_column_ready()) {
+            $extra_cols .= ', la.randomize_questions';
+        }
+        if ($this->assessments_content_version_ready()) {
+            $extra_cols .= ', la.content_version';
+        }
+
         if ($this->assessments_checkpoint_schema_ready()) {
-            $extra_cols = ',
+            $extra_cols = ($extra_cols ?? '') . ',
                 la.context, la.trigger_type, la.trigger_value, la.is_required, la.sort_order';
             $link = $this->legacy_checkpoint_link_column();
             if ($link === 'legacy_checkpoint_id') {
@@ -277,6 +284,18 @@ class assessment_model extends CI_Model {
             $row['sort_order']   = (int) ($data['sort_order'] ?? 0);
         }
 
+        if ($this->assessments_randomize_column_ready()) {
+            $this->load->helper('etd_phase4');
+            $atype = strtolower(trim((string) ($data['type'] ?? '')));
+            if ($atype === 'checkpoint') {
+                $row['randomize_questions'] = 0;
+            } elseif (in_array($atype, ['pre', 'post'], true)) {
+                $row['randomize_questions'] = array_key_exists('randomize_questions', $data)
+                    ? (! empty($data['randomize_questions']) ? 1 : 0)
+                    : etd_assessment_randomize_default_for_type($atype);
+            }
+        }
+
         $this->db->insert('lib_assessments', $row);
 
         return (int) $this->db->insert_id();
@@ -334,6 +353,16 @@ class assessment_model extends CI_Model {
             $update['is_required'] = ! empty($data['is_required']) ? 1 : 0;
             if (array_key_exists('sort_order', $data)) {
                 $update['sort_order'] = (int) $data['sort_order'];
+            }
+        }
+
+        if ($this->assessments_randomize_column_ready()) {
+            $this->load->helper('etd_phase4');
+            $atype = strtolower(trim((string) ($data['type'] ?? '')));
+            if ($atype === 'checkpoint') {
+                $update['randomize_questions'] = 0;
+            } elseif (in_array($atype, ['pre', 'post'], true) && array_key_exists('randomize_questions', $data)) {
+                $update['randomize_questions'] = ! empty($data['randomize_questions']) ? 1 : 0;
             }
         }
 
@@ -400,6 +429,460 @@ class assessment_model extends CI_Model {
         return $questions;
     }
 
+    /** Whether lib_assessments.randomize_questions exists. */
+    public function assessments_randomize_column_ready()
+    {
+        static $ready = null;
+        if ($ready !== null) {
+            return $ready;
+        }
+        $ready = $this->db->field_exists('randomize_questions', 'lib_assessments');
+
+        return $ready;
+    }
+
+    /** Whether lib_assessments.content_version exists. */
+    public function assessments_content_version_ready()
+    {
+        static $ready = null;
+        if ($ready !== null) {
+            return $ready;
+        }
+        $ready = $this->db->field_exists('content_version', 'lib_assessments');
+
+        return $ready;
+    }
+
+    /**
+     * Current content version for an assessment (defaults to 1).
+     */
+    public function get_assessment_content_version($assessment_id)
+    {
+        if ( ! $this->assessments_content_version_ready()) {
+            return 1;
+        }
+
+        $row = $this->db
+            ->select('content_version')
+            ->where('id', (int) $assessment_id)
+            ->get('lib_assessments', 1)
+            ->row();
+
+        return $row ? max(1, (int) $row->content_version) : 1;
+    }
+
+    /**
+     * Bump content_version after question/choice structural edits.
+     */
+    public function bump_assessment_content_version($assessment_id)
+    {
+        if ( ! $this->assessments_content_version_ready()) {
+            return false;
+        }
+
+        $aid = (int) $assessment_id;
+        if ($aid < 1) {
+            return false;
+        }
+
+        $this->db->set('content_version', 'content_version + 1', false);
+        $this->db->where('id', $aid);
+
+        return (bool) $this->db->update('lib_assessments');
+    }
+
+    /**
+     * @return Assessment_attempt_order_model
+     */
+    private function _attempt_order_model()
+    {
+        $CI =& get_instance();
+        $CI->load->model('Assessment_attempt_order_model', 'assessment_attempt_order_model');
+
+        return $CI->assessment_attempt_order_model;
+    }
+
+    /**
+     * Questions for learner take (pre/post): DB-backed order + optional shuffle.
+     *
+     * @param int      $assessment_id
+     * @param object   $assessment
+     * @param int      $user_id
+     * @param int|null $enrollment_id
+     * @return array
+     */
+    public function get_questions_for_attempt($assessment_id, $assessment, $user_id, $enrollment_id = null)
+    {
+        $questions = $this->get_questions($assessment_id);
+        if (empty($questions)) {
+            return [];
+        }
+
+        $atype = strtolower(trim((string) ($assessment->type ?? '')));
+        if ( ! in_array($atype, ['pre', 'post'], true)) {
+            return $questions;
+        }
+
+        $order_model = $this->_attempt_order_model();
+        if ( ! $order_model->table_ready()) {
+            return $this->_get_questions_for_attempt_session_fallback(
+                $assessment_id,
+                $assessment,
+                $user_id,
+                $questions
+            );
+        }
+
+        $stored      = $this->_resolve_persistent_attempt_order(
+            $assessment_id,
+            $assessment,
+            $user_id,
+            $enrollment_id,
+            $questions,
+            $order_model
+        );
+        $created_new = ! empty($stored['_created_new']);
+
+        unset($stored['_created_new']);
+        $this->_cache_attempt_order_session($user_id, $assessment_id, $stored);
+        $this->_log_assessment_randomization_attempt(
+            (int) $assessment_id,
+            (int) $user_id,
+            $stored,
+            $created_new,
+            'db'
+        );
+
+        return $this->_apply_attempt_order_to_questions($questions, $stored);
+    }
+
+    /**
+     * Mark active DB attempt order submitted after successful POST.
+     */
+    public function finalize_attempt_order_on_submit($user_id, $assessment_id)
+    {
+        $order_model = $this->_attempt_order_model();
+        if ($order_model->table_ready()) {
+            $order_model->mark_submitted($user_id, $assessment_id);
+        }
+        $this->clear_assessment_attempt_order_session($user_id, $assessment_id);
+    }
+
+    /**
+     * @param array $questions canonical from get_questions()
+     * @return array{question_ids:int[],choice_orders:array<int,int[]>,_created_new?:bool}
+     */
+    private function _resolve_persistent_attempt_order(
+        $assessment_id,
+        $assessment,
+        $user_id,
+        $enrollment_id,
+        array $questions,
+        Assessment_attempt_order_model $order_model
+    ) {
+        $aid     = (int) $assessment_id;
+        $uid     = (int) $user_id;
+        $version = $this->get_assessment_content_version($aid);
+        $row     = $order_model->get_active($uid, $aid);
+        $shuffle = etd_assessment_randomize_enabled($assessment);
+
+        if ($row) {
+            $stored = $order_model->decode_order_payload($row);
+            if ((int) $row->assessment_version < $version && (int) $row->is_legacy_version !== 1) {
+                $order_model->mark_legacy_version((int) $row->id);
+            }
+
+            return $stored;
+        }
+
+        $legacy_session = $this->_read_attempt_order_session($uid, $aid);
+        if ( ! empty($legacy_session['question_ids'])) {
+            $encoded = $order_model->encode_order_payload($legacy_session);
+            $order_model->create([
+                'assessment_id'       => $aid,
+                'user_id'             => $uid,
+                'enrollment_id'       => $enrollment_id,
+                'assessment_version'  => $version,
+                'question_order_json' => $encoded['question_order_json'],
+                'choice_order_json'   => $encoded['choice_order_json'],
+            ]);
+            $legacy_session['_created_new'] = false;
+
+            return $legacy_session;
+        }
+
+        $stored = $this->_build_new_attempt_order($questions, $shuffle);
+        $encoded = $order_model->encode_order_payload($stored);
+        $order_model->create([
+            'assessment_id'       => $aid,
+            'user_id'             => $uid,
+            'enrollment_id'       => $enrollment_id,
+            'assessment_version'  => $version,
+            'question_order_json' => $encoded['question_order_json'],
+            'choice_order_json'   => $encoded['choice_order_json'],
+        ]);
+        $stored['_created_new'] = true;
+
+        return $stored;
+    }
+
+    /**
+     * @param array $questions
+     * @return array{question_ids:int[],choice_orders:array<int,int[]>}
+     */
+    private function _build_new_attempt_order(array $questions, $shuffle)
+    {
+        $q_ids = array_map(static function ($q) {
+            return (int) $q->id;
+        }, $questions);
+
+        if ($shuffle) {
+            shuffle($q_ids);
+        }
+
+        $choice_orders = [];
+        foreach ($questions as $q) {
+            $qid = (int) $q->id;
+            if (($q->question_type ?? '') !== 'multiple_choice' || empty($q->choices)) {
+                continue;
+            }
+            $c_ids = array_map(static function ($c) {
+                return (int) $c->id;
+            }, $q->choices);
+            if ($shuffle) {
+                shuffle($c_ids);
+            }
+            $choice_orders[$qid] = $c_ids;
+        }
+
+        return [
+            'question_ids'  => $q_ids,
+            'choice_orders' => $choice_orders,
+        ];
+    }
+
+    /**
+     * @param array{question_ids:int[],choice_orders:array<int,int[]>} $stored
+     */
+    private function _apply_attempt_order_to_questions(array $questions, array $stored)
+    {
+        $by_id = [];
+        foreach ($questions as $q) {
+            $by_id[(int) $q->id] = $q;
+        }
+
+        $ordered = [];
+        foreach ((array) ($stored['question_ids'] ?? []) as $qid) {
+            $qid = (int) $qid;
+            if ( ! isset($by_id[$qid])) {
+                continue;
+            }
+            $q = $by_id[$qid];
+            if (($q->question_type ?? '') === 'multiple_choice'
+                && ! empty($stored['choice_orders'][$qid])) {
+                $choice_map = [];
+                foreach ($q->choices as $c) {
+                    $choice_map[(int) $c->id] = $c;
+                }
+                $shuffled = [];
+                foreach ($stored['choice_orders'][$qid] as $cid) {
+                    if (isset($choice_map[$cid])) {
+                        $shuffled[] = $choice_map[$cid];
+                    }
+                }
+                if (count($shuffled) === count($q->choices)) {
+                    $q->choices = $shuffled;
+                }
+            }
+            $ordered[] = $q;
+        }
+
+        if (empty($ordered)) {
+            return $questions;
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * Read session cache (legacy pre-migration attempts).
+     *
+     * @return array{question_ids:int[],choice_orders:array<int,int[]>}
+     */
+    private function _read_attempt_order_session($user_id, $assessment_id)
+    {
+        if ( ! function_exists('get_instance')) {
+            return ['question_ids' => [], 'choice_orders' => []];
+        }
+        $CI =& get_instance();
+        if ( ! isset($CI->session)) {
+            return ['question_ids' => [], 'choice_orders' => []];
+        }
+        $stored = $CI->session->userdata(
+            $this->assessment_attempt_order_session_key($user_id, $assessment_id)
+        );
+        if ( ! is_array($stored) || empty($stored['question_ids'])) {
+            return ['question_ids' => [], 'choice_orders' => []];
+        }
+
+        return [
+            'question_ids'  => array_values(array_map('intval', (array) $stored['question_ids'])),
+            'choice_orders' => is_array($stored['choice_orders'] ?? null) ? $stored['choice_orders'] : [],
+        ];
+    }
+
+    /**
+     * Session cache only (not source of truth when DB table exists).
+     *
+     * @param array{question_ids:int[],choice_orders:array<int,int[]>} $stored
+     */
+    private function _cache_attempt_order_session($user_id, $assessment_id, array $stored)
+    {
+        if ( ! function_exists('get_instance')) {
+            return;
+        }
+        $CI =& get_instance();
+        if ( ! isset($CI->session)) {
+            return;
+        }
+        $CI->session->set_userdata(
+            $this->assessment_attempt_order_session_key($user_id, $assessment_id),
+            [
+                'question_ids'  => $stored['question_ids'] ?? [],
+                'choice_orders' => $stored['choice_orders'] ?? [],
+            ]
+        );
+    }
+
+    /**
+     * Backward compat when migration not applied yet.
+     */
+    private function _get_questions_for_attempt_session_fallback(
+        $assessment_id,
+        $assessment,
+        $user_id,
+        array $questions
+    ) {
+        if ( ! etd_assessment_randomize_enabled($assessment)) {
+            return $questions;
+        }
+
+        $session_key = $this->assessment_attempt_order_session_key($user_id, $assessment_id);
+        $CI          =& get_instance();
+        $stored      = $CI->session->userdata($session_key);
+        $created_new = false;
+
+        if ( ! is_array($stored) || empty($stored['question_ids'])) {
+            $created_new = true;
+            $stored      = $this->_build_new_attempt_order($questions, true);
+            $CI->session->set_userdata($session_key, $stored);
+        }
+
+        $this->_log_assessment_randomization_attempt(
+            (int) $assessment_id,
+            (int) $user_id,
+            $stored,
+            $created_new,
+            'session'
+        );
+
+        return $this->_apply_attempt_order_to_questions($questions, $stored);
+    }
+
+    /**
+     * @param array{question_ids:int[],choice_orders:array<int,int[]>} $stored
+     */
+    private function _log_assessment_randomization_attempt(
+        $assessment_id,
+        $user_id,
+        array $stored,
+        $created_new,
+        $source = 'db'
+    ) {
+        $choice_log = [];
+        foreach ((array) ($stored['choice_orders'] ?? []) as $qid => $cids) {
+            $choice_log[(int) $qid] = array_values(array_map('intval', (array) $cids));
+        }
+
+        log_message('debug', 'ASSESSMENT_RANDOMIZE: ' . json_encode([
+            'assessment_id' => (int) $assessment_id,
+            'user_id'       => (int) $user_id,
+            'event'         => $created_new ? 'created' : 'restored',
+            'source'        => (string) $source,
+            'question_ids'  => array_values(array_map('intval', (array) ($stored['question_ids'] ?? []))),
+            'choice_orders' => $choice_log,
+        ], JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * Session key for optional per-request cache (take view only).
+     */
+    public function assessment_attempt_order_session_key($user_id, $assessment_id)
+    {
+        return 'assessment_attempt_order_' . (int) $user_id . '_' . (int) $assessment_id;
+    }
+
+    /**
+     * Clear session cache for attempt order.
+     */
+    public function clear_assessment_attempt_order_session($user_id, $assessment_id)
+    {
+        if ( ! function_exists('get_instance')) {
+            return;
+        }
+        $CI =& get_instance();
+        if ( ! isset($CI->session)) {
+            return;
+        }
+        $key = $this->assessment_attempt_order_session_key($user_id, $assessment_id);
+        $CI->session->unset_userdata($key);
+        log_message('debug', 'ASSESSMENT_RANDOMIZE: ' . json_encode([
+            'assessment_id' => (int) $assessment_id,
+            'user_id'       => (int) $user_id,
+            'event'         => 'cleared',
+        ], JSON_UNESCAPED_UNICODE));
+    }
+
+    public function clear_user_assessment_attempt($user_id, $assessment_id)
+    {
+        $order_model = $this->_attempt_order_model();
+        if ($order_model->table_ready()) {
+            $order_model->mark_retaken($user_id, $assessment_id);
+        }
+        $this->clear_assessment_attempt_order_session($user_id, $assessment_id);
+
+        $q_ids = $this->_get_question_ids($assessment_id);
+        if (empty($q_ids)) {
+            return false;
+        }
+
+        return (bool) $this->db
+            ->where_in('question_id', $q_ids)
+            ->where('user_id', (int) $user_id)
+            ->where('archived', 0)
+            ->update('assessment_answers', ['archived' => 1]);
+    }
+
+    /**
+     * Post-assessment score summary for retake eligibility.
+     *
+     * @return array{passed:bool,percent:float,pending_essays:int}
+     */
+    public function get_user_assessment_result_summary($user_id, $assessment_id)
+    {
+        $this->load->helper('ka_format');
+        $result = $this->get_result((int) $user_id, (int) $assessment_id);
+        $thr    = (float) ka_assessment_pass_threshold();
+        $pending = (int) ($result['pending'] ?? 0);
+        $score   = (float) ($result['score'] ?? 0);
+
+        return [
+            'passed'         => $pending < 1 && $score >= $thr,
+            'percent'        => $score,
+            'pending_essays' => $pending,
+        ];
+    }
+
     /** Get a single question with its choices. */
     public function get_question($question_id)
     {
@@ -432,13 +915,22 @@ class assessment_model extends CI_Model {
             return 0;
         }
 
-        return (int) $this->db->insert_id();
+        $qid = (int) $this->db->insert_id();
+        $this->bump_assessment_content_version((int) $data['assessment_id']);
+
+        return $qid;
     }
 
     /** Update a question's text/type/settings. */
     public function update_question($question_id, $data)
     {
-        return (bool) $this->db
+        $qrow = $this->db
+            ->select('assessment_id')
+            ->where('id', (int) $question_id)
+            ->get('lib_assessment_questions', 1)
+            ->row();
+
+        $ok = (bool) $this->db
             ->where('id', (int) $question_id)
             ->update('lib_assessment_questions', [
                 'question_text'      => trim($data['question_text']),
@@ -449,17 +941,35 @@ class assessment_model extends CI_Model {
                 'date_last_modified' => date('Y-m-d H:i:s'),
                 'modified_by'        => (int) $data['modified_by'],
             ]);
+
+        if ($ok && $qrow) {
+            $this->bump_assessment_content_version((int) $qrow->assessment_id);
+        }
+
+        return $ok;
     }
 
     /** Soft-delete question and its choices. */
     public function delete_question($question_id)
     {
+        $qrow = $this->db
+            ->select('assessment_id')
+            ->where('id', (int) $question_id)
+            ->get('lib_assessment_questions', 1)
+            ->row();
+
         $this->db->where('question_id', (int) $question_id)
                  ->update('lib_assessment_choices', ['archived' => 1]);
 
-        return (bool) $this->db
+        $ok = (bool) $this->db
             ->where('id', (int) $question_id)
             ->update('lib_assessment_questions', ['archived' => 1]);
+
+        if ($ok && $qrow) {
+            $this->bump_assessment_content_version((int) $qrow->assessment_id);
+        }
+
+        return $ok;
     }
 
     // =========================================================
@@ -591,6 +1101,8 @@ class assessment_model extends CI_Model {
 
         $this->db->trans_complete();
 
+        $this->bump_assessment_content_version((int) $assessment_id);
+
         $questions = [];
         foreach ($saved_ids as $qid) {
             $q = $this->get_question($qid);
@@ -611,10 +1123,22 @@ class assessment_model extends CI_Model {
      */
     public function save_choices($question_id, $choices)
     {
+        $qrow = $this->db
+            ->select('assessment_id')
+            ->where('id', (int) $question_id)
+            ->get('lib_assessment_questions', 1)
+            ->row();
+
         $this->db->where('question_id', (int) $question_id)
                  ->update('lib_assessment_choices', ['archived' => 1]);
 
-        if (empty($choices)) return;
+        if (empty($choices)) {
+            if ($qrow) {
+                $this->bump_assessment_content_version((int) $qrow->assessment_id);
+            }
+
+            return;
+        }
 
         $order = 1;
         foreach ($choices as $c) {
@@ -627,6 +1151,10 @@ class assessment_model extends CI_Model {
                 'choice_order' => $order++,
                 'archived'     => 0,
             ]);
+        }
+
+        if ($qrow) {
+            $this->bump_assessment_content_version((int) $qrow->assessment_id);
         }
     }
 
@@ -1217,6 +1745,12 @@ class assessment_model extends CI_Model {
     // =========================================================
     // PRIVATE HELPERS
     // =========================================================
+
+    /** Public accessor for analytics / integrity models. */
+    public function get_question_ids_for_assessment($assessment_id)
+    {
+        return $this->_get_question_ids($assessment_id);
+    }
 
     private function _get_question_ids($assessment_id)
     {

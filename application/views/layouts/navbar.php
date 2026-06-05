@@ -18,7 +18,7 @@ $notif_count = (int) ($notif_count ?? 0);
 ?>
 
 <!-- ============================================================
-     KABAGA ACADEMY — Top Navbar
+     kaBAGA Academy — Top Navbar
      Premium LMS Layout — Lung Center of the Philippines
 ============================================================ -->
 
@@ -424,7 +424,7 @@ $notif_count = (int) ($notif_count ?? 0);
     <!-- User dropdown -->
     <div class="dropdown">
       <a href="#" class="ka-nav-user" data-bs-toggle="dropdown" aria-label="User menu">
-        <div class="ka-nav-user-avatar"><?= $initials ?></div>
+        <?php $this->load->view('components/ka_avatar', ['user' => $user ?? null, 'size' => 'sm', 'class' => 'ka-nav-user-avatar-wrap']); ?>
         <span class="ka-nav-user-name"><?= htmlspecialchars($full_name) ?></span>
         <svg class="ka-nav-user-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
       </a>

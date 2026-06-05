@@ -52,6 +52,14 @@ if ( ! function_exists('ka_merge_layout_vars')) {
         // declared on CI_Controller and triggers "Undefined property '$uri'" in analyzers.
         $URI =& load_class('URI', 'core');
 
+        $avatar_url = is_object($user) ? ka_user_avatar_url($user) : '';
+
+        $perm_engine = function_exists('ka_permission_engine_active') && ka_permission_engine_active();
+        $effective   = [];
+        if ($perm_engine && is_object($user) && isset($user->id)) {
+            $effective = ka_user_effective_permissions((int) $user->id);
+        }
+
         $data['nav_context'] = [
             'segment_1'        => (string) ($URI->segment(1) ?: ''),
             'segment_2'        => (string) ($URI->segment(2) ?: ''),
@@ -60,9 +68,14 @@ if ( ! function_exists('ka_merge_layout_vars')) {
             'full_name'        => $full_name,
             'employee_id'      => $employee_id,
             'initials'         => ka_user_initials($full_name),
+            'avatar_url'       => $avatar_url,
             'my_courses_label' => ($role_raw === 'employee') ? 'My Learning' : 'My Courses',
             'streak'           => $streak,
+            'perm_engine'      => $perm_engine,
+            'effective_perms'=> $effective,
         ];
+
+        $data['ka_branding'] = ka_branding_settings();
 
         $data['flash_messages'] = ka_collect_flash_messages($CI);
         if ( ! is_array($data['flash_messages'])) {

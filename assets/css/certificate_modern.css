@@ -1,0 +1,123 @@
+/**
+ * Modern certificate — kaBAGA Academy accent variant (alternate template).
+ */
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+@page { size: A4 landscape; margin: 0; }
+
+html, body { width: 297mm; height: 210mm; }
+
+body.cert-modern {
+  font-family: DejaVu Sans, sans-serif;
+  background: #fff;
+  color: #1e293b;
+  position: relative;
+}
+
+.cert-modern__accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5mm;
+  background: linear-gradient(90deg, #1a3a5c 0%, #6dabcf 50%, #c9a84c 100%);
+}
+
+.cert-modern__page {
+  position: relative;
+  padding: 16mm 20mm 14mm;
+  height: 100%;
+}
+
+.cert-modern__brand {
+  text-align: center;
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 4mm;
+}
+
+.cert-modern__title {
+  text-align: center;
+  font-size: 40pt;
+  font-weight: 700;
+  color: #1a3a5c;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2mm;
+}
+
+.cert-modern__subtitle {
+  text-align: center;
+  font-size: 14pt;
+  font-weight: 700;
+  color: #c9a84c;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 8mm;
+}
+
+.cert-minimal__presented,
+.cert-modern__presented {
+  text-align: center;
+  font-size: 11pt;
+  color: #64748b;
+  margin-bottom: 3mm;
+}
+
+.cert-name {
+  text-align: center;
+  font-family: DejaVu Serif, serif;
+  font-size: 30pt;
+  font-weight: 700;
+  font-style: italic;
+  color: #1a3a5c;
+  margin-bottom: 5mm;
+  line-height: 1.15;
+  padding: 0 10mm;
+}
+
+.cert-name--sm { font-size: 24pt; }
+.cert-name--xs { font-size: 18pt; }
+
+.cert-modern__body {
+  text-align: center;
+  font-size: 10.5pt;
+  line-height: 1.55;
+  color: #334155;
+  max-width: 220mm;
+  margin: 0 auto 8mm;
+}
+
+.cert-modern__body strong { color: #1a3a5c; }
+
+.cert-modern__sig-section {
+  position: absolute;
+  bottom: 20mm;
+  left: 20mm;
+  right: 20mm;
+}
+
+.cert-modern__sig-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.cert-modern__sig-table td { text-align: center; vertical-align: top; padding: 0 4mm; }
+.cert-modern__sig-name { font-size: 9.5pt; font-weight: 700; margin-bottom: 1mm; }
+.cert-modern__sig-line { border-top: 0.6pt solid #c9a84c; width: 70%; margin: 0 auto; min-height: 8mm; }
+.cert-modern__sig-img { max-height: 11mm; max-width: 40mm; }
+.cert-modern__sig-role { font-size: 7.5pt; color: #64748b; line-height: 1.35; }
+
+.cert-modern__footer {
+  position: absolute;
+  bottom: 6mm;
+  left: 20mm;
+  right: 20mm;
+  text-align: center;
+  font-size: 6.5pt;
+  color: #94a3b8;
+  border-top: 0.4pt solid #e2e8f0;
+  padding-top: 1.5mm;
+}
+
+.cert-modern__footer code { font-size: 6.5pt; color: #475569; }

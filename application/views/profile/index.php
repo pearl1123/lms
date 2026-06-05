@@ -20,6 +20,9 @@
     <button type="button" class="prf-nav-link" role="tab" id="prf-nav-security" data-prf-tab="security" aria-selected="false" aria-controls="prf-panel-security">
       Security
     </button>
+    <a href="<?= site_url('learning_notes') ?>" class="prf-nav-link prf-nav-link--external">
+      My Notes
+    </a>
     <button type="button" class="prf-nav-link" role="tab" id="prf-nav-activity" data-prf-tab="activity" aria-selected="false" aria-controls="prf-panel-activity">
       Activity
     </button>

@@ -51,7 +51,7 @@ $content_colors = [
 ?>
 
 <!-- ============================================================
-     KABAGA ACADEMY — Course Detail
+     kaBAGA Academy — Course Detail
 ============================================================ -->
 <link rel="stylesheet" href="<?= base_url('assets/css/course.css') ?>">
 <link rel="stylesheet" href="<?= base_url('assets/css/module.css') ?>">
@@ -65,6 +65,18 @@ $content_colors = [
       <h2 class="cd-hero-title"><?= htmlspecialchars($course->title) ?></h2>
       <?php if ( ! empty($course->description)): ?>
         <p class="cd-hero-desc"><?= htmlspecialchars($course->description) ?></p>
+      <?php endif; ?>
+      <?php
+      $modality_label = etd_modality_display_label($course->modality_name ?? '');
+      $show_f2f = etd_is_face_to_face_modality($course->modality_name ?? '');
+      ?>
+      <?php if ($modality_label !== ''): ?>
+      <div class="cd-hero-modality">
+        <span class="cd-modality-pill"><?= htmlspecialchars($modality_label, ENT_QUOTES) ?></span>
+      </div>
+      <?php endif; ?>
+      <?php if ($show_f2f): ?>
+      <?php $this->load->view('components/etd_f2f_notice'); ?>
       <?php endif; ?>
       <div class="cd-hero-meta">
         <div class="cd-hero-meta-item">
