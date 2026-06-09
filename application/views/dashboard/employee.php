@@ -66,8 +66,9 @@ $stu_initial = static function ($title) {
           </p>
           <p class="db-stu-continue-est"><?= htmlspecialchars((string) ($continue->estimate_label ?? '')) ?> · Active <?= htmlspecialchars((string) ($continue->last_activity_label ?? '')) ?></p>
           <div class="db-stu-continue-actions">
-            <a href="<?= htmlspecialchars((string) ($continue->resume_url ?? '#')) ?>" class="db-stu-btn db-stu-btn--primary">Resume course</a>
-            <a href="<?= htmlspecialchars((string) ($continue->outline_url ?? '#')) ?>" class="db-stu-btn db-stu-btn--ghost">Course outline</a>
+            <?php $continue_cta = is_array($continue->course_cta ?? null) ? $continue->course_cta : null; ?>
+            <a href="<?= htmlspecialchars((string) ($continue_cta['url'] ?? $continue->resume_url ?? '#'), ENT_QUOTES, 'UTF-8') ?>" class="db-stu-btn db-stu-btn--primary"><?= htmlspecialchars((string) ($continue_cta['label'] ?? 'Resume course')) ?></a>
+            <a href="<?= htmlspecialchars((string) ($continue->outline_url ?? '#'), ENT_QUOTES, 'UTF-8') ?>" class="db-stu-btn db-stu-btn--ghost">Course outline</a>
           </div>
         </div>
       </div>
@@ -101,6 +102,7 @@ $stu_initial = static function ($title) {
           <?php foreach ($enrolled_courses as $course):
             $pct = (int) ($course->progress_pct ?? 0);
             $is_done = $pct >= 100;
+            $course_cta = is_array($course->course_cta ?? null) ? $course->course_cta : null;
             $instr = trim((string) ($course->instructor_name ?? ''));
             ?>
             <article class="db-stu-course-card">
@@ -121,7 +123,7 @@ $stu_initial = static function ($title) {
               <progress class="db-stu-progress" max="100" value="<?= max(0, min(100, $pct)) ?>"><?= max(0, min(100, $pct)) ?>%</progress>
               <p class="db-stu-last">Last activity <?= !empty($course->last_activity_label) ? htmlspecialchars((string) $course->last_activity_label) : '—' ?></p>
               <div class="db-stu-course-actions">
-                <a href="<?= htmlspecialchars((string) ($course->resume_url ?? site_url('course/' . (int) ($course->course_id ?? 0)))) ?>" class="db-stu-btn db-stu-btn--primary db-stu-btn--sm"><?= $is_done ? 'Review' : 'Continue' ?></a>
+                <a href="<?= htmlspecialchars((string) ($course_cta['url'] ?? $course->resume_url ?? site_url('course/' . (int) ($course->course_id ?? 0))), ENT_QUOTES, 'UTF-8') ?>" class="db-stu-btn db-stu-btn--primary db-stu-btn--sm"><?= htmlspecialchars((string) ($course_cta['label'] ?? ($is_done ? 'Review' : 'Continue'))) ?></a>
                 <a href="<?= site_url('course/' . (int) ($course->course_id ?? 0)) ?>" class="db-stu-btn db-stu-btn--ghost db-stu-btn--sm">Details</a>
               </div>
             </article>

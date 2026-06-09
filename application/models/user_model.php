@@ -224,6 +224,104 @@ class User_model extends CI_Model {
         return $this->db->get_where($this->table, ['id' => $id])->row();
     }
 
+    /**
+     * Active, non-deleted LMS account by employee ID (password reset eligibility).
+     *
+     * @param  string $employee_id
+     * @return object|null
+     */
+    public function get_active_user_by_employee_id($employee_id)
+    {
+        $employee_id = normalize_employee_id($employee_id);
+        if ($employee_id === '') {
+            return null;
+        }
+
+        $user = $this->db
+            ->where('employee_id', $employee_id)
+            ->where('status', 'active')
+            ->where('DELETED', 0)
+            ->get($this->table, 1)
+            ->row();
+
+        if ($user) {
+            return $user;
+        }
+
+        return $this->db
+            ->where('LOWER(employee_id)', strtolower($employee_id))
+            ->where('status', 'active')
+            ->where('DELETED', 0)
+            ->get($this->table, 1)
+            ->row();
+    }
+
+    /**
+     * @param  int    $user_id
+     * @param  string $token_hash  SHA-256 hex of plain token
+     * @param  string $start       Y-m-d H:i:s
+     * @param  string $end         Y-m-d H:i:s
+     * @return bool
+     */
+    public function save_password_reset_token($user_id, $token_hash, $start, $end)
+    {
+        $uid = (int) $user_id;
+        if ($uid < 1 || $token_hash === '') {
+            return false;
+        }
+
+        return (bool) $this->db->where('id', $uid)->update($this->table, [
+            'token'            => $token_hash,
+            'token_date_start' => $start,
+            'token_date_end'   => $end,
+            'forgot_exp'       => $end,
+        ]);
+    }
+
+    /**
+     * @param  string $token_hash SHA-256 hex of plain token
+     * @return object|null
+     */
+    public function get_user_by_password_reset_token($token_hash)
+    {
+        if ($token_hash === '') {
+            return null;
+        }
+
+        $now = date('Y-m-d H:i:s');
+
+        return $this->db
+            ->where('token', $token_hash)
+            ->where('token_date_end >=', $now)
+            ->where('status', 'active')
+            ->where('DELETED', 0)
+            ->get($this->table, 1)
+            ->row();
+    }
+
+    /**
+     * @param  int    $user_id
+     * @param  string $password_hash
+     * @return bool
+     */
+    public function update_password_and_clear_reset_token($user_id, $password_hash)
+    {
+        $uid = (int) $user_id;
+        if ($uid < 1 || $password_hash === '') {
+            return false;
+        }
+
+        return (bool) $this->db->where('id', $uid)->update($this->table, [
+            'password'         => $password_hash,
+            'token'            => null,
+            'token_date_start' => null,
+            'token_date_end'   => null,
+            'forgot_exp'       => null,
+            'failed_attempts'  => 0,
+            'locked_until'     => null,
+        ]);
+    }
+
     public function get_all_users($include_deleted = false)
     {
         if ( ! $include_deleted) {

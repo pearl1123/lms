@@ -51,7 +51,6 @@
                  alt="kaBAGA Academy"
                  class="wmis-logo-login"
                  onerror="this.onerror=null;this.src='<?= base_url('assets/img/wmis-logo.svg'); ?>';" />
-            <div class="wmis-logo-subtext">kaBAGA Academy</div>
             <div class="wmis-logo-hospital">LUNG CENTER OF THE PHILIPPINES</div>
           </div>
           <h4 class="h4 text-center mb-1">Empowering learners with the skills of tomorrow.</h4>

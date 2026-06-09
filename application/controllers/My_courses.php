@@ -7,60 +7,22 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Routes:
  *   GET  index.php/my_courses          → role-based course list
  *
- * @property CI_DB_mysqli_driver  $db
- * @property CI_Session           $session
- * @property CI_Input             $input
- * @property User_model           $user_model
+ * @property My_courses_model     $my_courses_model
  * @property Course_model         $course_model
  * @property Course_phase2_model  $course_phase2
  * @property Assessment_service   $assessment_service
  */
-class My_courses extends CI_Controller {
-
-    /** @var object Authenticated user row */
-    private $user;
+class My_courses extends KA_Controller {
 
     public function __construct()
     {
         parent::__construct();
-        $this->load->library('session');
-        $this->load->model('User_model',   'user_model');
+        $this->load->model('My_courses_model', 'my_courses_model');
         $this->load->model('Course_model', 'course_model');
         $this->load->model('Course_phase2_model', 'course_phase2');
         $this->load->library('assessment_service');
-        $this->load->helper('url');
 
-        // ── Auth guard ────────────────────────────────────────
-        $user_id = $this->session->userdata('user_id');
-        if ( ! $user_id) {
-            redirect('auth/login');
-        }
-
-        $user = $this->user_model->get_user($user_id);
-
-        if ( ! $user) {
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-
-        if ((int) $user->banned   === 1)       { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ($user->status        !== 'active') { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ((int) $user->DELETED  === 1)       { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ( ! empty($user->locked_until) && strtotime($user->locked_until) > time()) {
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-
-        $this->user = $user;
-
-        // Keep session user array fresh for sidebar
-        $this->session->set_userdata('user', [
-            'id'          => $user->id,
-            'fullname'    => $user->fullname,
-            'employee_id' => $user->employee_id,
-            'role'        => $user->role,
-            'status'      => $user->status,
-        ]);
+        $this->require_permission('my_courses.view');
     }
 
     // =========================================================
@@ -69,7 +31,7 @@ class My_courses extends CI_Controller {
     // =========================================================
     public function index()
     {
-        switch ($this->user->role) {
+        switch ($this->auth_user->role) {
             case 'admin':   $this->_admin();      break;
             case 'teacher': $this->_instructor(); break;
             default:        $this->_employee();   break;
@@ -81,42 +43,10 @@ class My_courses extends CI_Controller {
     // =========================================================
     private function _admin()
     {
-        $user = $this->user;
+        $user = $this->auth_user;
 
-        $courses_result = $this->db
-            ->select('c.id, c.title, c.description, c.archived,
-                      c.created_at, c.category_id,
-                      cc.name AS category_name')
-            ->from('courses c')
-            ->join('course_categories cc', 'cc.id = c.category_id', 'left')
-            ->order_by('c.created_at', 'DESC')
-            ->get();
-
-        $courses = [];
-        if ($courses_result && $courses_result->num_rows() > 0) {
-            foreach ($courses_result->result() as $course) {
-
-                $course->module_count = $this->db
-                    ->where('course_id', $course->id)
-                    ->where('archived', 0)
-                    ->count_all_results('course_modules');
-
-                $course->enrolled_count = $this->db
-                    ->where('course_id', $course->id)
-                    ->where('status', 'approved')
-                    ->count_all_results('enrollments');
-
-                $course->avg_progress = $this->course_model->get_avg_progress((int) $course->id);
-
-                $courses[] = $course;
-            }
-        }
-
-        $categories = $this->db
-            ->where('archived', 0)
-            ->order_by('name', 'ASC')
-            ->get('course_categories')
-            ->result();
+        $courses    = $this->my_courses_model->get_admin_courses_with_stats();
+        $categories = $this->my_courses_model->get_active_categories();
 
         $status_param = strtolower(trim((string) $this->input->get('status', true)));
         $filter_status = '';
@@ -157,44 +87,10 @@ class My_courses extends CI_Controller {
     // =========================================================
     private function _instructor()
     {
-        $user = $this->user;
+        $user = $this->auth_user;
 
-        $courses_result = $this->db
-            ->select('c.id, c.title, c.description, c.archived,
-                      c.created_at, c.category_id, c.access_type, c.publish_status,
-                      cc.name AS category_name')
-            ->from('courses c')
-            ->join('course_categories cc', 'cc.id = c.category_id', 'left');
-        $this->course_phase2->restrict_query_to_instructor_courses((int) $user->id);
-        $courses_result = $this->db
-            ->order_by('c.created_at', 'DESC')
-            ->get();
-
-        $my_courses_list = [];
-        if ($courses_result && $courses_result->num_rows() > 0) {
-            foreach ($courses_result->result() as $course) {
-
-                $course->module_count = $this->db
-                    ->where('course_id', $course->id)
-                    ->where('archived', 0)
-                    ->count_all_results('course_modules');
-
-                $course->enrolled_count = $this->db
-                    ->where('course_id', $course->id)
-                    ->where('status', 'approved')
-                    ->count_all_results('enrollments');
-
-                $course->avg_progress = $this->course_model->get_avg_progress((int) $course->id);
-
-                $my_courses_list[] = $course;
-            }
-        }
-
-        $categories = $this->db
-            ->where('archived', 0)
-            ->order_by('name', 'ASC')
-            ->get('course_categories')
-            ->result();
+        $my_courses_list = $this->my_courses_model->get_instructor_courses_with_stats((int) $user->id);
+        $categories      = $this->my_courses_model->get_active_categories();
 
         $data = [
             'user'            => $user,
@@ -216,105 +112,31 @@ class My_courses extends CI_Controller {
     // =========================================================
     private function _employee()
     {
-        $user = $this->user;
+        $user = $this->auth_user;
 
-        $pending_enrollments  = [];
-        $pending_result       = $this->db
-            ->select('e.course_id, e.enrolled_at,
-                      c.title, c.description, c.category_id,
-                      cc.name AS category_name')
-            ->from('enrollments e')
-            ->join('courses c',           'c.id = e.course_id',     'left')
-            ->join('course_categories cc', 'cc.id = c.category_id', 'left')
-            ->where('e.user_id',  $user->id)
-            ->where('e.status',   'pending')
-            ->where('c.archived', 0)
-            ->where('c.publish_status', 'published')
-            ->order_by('e.enrolled_at', 'DESC')
-            ->get();
-        if ($pending_result && $pending_result->num_rows() > 0) {
-            foreach ($pending_result->result() as $row) {
-                $row->module_count = (int) $this->db
-                    ->where('course_id', $row->course_id)
-                    ->where('archived', 0)
-                    ->count_all_results('course_modules');
-                $pending_enrollments[] = $row;
-            }
-        }
+        $pending_enrollments  = $this->my_courses_model->get_user_enrollments_by_status((int) $user->id, 'pending');
+        $rejected_enrollments = $this->my_courses_model->get_user_enrollments_by_status((int) $user->id, 'rejected');
 
-        $rejected_enrollments = [];
-        $rejected_result    = $this->db
-            ->select('e.course_id, e.enrolled_at,
-                      c.title, c.description, c.category_id,
-                      cc.name AS category_name')
-            ->from('enrollments e')
-            ->join('courses c',           'c.id = e.course_id',     'left')
-            ->join('course_categories cc', 'cc.id = c.category_id', 'left')
-            ->where('e.user_id',  $user->id)
-            ->where('e.status',   'rejected')
-            ->where('c.archived', 0)
-            ->where('c.publish_status', 'published')
-            ->order_by('e.enrolled_at', 'DESC')
-            ->get();
-        if ($rejected_result && $rejected_result->num_rows() > 0) {
-            foreach ($rejected_result->result() as $row) {
-                $row->module_count = (int) $this->db
-                    ->where('course_id', $row->course_id)
-                    ->where('archived', 0)
-                    ->count_all_results('course_modules');
-                $rejected_enrollments[] = $row;
-            }
-        }
-
-        // ── Approved enrollments only (progress + catalog access) ──
-        $enrolled_result = $this->db
-            ->select('e.course_id, e.enrolled_at,
-                      c.title, c.description, c.category_id,
-                      cc.name AS category_name')
-            ->from('enrollments e')
-            ->join('courses c',           'c.id = e.course_id',     'left')
-            ->join('course_categories cc', 'cc.id = c.category_id', 'left')
-            ->where('e.user_id',  $user->id)
-            ->where('e.status',   'approved')
-            ->where('c.archived', 0)
-            ->where('c.publish_status', 'published')
-            ->order_by('e.enrolled_at', 'DESC')
-            ->get();
-
+        $enrolled_rows = $this->my_courses_model->get_user_enrollments_by_status((int) $user->id, 'approved');
         $enrolled_courses = [];
-        if ($enrolled_result && $enrolled_result->num_rows() > 0) {
-            foreach ($enrolled_result->result() as $ec) {
+        foreach ($enrolled_rows as $ec) {
+            $agg = $this->assessment_service->get_course_progress_aggregate(
+                (int) $user->id,
+                (int) $ec->course_id
+            );
 
-                $agg = $this->assessment_service->get_course_progress_aggregate(
-                    (int) $user->id,
-                    (int) $ec->course_id
-                );
+            $ec->module_count            = (int) $agg['total_modules'];
+            $ec->modules_done            = (int) $agg['completed_modules'];
+            $ec->course_progress_percent = (int) $agg['course_progress_percent'];
+            $ec->progress_pct            = $ec->course_progress_percent;
+            $ec->course_cta              = get_course_cta((int) $ec->course_id, (int) $user->id, ka_lms_return_q('my_courses'));
 
-                $ec->module_count            = (int) $agg['total_modules'];
-                $ec->modules_done            = (int) $agg['completed_modules'];
-                $ec->course_progress_percent = (int) $agg['course_progress_percent'];
-                // Backward-compatible key used by existing templates/widgets.
-                $ec->progress_pct = $ec->course_progress_percent;
-
-                $enrolled_courses[] = $ec;
-            }
+            $enrolled_courses[] = $ec;
         }
 
-        // ── Available: exclude courses with pending or approved request ──
-        $blocked = $this->db
-            ->select('course_id')
-            ->where('user_id', $user->id)
-            ->where_in('status', ['pending', 'approved'])
-            ->get('enrollments');
-        $blocked_ids = [];
-        if ($blocked && $blocked->num_rows() > 0) {
-            foreach ($blocked->result() as $b) {
-                $blocked_ids[] = (int) $b->course_id;
-            }
-        }
-
+        $blocked_ids     = $this->my_courses_model->get_blocked_enrollment_course_ids((int) $user->id);
         $invited_courses = $this->course_phase2->get_invited_courses_for_user((int) $user->id);
-        $invited_ids = array_map(static function ($row) {
+        $invited_ids     = array_map(static function ($row) {
             return (int) ($row->course_id ?? 0);
         }, $invited_courses);
 
@@ -330,11 +152,7 @@ class My_courses extends CI_Controller {
             $available_courses[] = $ac;
         }
 
-        $categories = $this->db
-            ->where('archived', 0)
-            ->order_by('name', 'ASC')
-            ->get('course_categories')
-            ->result();
+        $categories = $this->my_courses_model->get_active_categories();
 
         $data = [
             'user'                 => $user,
@@ -344,8 +162,8 @@ class My_courses extends CI_Controller {
             'pending_enrollments'  => $pending_enrollments,
             'rejected_enrollments' => $rejected_enrollments,
             'available_courses'    => $available_courses,
-            'categories'         => $categories,
-            'breadcrumbs'        => [
+            'categories'           => $categories,
+            'breadcrumbs'          => [
                 ['label' => 'Dashboard', 'url' => 'dashboard'],
                 ['label' => 'My Learning'],
             ],

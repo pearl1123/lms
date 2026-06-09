@@ -62,33 +62,8 @@ $pre_assessment_id = (is_object($pre_assessment) && isset($pre_assessment->id))
 
 $MODULE_STATE_URL                = base_url('index.php/courses/module_state/' . (int) $module->id);
 
-/** Pre-assessment modal payload (video modules only; set by Assessments::submit). */
-$pre_assessment_modal = null;
-if (function_exists('get_instance')) {
-    /** @var CI_Controller&object{session: CI_Session} $CI */
-    $CI = & get_instance();
-    if (isset($CI->session)) {
-        $_pm = $CI->session->flashdata('pre_assessment_modal');
-        if (is_array($_pm)
-            && (int) ($_pm['module_id'] ?? 0) === (int) $module->id
-            && $eff_type === 'video') {
-            $pre_assessment_modal = $_pm;
-        }
-    }
-}
-$module_pre_modal = null;
-if ($pre_assessment_modal !== null) {
-    $_aid             = (int) ($pre_assessment_modal['assessment_id'] ?? 0);
-    $module_pre_modal = [
-        'assessment_id' => $_aid,
-        'title'         => (string) ($pre_assessment_modal['title'] ?? 'Pre-assessment'),
-        'score'         => (float) ($pre_assessment_modal['score'] ?? 0),
-        'passed'        => ! empty($pre_assessment_modal['passed']),
-        'pending_count' => (int) ($pre_assessment_modal['pending_count'] ?? 0),
-        'threshold'     => (float) ($pre_assessment_modal['threshold'] ?? ka_assessment_pass_threshold()),
-        'detail_url'    => ($_aid > 0) ? base_url('index.php/assessments/result/' . $_aid) : '',
-    ];
-}
+/** Pre-assessment modal payload (video modules only; prepared by Courses::module). */
+$module_pre_modal = $module_pre_modal ?? null;
 
 $MARK_COMPLETE_URL = base_url('index.php/courses/complete_module/' . $module->id);
 $CSRF_NAME  = $csrf_field_name ?? '';

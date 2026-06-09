@@ -72,12 +72,8 @@ $select_opts = $select_options ?? [];
             <td colspan="<?= count($lib['list_columns'] ?? []) + 1 ?>" class="libx-empty">No records found.</td>
           </tr>
           <?php else: ?>
-          <?php
-          $CI = &get_instance();
-          $CI->load->model('Library_crud_model', 'libx_row_model');
-          $CI->libx_row_model->set_config($lib);
-          foreach ($rows as $row):
-            $is_archived = $can_archive && $CI->libx_row_model->is_archived_row($row);
+          <?php foreach ($rows as $row):
+            $is_archived = $can_archive && ! empty($row->is_archived);
             $row_id = $row->{$pk};
           ?>
           <tr class="<?= $is_archived ? 'libx-row-archived' : '' ?>" data-id="<?= htmlspecialchars((string) $row_id, ENT_QUOTES) ?>">

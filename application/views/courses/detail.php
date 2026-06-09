@@ -6,6 +6,7 @@ $is_enrolled       = $is_enrolled       ?? false;
 $total_modules     = $total_modules     ?? 0;
 $completed_modules = $completed_modules ?? 0;
 $progress_pct      = $progress_pct      ?? 0;
+$course_cta        = is_array($course_cta ?? null) ? $course_cta : null;
 $total_enrolled    = $total_enrolled    ?? 0;
 $modules           = is_array($modules) || is_object($modules) ? $modules : [];
 $user              = $user              ?? null;
@@ -125,20 +126,11 @@ $content_colors = [
           <a href="<?= base_url('certificates') ?>" class="cd-enroll-btn cd-enroll-btn-cert">
             🏆 View Certificate
           </a>
-        <?php else: ?>
-          <?php
-          // Find first incomplete module
-          $next_module = null;
-          foreach ($modules as $m) {
-            if (($m->status ?? 'not_started') !== 'completed') { $next_module = $m; break; }
-          }
-          ?>
-          <?php if ($next_module): ?>
-          <a href="<?= base_url('courses/module/'.$next_module->id . $lms_course_qs) ?>"
-             class="cd-enroll-btn cd-enroll-btn-continue">
-            <?= $completed_modules > 0 ? 'Continue Learning' : 'Start Course' ?>
+        <?php elseif (! empty($course_cta)): ?>
+          <a href="<?= htmlspecialchars((string) $course_cta['url'], ENT_QUOTES, 'UTF-8') ?>"
+             class="cd-enroll-btn <?= htmlspecialchars(ka_course_cta_css_class($course_cta['status'], 'detail'), ENT_QUOTES, 'UTF-8') ?>">
+            <?= htmlspecialchars((string) $course_cta['label'], ENT_QUOTES, 'UTF-8') ?>
           </a>
-          <?php endif; ?>
         <?php endif; ?>
 
         <a href="<?= htmlspecialchars($lms_list_back_href, ENT_QUOTES, 'UTF-8') ?>" class="cd-enroll-btn cd-enroll-btn-outline">

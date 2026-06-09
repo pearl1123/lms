@@ -26,49 +26,19 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property Course_phase2_model  $course_phase2
  * @property Notification_service $notification_service
  */
-class Manage_courses extends CI_Controller {
-
-    private $user;
+class Manage_courses extends KA_Controller {
 
     public function __construct()
     {
         parent::__construct();
-        $this->load->library('session');
         $this->load->library('form_validation');
-        $this->load->model('User_model',        'user_model');
         $this->load->model('Course_model',      'course_model');
         $this->load->model('Assessment_model',  'assessment_model');
         $this->load->model('Course_phase2_model', 'course_phase2');
         $this->load->model('Certificate_model', 'certificate_model');
         $this->load->helper(['url', 'form', 'course_phase3']);
 
-        $user_id = $this->session->userdata('user_id');
-        if ( ! $user_id) redirect('auth/login');
-
-        $user = $this->user_model->get_user($user_id);
-        if ( ! $user)                                          { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ((int) $user->banned  === 1)                       { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ($user->status       !== 'active')                 { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ((int) $user->DELETED === 1)                       { $this->session->sess_destroy(); redirect('auth/login'); }
-        if ( ! empty($user->locked_until) && strtotime($user->locked_until) > time()) {
-            $this->session->sess_destroy(); redirect('auth/login');
-        }
-
-        // Only admin and teacher can access this controller
-        if ( ! in_array($user->role, ['admin', 'teacher'])) {
-            $this->session->set_flashdata('error', 'You do not have permission to manage courses.');
-            redirect('my_courses');
-        }
-
-        $this->user = $user;
-
-        $this->session->set_userdata('user', [
-            'id'          => $user->id,
-            'fullname'    => $user->fullname,
-            'employee_id' => $user->employee_id,
-            'role'        => $user->role,
-            'status'      => $user->status,
-        ]);
+        $this->require_permission('manage_courses.view', 'my_courses');
     }
 
     // =========================================================
@@ -76,7 +46,7 @@ class Manage_courses extends CI_Controller {
     // =========================================================
     public function index()
     {
-        $user = $this->user;
+        $user = $this->auth_user;
 
         $courses = $user->role === 'admin'
             ? $this->course_model->get_all_courses(true)  // include archived
@@ -101,7 +71,7 @@ class Manage_courses extends CI_Controller {
     // =========================================================
     public function create()
     {
-        $user = $this->user;
+        $user = $this->auth_user;
 
         if ($this->input->method() === 'post') {
 
@@ -154,7 +124,7 @@ class Manage_courses extends CI_Controller {
             'page_title'   => 'Create Course',
             'categories'   => $this->course_model->get_categories(),
             'modalities'   => $this->course_model->get_modalities(),
-            'teachers'     => $user->role === 'admin' ? $this->course_model->get_teachers() : [],
+            'teachers'     => $this->user_can('manage_courses.delete') ? $this->course_model->get_teachers() : [],
             'breadcrumbs'  => [
                 ['label' => 'Dashboard',       'url' => 'dashboard'],
                 ['label' => 'Manage Courses',  'url' => 'manage_courses'],
@@ -183,7 +153,7 @@ class Manage_courses extends CI_Controller {
             if ($src === null || $src === '') {
                 $src = $this->input->get('return_url');
             }
-            $q = ka_lms_return_q(ka_lms_resolve_return_target($this->user, $src));
+            $q = ka_lms_return_q(ka_lms_resolve_return_target($this->auth_user, $src));
 
             return $q !== '' ? '?' . $q : '';
         };
@@ -219,10 +189,10 @@ class Manage_courses extends CI_Controller {
                     'certificate_prefix' => $this->input->post('certificate_prefix'),
                     'signatory_name'     => $this->input->post('signatory_name'),
                     'signatory_title'    => $this->input->post('signatory_title'),
-                ], $this->user->id);
+                ], $this->auth_user->id);
 
-                $this->course_phase2->save_course_meta_from_post($id, $_POST, (int) $this->user->id);
-                $this->_sync_phase3_course_meta($id, (int) $this->user->id);
+                $this->course_phase2->save_course_meta_from_post($id, $_POST, (int) $this->auth_user->id);
+                $this->_sync_phase3_course_meta($id, (int) $this->auth_user->id);
 
                 $this->session->set_flashdata('success', 'Course details updated.');
                 redirect('manage_courses/edit/' . $id . $edit_rt_suffix());
@@ -248,7 +218,7 @@ class Manage_courses extends CI_Controller {
                 'id'           => $id,
                 'course_found' => false,
                 'module_found' => false,
-                'user_role'    => (string) ($this->user->role ?? ''),
+                'user_role'    => (string) ($this->auth_user->role ?? ''),
             ]));
             show_404();
         }
@@ -278,7 +248,7 @@ class Manage_courses extends CI_Controller {
         if ( ! $course) show_404();
         $this->_check_ownership($course);
 
-        $this->course_model->delete_course($id, $this->user->id);
+        $this->course_model->delete_course($id, $this->auth_user->id);
         $this->session->set_flashdata('success', '"' . $course->title . '" has been archived.');
         redirect('manage_courses');
     }
@@ -353,11 +323,11 @@ class Manage_courses extends CI_Controller {
         ];
 
         if ($module_id > 0) {
-            $this->course_model->update_module($module_id, $m_data, $this->user->id);
+            $this->course_model->update_module($module_id, $m_data, $this->auth_user->id);
             $mid = $module_id;
             $msg = 'Module updated.';
         } else {
-            $mid = $this->course_model->create_module($m_data, $this->user->id);
+            $mid = $this->course_model->create_module($m_data, $this->auth_user->id);
             $msg = 'Module added.';
         }
 
@@ -400,7 +370,7 @@ class Manage_courses extends CI_Controller {
         $course = $this->course_model->get_course_any($module->course_id);
         $this->_check_ownership($course, true);
 
-        $ok = $this->course_model->delete_module($module_id, $this->user->id);
+        $ok = $this->course_model->delete_module($module_id, $this->auth_user->id);
 
         echo json_encode([
             'success' => $ok,
@@ -430,7 +400,7 @@ class Manage_courses extends CI_Controller {
     // =========================================================
     public function reassign()
     {
-        if ($this->user->role !== 'admin') {
+        if ( ! $this->user_can('manage_courses.delete')) {
             $this->session->set_flashdata('error', 'Only admins can reassign courses.');
             redirect('manage_courses');
         }
@@ -441,7 +411,7 @@ class Manage_courses extends CI_Controller {
 
         if ( ! $course) show_404();
 
-        $this->course_model->reassign_course($course_id, $new_owner, $this->user->id);
+        $this->course_model->reassign_course($course_id, $new_owner, $this->auth_user->id);
         $this->session->set_flashdata('success', 'Course reassigned successfully.');
         redirect('manage_courses/edit/' . $course_id);
     }
@@ -481,13 +451,13 @@ class Manage_courses extends CI_Controller {
 
         $crumb_label = $overrides['breadcrumb_label'] ?? ('Edit: ' . $course->title);
 
-        $lms_rt = ka_lms_resolve_return_target($this->user, $this->input->get('return_url'));
+        $lms_rt = ka_lms_resolve_return_target($this->auth_user, $this->input->get('return_url'));
 
         $phase3_sign = $this->certificate_model->signatories_table_ready();
         $phase3_batches = $this->course_model->batches_table_ready();
 
         $data = array_merge([
-            'user'         => $this->user,
+            'user'         => $this->auth_user,
             'page_title'   => $overrides['page_title'] ?? $crumb_label,
             'course'       => $course,
             'modules'      => $modules,
@@ -499,7 +469,7 @@ class Manage_courses extends CI_Controller {
                 ? $this->course_model->get_course_batches($id) : [],
             'categories'   => $this->course_model->get_categories(),
             'modalities'   => $this->course_model->get_modalities(),
-            'teachers'     => $this->user->role === 'admin'
+            'teachers'     => $this->user_can('manage_courses.delete')
                               ? $this->course_model->get_teachers() : [],
             'focus_modules' => ! empty($overrides['focus_modules']),
             'checkpoint_schema_ready' => $this->assessment_model->assessments_checkpoint_schema_ready(),
@@ -525,10 +495,10 @@ class Manage_courses extends CI_Controller {
      */
     private function _phase2_view_data($course_id = 0)
     {
-        $user = $this->user;
+        $user = $this->auth_user;
         $cid  = (int) $course_id;
 
-        $instructor_options = $user->role === 'admin'
+        $instructor_options = $this->user_can('manage_courses.delete')
             ? $this->course_model->get_teachers()
             : [(object) ['id' => (int) $user->id, 'fullname' => (string) $user->fullname]];
 
@@ -675,8 +645,8 @@ class Manage_courses extends CI_Controller {
         $this->_check_ownership($course);
 
         $ok = $status === 'published'
-            ? $this->course_model->publish_course($cid, (int) $this->user->id)
-            : $this->course_model->unpublish_course($cid, (int) $this->user->id);
+            ? $this->course_model->publish_course($cid, (int) $this->auth_user->id)
+            : $this->course_model->unpublish_course($cid, (int) $this->auth_user->id);
 
         $this->session->set_flashdata(
             $ok ? 'success' : 'error',
@@ -732,7 +702,7 @@ class Manage_courses extends CI_Controller {
         $sent = 0;
         $skipped = 0;
         foreach ($user_ids as $uid) {
-            $res = $this->course_phase2->create_invitation($cid, (int) $this->user->id, '', (int) $uid);
+            $res = $this->course_phase2->create_invitation($cid, (int) $this->auth_user->id, '', (int) $uid);
             if ( ! empty($res['ok'])) {
                 if (empty($res['duplicate']) && (int) ($res['id'] ?? 0) > 0) {
                     $sent++;
@@ -746,7 +716,7 @@ class Manage_courses extends CI_Controller {
         }
 
         if ($email !== '' && $email_uid < 1) {
-            $res = $this->course_phase2->create_invitation($cid, (int) $this->user->id, $email, 0);
+            $res = $this->course_phase2->create_invitation($cid, (int) $this->auth_user->id, $email, 0);
             ! empty($res['ok']) && empty($res['duplicate']) ? $sent++ : $skipped++;
         }
 
@@ -832,9 +802,9 @@ class Manage_courses extends CI_Controller {
      */
     private function _check_ownership($course, $json = false)
     {
-        if ($this->user->role === 'admin') return;
+        if ($this->user_can('manage_courses.delete')) return;
 
-        if ($this->course_phase2->user_manages_course((int) $this->user->id, (int) $course->id)) {
+        if ($this->course_phase2->user_manages_course((int) $this->auth_user->id, (int) $course->id)) {
             return;
         }
 

@@ -51,21 +51,87 @@ class KA_Controller extends CI_Controller {
      * Validate session and load the authenticated user.
      * Redirects to login on any failure.
      */
+    /**
+     * @return bool
+     */
+    protected function _is_ajax_request()
+    {
+        return strtolower((string) $this->input->server('HTTP_X_REQUESTED_WITH')) === 'xmlhttprequest';
+    }
+
+    /**
+     * JSON auth/permission failure for AJAX endpoints (matches legacy Courses/Learning_notes behavior).
+     *
+     * @param int    $status
+     * @param string $message
+     * @param array  $extra
+     */
+    protected function _auth_json_exit($status, $message, array $extra = [])
+    {
+        $payload = array_merge([
+            'success' => false,
+            'message' => (string) $message,
+            'auth'    => ((int) $status === 401),
+        ], $extra);
+
+        $encoded = json_encode($payload);
+        $this->output
+            ->set_status_header((int) $status)
+            ->set_content_type('application/json')
+            ->set_output($encoded !== false ? $encoded : '{"success":false,"message":"Authentication required.","auth":true}');
+
+        $this->output->_display();
+        exit;
+    }
+
     private function _boot_auth()
     {
         $user_id = $this->session->userdata('user_id');
         if ( ! $user_id) {
+            if ($this->_is_ajax_request()) {
+                $this->_auth_json_exit(401, 'Authentication required.');
+            }
             redirect('auth/login');
         }
 
         $user = $this->user_model->get_user((int) $user_id);
 
-        if ( ! $user
-            || (int) $user->banned  === 1
-            || $user->status       !== 'active'
-            || (int) $user->DELETED === 1
-            || ( ! empty($user->locked_until) && strtotime($user->locked_until) > time())
-        ) {
+        if ( ! $user) {
+            if ($this->_is_ajax_request()) {
+                $this->_auth_json_exit(401, 'Authentication required.');
+            }
+            $this->session->sess_destroy();
+            redirect('auth/login');
+        }
+
+        if ((int) $user->banned === 1) {
+            if ($this->_is_ajax_request()) {
+                $this->_auth_json_exit(403, 'Account is banned.');
+            }
+            $this->session->sess_destroy();
+            redirect('auth/login');
+        }
+
+        if ($user->status !== 'active') {
+            if ($this->_is_ajax_request()) {
+                $this->_auth_json_exit(403, 'Account is not active.');
+            }
+            $this->session->sess_destroy();
+            redirect('auth/login');
+        }
+
+        if ((int) $user->DELETED === 1) {
+            if ($this->_is_ajax_request()) {
+                $this->_auth_json_exit(403, 'Account is unavailable.');
+            }
+            $this->session->sess_destroy();
+            redirect('auth/login');
+        }
+
+        if ( ! empty($user->locked_until) && strtotime($user->locked_until) > time()) {
+            if ($this->_is_ajax_request()) {
+                $this->_auth_json_exit(423, 'Account is temporarily locked.');
+            }
             $this->session->sess_destroy();
             redirect('auth/login');
         }
@@ -120,7 +186,7 @@ class KA_Controller extends CI_Controller {
 
     /**
      * Abort unless the user has at least one of the named permissions.
-     * Falls back to require_role('admin') when the permission engine has no seed data.
+     * When the permission engine is not seeded, authenticated access is allowed (legacy mode).
      *
      * @param string|string[] $permissions
      * @param string          $redirect_to
@@ -135,11 +201,6 @@ class KA_Controller extends CI_Controller {
         $this->load->model('Permission_model', 'permission_model');
 
         if ( ! $this->permission_model->engine_is_active()) {
-            if ($this->auth_user->role === 'admin') {
-                return;
-            }
-            $this->require_role('admin', $redirect_to);
-
             return;
         }
 
@@ -147,8 +208,60 @@ class KA_Controller extends CI_Controller {
             return;
         }
 
+        if ($this->_user_has_no_group_membership()) {
+            return;
+        }
+
+        if ($this->_is_ajax_request()) {
+            $this->_auth_json_exit(403, 'You do not have permission to access that page.', ['auth' => true]);
+        }
+
         $this->flash('error', 'You do not have permission to access that page.');
-        redirect($redirect_to);
+
+        if ($this->_permission_redirect_target_is_reachable($redirect_to)) {
+            redirect($redirect_to);
+        }
+
+        show_error('You do not have permission to access this page.', 403);
+    }
+
+    /**
+     * True when redirect target is a route the user may access (prevents redirect loops).
+     *
+     * @param string $redirect_to
+     */
+    private function _permission_redirect_target_is_reachable($redirect_to)
+    {
+        $redirect_to = trim((string) $redirect_to);
+        if ($redirect_to === '') {
+            return false;
+        }
+
+        $current_class = strtolower((string) $this->router->fetch_class());
+        $segment       = strtolower(trim(explode('/', $redirect_to)[0]));
+
+        if ($segment === $current_class) {
+            return false;
+        }
+
+        $manifest = ka_permission_manifest();
+        $nav_perm = trim((string) ($manifest['nav'][$segment] ?? ''));
+
+        if ($nav_perm === '') {
+            return true;
+        }
+
+        return $this->permission_model->user_has((int) $this->auth_user->id, $nav_perm);
+    }
+
+    /**
+     * Users with no Aauth group rely on legacy role column until group assignment.
+     */
+    private function _user_has_no_group_membership()
+    {
+        return (int) $this->db
+            ->where('user_id', (int) $this->auth_user->id)
+            ->count_all_results('aauth_user_to_group') === 0;
     }
 
     /**
@@ -164,6 +277,10 @@ class KA_Controller extends CI_Controller {
         $this->load->model('Permission_model', 'permission_model');
 
         if ( ! $this->permission_model->engine_is_active()) {
+            return $this->auth_user->role === 'admin';
+        }
+
+        if ($this->_user_has_no_group_membership()) {
             return $this->auth_user->role === 'admin';
         }
 

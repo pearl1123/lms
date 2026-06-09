@@ -35,13 +35,15 @@
                  alt="Lung Center of the Philippines"
                  class="wmis-logo-login"
                  onerror="this.onerror=null;this.src='<?= base_url('assets/img/wmis-logo.svg'); ?>';" />
-            <div class="wmis-logo-subtext">kaBAGA Academy</div>
             <div class="wmis-logo-hospital">LUNG CENTER OF THE PHILIPPINES</div>
           </div>
           <h2 class="h3 text-center mb-1">Create Your Account</h2>
           <p class="text-center text-muted small mb-3">Employee ID must exist in HRMIS (format <strong>LCP######</strong>).</p>
 
           <?php
+          $error   = isset($error) ? $error : '';
+          $success = isset($success) ? $success : '';
+
           $show_error_alert = ! empty($error)
               && empty($auth_toast_error)
               && stripos((string) $error, 'session expired') === false;

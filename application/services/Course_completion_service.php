@@ -180,6 +180,82 @@ class Course_completion_service
         return $out;
     }
 
+    /**
+     * Single source of truth for learner course action buttons (Start / Resume / Review).
+     *
+     * Uses {@see evaluate_user_course_state()} for progress and {@see build_resume_url()} for module URL.
+     *
+     * @param int    $course_id
+     * @param int    $user_id
+     * @param string $return_q Query string without leading ? (e.g. return_url=my_courses)
+     * @return array{label:string,url:string,status:string,progress_percent:int,outline_url:string}
+     */
+    public function get_course_cta($course_id, $user_id, $return_q = '')
+    {
+        $uid = (int) $user_id;
+        $cid = (int) $course_id;
+
+        $return_q = ltrim((string) $return_q, '?&');
+        $outline_url = site_url('courses/view/' . $cid . ($return_q !== '' ? '?' . $return_q : ''));
+
+        $state = $this->evaluate_user_course_state($uid, $cid);
+        $pct   = max(0, min(100, (int) ($state['progress_percent'] ?? 0)));
+
+        if ( ! empty($state['is_completed']) || $pct >= 100) {
+            return [
+                'label'            => 'Review Course',
+                'url'              => $outline_url,
+                'status'           => 'completed',
+                'progress_percent' => 100,
+                'outline_url'      => $outline_url,
+            ];
+        }
+
+        if ($this->_course_has_learning_activity($state)) {
+            return [
+                'label'            => 'Resume Course',
+                'url'              => $this->build_resume_url($uid, $cid, $return_q),
+                'status'           => 'in_progress',
+                'progress_percent' => $pct,
+                'outline_url'      => $outline_url,
+            ];
+        }
+
+        return [
+            'label'            => 'Start Course',
+            'url'              => $this->build_resume_url($uid, $cid, $return_q),
+            'status'           => 'not_started',
+            'progress_percent' => 0,
+            'outline_url'      => $outline_url,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private function _course_has_learning_activity(array $state)
+    {
+        if ((int) ($state['progress_percent'] ?? 0) > 0) {
+            return true;
+        }
+
+        if (($state['status'] ?? '') === 'in_progress') {
+            return true;
+        }
+
+        if ((int) ($state['resume']['module_id'] ?? 0) > 0) {
+            return true;
+        }
+
+        foreach ((array) ($state['module_states'] ?? []) as $ms) {
+            if (($ms['status'] ?? '') === 'in_progress') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function build_resume_url($user_id, $course_id, $return_q = '')
     {
         $state = $this->evaluate_user_course_state((int) $user_id, (int) $course_id);

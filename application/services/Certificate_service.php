@@ -14,7 +14,7 @@ class Certificate_service {
 
     public const PDF_DIR = 'uploads/certificates/';
 
-    public const DEFAULT_TEMPLATE = 'premium_lcp_certificate';
+    public const DEFAULT_TEMPLATE = 'template_pdf';
 
     /**
      * @var \CI_Controller&object{
@@ -138,11 +138,16 @@ class Certificate_service {
                 return null;
             }
 
+            $tempDir = function_exists('report_export_dompdf_temp_dir')
+                ? report_export_dompdf_temp_dir()
+                : (APPPATH . 'cache');
+
             $options = new Dompdf\Options();
             $options->set('isHtml5ParserEnabled', true);
             $options->set('isRemoteEnabled', true);
             $options->set('defaultFont', 'DejaVu Sans');
             $options->set('chroot', FCPATH);
+            $options->set('tempDir', $tempDir);
             $options->set('dpi', 96);
 
             $dompdf = new Dompdf\Dompdf($options);
@@ -239,21 +244,13 @@ class Certificate_service {
 
     private function _load_dompdf()
     {
-        $autoload = FCPATH . 'vendor/autoload.php';
-        if (is_file($autoload)) {
-            require_once $autoload;
+        $this->CI->load->helper('report_export');
 
+        if (function_exists('ka_load_vendor_autoload') && ka_load_vendor_autoload()) {
             return true;
         }
 
-        $manual = APPPATH . 'third_party/dompdf/autoload.inc.php';
-        if (is_file($manual)) {
-            require_once $manual;
-
-            return true;
-        }
-
-        log_message('error', 'DOMPDF not found. Run: composer require dompdf/dompdf');
+        log_message('error', 'DOMPDF not found or PHP version incompatible (' . PHP_VERSION . '). Run: composer install --no-dev');
 
         return false;
     }

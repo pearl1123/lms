@@ -7,6 +7,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property CI_Input $input
  * @property CI_Form_validation $form_validation
  * @property User_model $user_model
+ * @property Password_reset_service $password_reset_service
  */
 class Auth extends CI_Controller {
 
@@ -15,6 +16,9 @@ class Auth extends CI_Controller {
 
     /** Max registration POSTs per window. */
     private const RATE_REGISTER_MAX = 5;
+
+    /** Max forgot-password POSTs per window. */
+    private const RATE_FORGOT_MAX = 8;
 
     /** Rate-limit window (seconds). */
     private const RATE_WINDOW_SEC = 600;
@@ -330,12 +334,15 @@ class Auth extends CI_Controller {
         $old_emp = $this->session->flashdata('_old_forgot_employee_id');
         $employee_id_value = is_string($old_emp) ? $old_emp : (is_scalar($old_emp) ? (string) $old_emp : '');
 
+        $dev_url = $this->session->flashdata('reset_dev_url');
+
         $this->load->view('auth/forgot_password', array_merge($this->auth_csrf_fields(), [
             'flash_messages'      => ka_collect_flash_messages($this, ['error', 'success']),
             'forgot_form_action'  => site_url('auth/forgot_password_process'),
             'login_url'           => site_url('auth/login'),
             'home_url'            => base_url(),
             'employee_id_value'   => $employee_id_value,
+            'reset_dev_url'       => is_string($dev_url) ? $dev_url : '',
             'alerts_partial_html' => '',
         ]));
     }
@@ -343,6 +350,13 @@ class Auth extends CI_Controller {
     public function forgot_password_process()
     {
         $this->verify_post_csrf('auth/forgot-password');
+
+        if ($this->rate_limit_exceeded('forgot_password', self::RATE_FORGOT_MAX)) {
+            $this->session->set_flashdata('error', 'Too many reset attempts. Please wait a few minutes and try again.');
+            redirect('auth/forgot-password');
+
+            return;
+        }
 
         $this->form_validation->set_rules('employee_id', 'Employee ID', 'required|trim');
 
@@ -362,20 +376,97 @@ class Auth extends CI_Controller {
             return;
         }
 
-        if ( ! $this->user_model->is_registered($emp_id)) {
-            $this->session->set_flashdata('error', 'No LMS account was found for this Employee ID.');
-            $this->session->set_flashdata('_old_forgot_employee_id', $emp_id);
+        $this->load->library('password_reset_service');
+        $result = $this->password_reset_service->request_reset($emp_id);
+
+        $this->session->set_flashdata('success', $result['message']);
+        if ( ! empty($result['dev_reset_url'])) {
+            $this->session->set_flashdata('reset_dev_url', $result['dev_reset_url']);
+        }
+
+        $this->session->set_flashdata('_old_forgot_employee_id', $emp_id);
+        redirect('auth/forgot-password');
+    }
+
+    public function reset_password($token = null)
+    {
+        if ($this->session->userdata('user_id')) {
+            redirect('dashboard');
+        }
+
+        $token = trim((string) $token);
+        if ($token === '') {
+            $this->session->set_flashdata('error', 'Invalid password reset link.');
             redirect('auth/forgot-password');
 
             return;
         }
 
-        $this->session->set_flashdata(
-            'success',
-            'Your Employee ID is registered. Please contact your LMS administrator to reset your password.'
+        $this->load->library('password_reset_service');
+        $user = $this->password_reset_service->validate_reset_token($token);
+        if ( ! $user) {
+            $this->session->set_flashdata('error', 'This reset link is invalid or has expired. Please request a new one.');
+            redirect('auth/forgot-password');
+
+            return;
+        }
+
+        $this->load->view('auth/reset_password', array_merge($this->auth_csrf_fields(), [
+            'flash_messages'        => ka_collect_flash_messages($this, ['error', 'success']),
+            'reset_form_action'     => site_url('auth/reset_password_process'),
+            'reset_token'           => $token,
+            'login_url'             => site_url('auth/login'),
+            'forgot_password_url'   => site_url('auth/forgot-password'),
+            'alerts_partial_html'   => '',
+        ]));
+    }
+
+    public function reset_password_process()
+    {
+        $this->verify_post_csrf('auth/forgot-password');
+
+        if ($this->rate_limit_exceeded('reset_password', self::RATE_FORGOT_MAX)) {
+            $this->session->set_flashdata('error', 'Too many attempts. Please wait a few minutes and try again.');
+            redirect('auth/forgot-password');
+
+            return;
+        }
+
+        $token = trim((string) $this->input->post('reset_token'));
+        if ($token === '') {
+            $this->session->set_flashdata('error', 'Invalid password reset request.');
+            redirect('auth/forgot-password');
+
+            return;
+        }
+
+        $this->form_validation->set_rules('password', 'New Password', 'required|min_length[8]');
+        $this->form_validation->set_rules('confirm_password', 'Confirm Password', 'required|matches[password]');
+
+        if ($this->form_validation->run() === false) {
+            $this->session->set_flashdata('error', validation_errors());
+            redirect('auth/reset-password/' . rawurlencode($token));
+
+            return;
+        }
+
+        $this->load->library('password_reset_service');
+        $result = $this->password_reset_service->complete_reset(
+            $token,
+            (string) $this->input->post('password')
         );
-        $this->session->set_flashdata('_old_forgot_employee_id', $emp_id);
-        redirect('auth/forgot-password');
+
+        if (empty($result['ok'])) {
+            $this->session->set_flashdata('error', $result['message'] ?? 'Unable to reset password.');
+            redirect(empty($this->password_reset_service->validate_reset_token($token))
+                ? 'auth/forgot-password'
+                : 'auth/reset-password/' . rawurlencode($token));
+
+            return;
+        }
+
+        $this->session->set_flashdata('success', $result['message']);
+        redirect('auth/login');
     }
 
     public function login_process()

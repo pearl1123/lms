@@ -7,58 +7,63 @@ if ( ! $cert) return;
 
 $this->load->helper('certificate_pdf');
 $pdf_template_label = ka_cert_allowed_templates()[ka_cert_resolve_template(null, $cert)] ?? '';
+$preview_cache_bust = '';
 $pdf_cache_bust = '';
 if ( ! empty($cert->file_path)) {
     $pdf_full = FCPATH . ltrim(str_replace(['../', '..\\'], '', (string) $cert->file_path), '/\\');
     if (is_file($pdf_full)) {
-        $pdf_cache_bust = '?v=' . filemtime($pdf_full);
+        $ts = filemtime($pdf_full);
+        $pdf_cache_bust = '?v=' . $ts;
+        $preview_cache_bust = '?v=' . $ts;
     }
+}
+if ($preview_cache_bust === '') {
+    $preview_cache_bust = '?v=' . time();
 }
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
 <style>
 .certv-layout { display:grid;grid-template-columns:1fr 280px;gap:1.5rem;align-items:start; }
 @media(max-width:991.98px){ .certv-layout{grid-template-columns:1fr;} }
-.certv-preview {
-  background:linear-gradient(135deg,var(--ka-navy,#1a3a5c) 0%,#254d75 55%,#2d6a9f 100%);
-  border-radius:16px;padding:2.5rem 2rem;text-align:center;position:relative;overflow:hidden;
-  box-shadow:0 12px 40px rgba(26,58,92,.2);
+.certv-preview-wrap {
+  background:#f1f5f9;border:1px solid var(--ka-border,#e2e8f0);border-radius:16px;
+  padding:1rem;overflow:hidden;
 }
-.certv-preview::before { content:'';position:absolute;top:-80px;right:-80px;width:260px;height:260px;border-radius:50%;background:rgba(201,168,76,.08); }
-.certv-preview::after  { content:'';position:absolute;bottom:-60px;left:-60px;width:200px;height:200px;border-radius:50%;background:rgba(109,171,207,.06); }
-.certv-body { position:relative;z-index:1; }
-.certv-label { font-size:.625rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:.5rem; }
-.certv-cert-title { font-size:1rem;font-weight:800;color:#c9a84c;margin-bottom:1.5rem;letter-spacing:.05em; }
-.certv-by { font-size:.8125rem;color:rgba(255,255,255,.6);margin-bottom:.5rem; }
-.certv-name { font-size:1.75rem;font-weight:900;color:#fff;margin-bottom:.375rem;letter-spacing:-.02em;line-height:1.2; }
-.certv-empid { font-size:.75rem;color:rgba(255,255,255,.5);margin-bottom:1.5rem; }
-.certv-completed { font-size:.875rem;color:rgba(255,255,255,.7);margin-bottom:.5rem; }
-.certv-course { font-size:1.125rem;font-weight:800;color:#fff;font-style:italic;margin-bottom:1.75rem;line-height:1.3; }
-.certv-divider { height:1px;background:rgba(201,168,76,.3);margin:1.25rem 0; }
-.certv-seal {
-  width:70px;height:70px;border-radius:50%;margin:0 auto 1.25rem;
-  background:rgba(201,168,76,.15);border:2px solid rgba(201,168,76,.5);
-  display:flex;align-items:center;justify-content:center;
-  font-size:.5rem;font-weight:800;color:#c9a84c;text-align:center;line-height:1.3;letter-spacing:.04em;
+.certv-preview-head {
+  display:flex;align-items:center;justify-content:space-between;gap:.75rem;
+  margin-bottom:.75rem;flex-wrap:wrap;
 }
-.certv-issued { font-size:.75rem;color:rgba(255,255,255,.6);margin-bottom:.375rem; }
-.certv-code {
-  font-family:monospace;font-size:.875rem;font-weight:700;
-  color:#c9a84c;letter-spacing:.08em;
+.certv-preview-label {
+  font-size:.6875rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ka-text-muted,#64748b);
 }
-.certv-pdf-note {
-  font-size:.6875rem;color:rgba(255,255,255,.55);margin:0 0 .625rem;line-height:1.45;
+.certv-preview-badge {
+  font-size:.6875rem;font-weight:700;padding:3px 10px;border-radius:20px;
+  background:#ecfdf5;color:#065f46;
 }
-.certv-actions { display:flex;flex-direction:column;gap:.625rem;margin-top:1.5rem; }
+.certv-preview-frame {
+  position:relative;width:100%;aspect-ratio:841 / 595;background:#fff;
+  border:1px solid #dbeafe;border-radius:10px;overflow:hidden;
+  box-shadow:0 8px 24px rgba(0,48,135,.08);
+}
+.certv-preview-iframe {
+  position:absolute;top:0;left:0;width:100%;height:100%;border:0;display:block;
+}
+.certv-preview-note {
+  font-size:.6875rem;color:var(--ka-text-muted,#64748b);margin:.75rem 0 0;line-height:1.45;
+}
+.certv-actions { display:flex;flex-direction:column;gap:.625rem;margin-top:1rem; }
 .certv-btn {
   padding:.75rem;border-radius:9px;font-size:.875rem;font-weight:700;
   text-align:center;text-decoration:none;cursor:pointer;border:none;
   transition:all .2s;display:block;
 }
-.certv-btn-download { background:#c9a84c;color:var(--ka-navy,#1a3a5c); }
-.certv-btn-download:hover { background:#e8d5a3;color:var(--ka-navy,#1a3a5c);transform:translateY(-1px); }
-.certv-btn-verify { background:rgba(255,255,255,.1);color:rgba(255,255,255,.85); }
-.certv-btn-verify:hover { background:rgba(255,255,255,.18);color:#fff; }
+.certv-btn-download { background:var(--ka-navy,#1a3a5c);color:#fff; }
+.certv-btn-download:hover { background:#254d75;color:#fff; }
+.certv-btn-verify { background:#fff;color:var(--ka-navy,#1a3a5c);border:1.5px solid #dbeafe; }
+.certv-btn-verify:hover { background:#eff6ff;color:var(--ka-navy,#1a3a5c); }
+.certv-btn-regen { background:#fff;color:var(--ka-text-muted,#64748b);border:1.5px solid var(--ka-border,#e2e8f0); }
+.certv-btn-regen:hover { background:#f8fafc;color:var(--ka-text,#1e293b); }
 
 /* Info panels */
 .certv-panel { background:#fff;border:1px solid var(--ka-border,#e2e8f0);border-radius:14px;overflow:hidden;margin-bottom:1rem; }
@@ -103,49 +108,42 @@ if ( ! empty($cert->file_path)) {
 
 <div class="certv-layout animate__animated animate__fadeInUp animate__fast">
 
-  <!-- Certificate Preview -->
-  <div class="certv-preview">
-    <div class="certv-body">
-      <div class="certv-label">kaBAGA Academy · Lung Center of the Philippines</div>
-      <div class="certv-cert-title">CERTIFICATE OF COMPLETION</div>
-
-      <div class="certv-seal">kaBAGA<br>Academy<br>LCP</div>
-
-      <div class="certv-by">This certifies that</div>
-      <div class="certv-name"><?= htmlspecialchars(strtoupper($cert->student_name)) ?></div>
-      <?php if ( ! empty($cert->employee_id)): ?>
-      <div class="certv-empid">Employee ID: <?= htmlspecialchars($cert->employee_id) ?></div>
+  <!-- Certificate Preview (live template — same HTML as PDF) -->
+  <div class="certv-preview-wrap">
+    <div class="certv-preview-head">
+      <span class="certv-preview-label">Certificate Preview</span>
+      <?php if ($pdf_template_label !== ''): ?>
+      <span class="certv-preview-badge"><?= htmlspecialchars($pdf_template_label) ?></span>
       <?php endif; ?>
+    </div>
+    <div class="certv-preview-frame">
+      <iframe
+        class="certv-preview-iframe"
+        title="Certificate preview"
+        src="<?= base_url('index.php/certificates/preview/'.$cert->id . $preview_cache_bust) ?>"
+        loading="lazy"></iframe>
+    </div>
+    <p class="certv-preview-note">
+      Preview matches the official PDF layout. Use <strong>Regenerate PDF</strong> after changing the template in Settings → Certificates.
+    </p>
 
-      <div class="certv-completed">has successfully completed</div>
-      <div class="certv-course">"<?= htmlspecialchars($cert->course_title) ?>"</div>
-
-      <div class="certv-divider"></div>
-
-      <div class="certv-issued">Issued on <?= date('F j, Y', strtotime($cert->issued_at)) ?></div>
-      <div class="certv-code"><?= htmlspecialchars($cert->certificate_code) ?></div>
-
-      <div class="certv-actions">
-        <p class="certv-pdf-note">
-          Card above is a summary. Download opens the official PDF certificate<?= $pdf_template_label !== '' ? ' (' . htmlspecialchars($pdf_template_label) . ')' : '' ?>.
-        </p>
-        <a href="<?= base_url('index.php/certificates/download/'.$cert->id . $pdf_cache_bust) ?>"
-           class="certv-btn certv-btn-download">
-          ⬇ Download PDF Certificate
-        </a>
-        <a href="<?= base_url('index.php/certificates/verify/'.$cert->certificate_code) ?>"
-           class="certv-btn certv-btn-verify" target="_blank" rel="noopener">
-          🔗 Verify Certificate
-        </a>
-        <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
-        <form method="post" action="<?= base_url('index.php/certificates/regenerate/'.$cert->id) ?>" style="margin:0;">
-          <input type="hidden" name="<?= html_escape($csrf_field_name ?? '') ?>" value="<?= html_escape($csrf_hash ?? '') ?>">
-          <button type="submit" class="certv-btn certv-btn-verify" style="width:100%;border:0;cursor:pointer;">
-            ↻ Regenerate PDF
-          </button>
-        </form>
-        <?php endif; ?>
-      </div>
+    <div class="certv-actions">
+      <a href="<?= base_url('index.php/certificates/download/'.$cert->id . $pdf_cache_bust) ?>"
+         class="certv-btn certv-btn-download">
+        ⬇ Download PDF Certificate
+      </a>
+      <a href="<?= base_url('index.php/certificates/verify/'.$cert->certificate_code) ?>"
+         class="certv-btn certv-btn-verify" target="_blank" rel="noopener">
+        🔗 Verify Certificate
+      </a>
+      <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
+      <form method="post" action="<?= base_url('index.php/certificates/regenerate/'.$cert->id) ?>" style="margin:0;">
+        <input type="hidden" name="<?= html_escape($csrf_field_name ?? '') ?>" value="<?= html_escape($csrf_hash ?? '') ?>">
+        <button type="submit" class="certv-btn certv-btn-regen" style="width:100%;">
+          ↻ Regenerate PDF
+        </button>
+      </form>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -173,6 +171,10 @@ if ( ! empty($cert->file_path)) {
         <div class="certv-info-row">
           <span class="certv-info-label">Issue Date</span>
           <span class="certv-info-value"><?= date('F j, Y', strtotime($cert->issued_at)) ?></span>
+        </div>
+        <div class="certv-info-row">
+          <span class="certv-info-label">PDF Template</span>
+          <span class="certv-info-value"><?= htmlspecialchars($pdf_template_label !== '' ? $pdf_template_label : 'Default') ?></span>
         </div>
         <div class="certv-info-row">
           <span class="certv-info-label">Certificate Code</span>

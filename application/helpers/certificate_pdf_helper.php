@@ -14,6 +14,8 @@ if ( ! function_exists('ka_cert_allowed_templates')) {
         return [
             'official_lcp_certificate' => 'Official LCP (sample design)',
             'premium_lcp_certificate' => 'Premium LCP (navy + gold)',
+            'template_pdf'           => 'Enterprise SaaS Credential',
+            'template_saas_preview'  => 'Enterprise SaaS Credential',
             'minimalist'             => 'Minimalist',
             'modern'                 => 'Modern',
         ];
@@ -68,17 +70,19 @@ if ( ! function_exists('ka_cert_resolve_template')) {
             return ka_cert_template_exists($override) ? $override : 'official_lcp_certificate';
         }
 
-        $tpl = 'premium_lcp_certificate';
+        $tpl = 'template_pdf';
 
         if (function_exists('get_instance')) {
             $settings = ka_cert_platform_settings();
-            $tpl = trim((string) ($settings['certificates']['pdf_template'] ?? 'premium_lcp_certificate'));
+            $tpl = trim((string) ($settings['certificates']['pdf_template'] ?? 'template_pdf'));
         }
 
         if ( ! in_array($tpl, $allowed, true) || ! ka_cert_template_exists($tpl)) {
-            return ka_cert_template_exists('premium_lcp_certificate')
-                ? 'premium_lcp_certificate'
-                : 'official_lcp_certificate';
+            return ka_cert_template_exists('template_pdf')
+                ? 'template_pdf'
+                : (ka_cert_template_exists('premium_lcp_certificate')
+                    ? 'premium_lcp_certificate'
+                    : 'official_lcp_certificate');
         }
 
         return $tpl;
@@ -88,7 +92,23 @@ if ( ! function_exists('ka_cert_resolve_template')) {
 if ( ! function_exists('ka_cert_template_exists')) {
     function ka_cert_template_exists($slug)
     {
+        if ($slug === 'template_pdf') {
+            return is_file(APPPATH . 'views/certificates/template_pdf.php');
+        }
+
         return is_file(APPPATH . 'views/certificates/templates/' . $slug . '.php');
+    }
+}
+
+if ( ! function_exists('ka_cert_template_view')) {
+    /**
+     * CI view path for a certificate template slug.
+     */
+    function ka_cert_template_view($slug)
+    {
+        return $slug === 'template_pdf'
+            ? 'certificates/template_pdf'
+            : 'certificates/templates/' . $slug;
     }
 }
 
@@ -424,13 +444,13 @@ if ( ! function_exists('ka_cert_render_template_html')) {
         if ( ! function_exists('get_instance')) {
             ob_start();
             extract($view_data, EXTR_SKIP);
-            include APPPATH . 'views/certificates/templates/' . $template . '.php';
+            include APPPATH . 'views/' . ka_cert_template_view($template) . '.php';
 
             return (string) ob_get_clean();
         }
 
         $CI =& get_instance();
 
-        return $CI->load->view('certificates/templates/' . $template, $view_data, true);
+        return $CI->load->view(ka_cert_template_view($template), $view_data, true);
     }
 }

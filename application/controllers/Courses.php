@@ -24,109 +24,17 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property Event_dispatcher      $event_dispatcher
  * @property CI_Output               $output   Loaded by CI_Controller (JSON helpers use $this->output)
  */
-class Courses extends CI_Controller {
-
-    /** @var object Authenticated user row */
-    private $user;
-
-    /**
-     * Return JSON auth error for AJAX/fetch calls instead of HTML redirect.
-     *
-     * @param int    $status
-     * @param string $message
-     */
-    private function _auth_json_error($status, $message)
-    {
-        $payload = json_encode([
-            'success' => false,
-            'message' => (string) $message,
-            'auth'    => false,
-        ]);
-
-        $this->output
-            ->set_status_header((int) $status)
-            ->set_content_type('application/json')
-            ->set_output($payload !== false ? $payload : '{"success":false,"message":"Authentication required.","auth":false}');
-
-        $this->output->_display();
-        exit;
-    }
+class Courses extends KA_Controller {
 
     public function __construct()
     {
         parent::__construct();
-        $this->load->library('session');
-        $this->load->model('User_model',   'user_model');
-        $this->load->model('Course_model',             'course_model');
+        $this->load->model('Course_model', 'course_model');
         $this->load->library('assessment_service');
         $this->load->library('course_completion_service');
         $this->load->helper('url');
 
-        // ── Auth guard ────────────────────────────────────────
-        $is_ajax = strtolower((string) $this->input->server('HTTP_X_REQUESTED_WITH')) === 'xmlhttprequest';
-        $user_id = $this->session->userdata('user_id');
-        if ( ! $user_id) {
-            if ($is_ajax) {
-                $this->_auth_json_error(401, 'Authentication required.');
-                return;
-            }
-            redirect('auth/login');
-        }
-
-        $user = $this->user_model->get_user($user_id);
-
-        if ( ! $user) {
-            if ($is_ajax) {
-                $this->_auth_json_error(401, 'Authentication required.');
-                return;
-            }
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-
-        if ((int) $user->banned   === 1) {
-            if ($is_ajax) {
-                $this->_auth_json_error(403, 'Account is banned.');
-                return;
-            }
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-        if ($user->status !== 'active') {
-            if ($is_ajax) {
-                $this->_auth_json_error(403, 'Account is not active.');
-                return;
-            }
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-        if ((int) $user->DELETED  === 1) {
-            if ($is_ajax) {
-                $this->_auth_json_error(403, 'Account is unavailable.');
-                return;
-            }
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-        if ( ! empty($user->locked_until) && strtotime($user->locked_until) > time()) {
-            if ($is_ajax) {
-                $this->_auth_json_error(423, 'Account is temporarily locked.');
-                return;
-            }
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-
-        $this->user = $user;
-
-        // Keep session user array fresh so sidebar.php can read it
-        $this->session->set_userdata('user', [
-            'id'          => $user->id,
-            'fullname'    => $user->fullname,
-            'employee_id' => $user->employee_id,
-            'role'        => $user->role,
-            'status'      => $user->status,
-        ]);
+        $this->require_permission('courses.view');
     }
 
     // =========================================================
@@ -135,7 +43,7 @@ class Courses extends CI_Controller {
     // =========================================================
     public function index()
     {
-        $user = $this->user;
+        $user = $this->auth_user;
 
         // ── Filters from GET params ───────────────────────────
         $keyword    = trim($this->input->get('q')        ?? '');
@@ -163,12 +71,15 @@ class Courses extends CI_Controller {
 
             if ( ! $course->is_enrolled) {
                 $course->progress_pct = 0;
+                $course->course_cta   = null;
             } elseif ($uid < 1 || $course->total_modules < 1) {
                 $course->progress_pct = 0;
+                $course->course_cta   = get_course_cta($cid, $uid);
             } else {
                 $modules              = $this->course_model->get_modules($cid, $uid);
                 $agg                  = $this->assessment_service->get_course_progress_aggregate($uid, $cid, $modules);
                 $course->progress_pct = (int) $agg['course_progress_percent'];
+                $course->course_cta   = get_course_cta($cid, $uid);
             }
         }
 
@@ -208,7 +119,7 @@ class Courses extends CI_Controller {
     {
         if ( ! $id) redirect('courses');
 
-        $user = $this->user;
+        $user = $this->auth_user;
         $id   = (int) $id;
 
         // ── Fetch course with all joined lookups ──────────────
@@ -271,6 +182,10 @@ class Courses extends CI_Controller {
             ? $this->course_model->get_course_batches($id)
             : [];
 
+        $course_cta = $is_enrolled
+            ? get_course_cta($id, (int) $user->id, ka_lms_return_q($lms_rt))
+            : null;
+
         $data = [
             'user'              => $user,
             'page_title'        => $course->title,
@@ -285,6 +200,7 @@ class Courses extends CI_Controller {
             'total_modules'     => $total_modules,
             'completed_modules' => $completed_modules,
             'progress_pct'      => $progress_pct,
+            'course_cta'        => $course_cta,
             'total_enrolled'    => $total_enrolled,
             'lms_return_target' => $lms_rt,
             'lms_return_q'      => ka_lms_return_q($lms_rt),
@@ -308,7 +224,7 @@ class Courses extends CI_Controller {
     {
         if ( ! $id) redirect('courses');
 
-        $user = $this->user;
+        $user = $this->auth_user;
         $id   = (int) $id;
 
         // Only learner roles can self-enroll
@@ -413,7 +329,7 @@ class Courses extends CI_Controller {
      */
     public function accept_invitation($invitation_id = null)
     {
-        $user = $this->user;
+        $user = $this->auth_user;
         $iid  = (int) $invitation_id;
         if ($iid < 1) {
             redirect('courses');
@@ -437,7 +353,7 @@ class Courses extends CI_Controller {
 
     public function reject_invitation($invitation_id = null)
     {
-        $user = $this->user;
+        $user = $this->auth_user;
         $iid  = (int) $invitation_id;
         if ($iid < 1 || ! in_array((string) $user->role, ['employee', 'student'], true)) {
             redirect('courses');
@@ -456,7 +372,7 @@ class Courses extends CI_Controller {
      */
     public function enrollment_pending($course_id = null)
     {
-        $user = $this->user;
+        $user = $this->auth_user;
         $cid  = (int) $course_id;
         if ($cid < 1) {
             redirect('courses');
@@ -508,7 +424,7 @@ class Courses extends CI_Controller {
             redirect('courses');
         }
 
-        $user = $this->user;
+        $user = $this->auth_user;
         $mid  = (int) $module_id;
 
         $module = $this->course_model->get_module($mid);
@@ -610,6 +526,12 @@ class Courses extends CI_Controller {
         $lms_rt = ka_lms_resolve_return_target($user, $this->input->get('return_url'));
 
         $this->load->model('Learning_notes_model', 'learning_notes_model');
+        $this->load->helper('course_phase3');
+        $eff_type = course_phase3_effective_module_type_for_row(
+            $module,
+            'module view id=' . (int) ($module->id ?? 0)
+        );
+        $module_pre_modal = $this->_build_module_pre_modal($module, $eff_type);
 
         $data = [
             'user'              => $user,
@@ -638,6 +560,7 @@ class Courses extends CI_Controller {
             'lms_return_target'               => $lms_rt,
             'lms_return_q'                    => ka_lms_return_q($lms_rt),
             'ln_notes_ready'                  => $this->learning_notes_model->table_ready(),
+            'module_pre_modal'                => $module_pre_modal,
             'breadcrumbs'       => [
                 ['label' => 'Dashboard',      'url' => 'dashboard'],
                 ['label' => 'Course Catalog', 'url' => 'courses'],
@@ -659,7 +582,7 @@ class Courses extends CI_Controller {
     public function progress_state($course_id = null)
     {
         $cid  = (int) $course_id;
-        $user = $this->user;
+        $user = $this->auth_user;
 
         if ($cid < 1) {
             return $this->_complete_module_json([
@@ -709,7 +632,7 @@ class Courses extends CI_Controller {
     public function module_state($module_id = null)
     {
         $mid  = (int) $module_id;
-        $user = $this->user;
+        $user = $this->auth_user;
 
         if ($mid < 1) {
             return $this->_complete_module_json([
@@ -760,7 +683,7 @@ class Courses extends CI_Controller {
             show_404();
         }
 
-        $user = $this->user;
+        $user = $this->auth_user;
         $mid  = (int) $module_id;
         if ($mid < 1) {
             return $this->_complete_module_json(['ok' => false, 'message' => 'Invalid module.']);
@@ -807,7 +730,7 @@ class Courses extends CI_Controller {
             show_404();
         }
 
-        $user = $this->user;
+        $user = $this->auth_user;
         $mid  = (int) $module_id;
         if ($mid < 1) {
             return $this->_complete_module_json(['success' => false, 'message' => 'Invalid module.']);
@@ -943,6 +866,37 @@ class Courses extends CI_Controller {
         }
 
         return $this->_complete_module_json($payload);
+    }
+
+    /**
+     * Pre-assessment modal DTO from session flash (video modules only).
+     *
+     * @param object $module
+     * @param string $eff_type
+     * @return array<string,mixed>|null
+     */
+    private function _build_module_pre_modal($module, $eff_type)
+    {
+        if ($eff_type !== 'video') {
+            return null;
+        }
+
+        $pm = $this->session->flashdata('pre_assessment_modal');
+        if ( ! is_array($pm) || (int) ($pm['module_id'] ?? 0) !== (int) ($module->id ?? 0)) {
+            return null;
+        }
+
+        $_aid = (int) ($pm['assessment_id'] ?? 0);
+
+        return [
+            'assessment_id' => $_aid,
+            'title'         => (string) ($pm['title'] ?? 'Pre-assessment'),
+            'score'         => (float) ($pm['score'] ?? 0),
+            'passed'        => ! empty($pm['passed']),
+            'pending_count' => (int) ($pm['pending_count'] ?? 0),
+            'threshold'     => (float) ($pm['threshold'] ?? ka_assessment_pass_threshold()),
+            'detail_url'    => ($_aid > 0) ? base_url('index.php/assessments/result/' . $_aid) : '',
+        ];
     }
 
     /**

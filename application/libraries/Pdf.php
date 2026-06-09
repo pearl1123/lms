@@ -132,24 +132,20 @@ class Pdf {
      */
     private function _load_dompdf()
     {
-        // Option A: Composer (recommended)
-        $composer = FCPATH . 'vendor/autoload.php';
-        if (file_exists($composer)) {
-            require_once $composer;
-            return;
+        if ( ! function_exists('ka_load_vendor_autoload')) {
+            $helper = APPPATH . 'helpers/report_export_helper.php';
+            if (is_file($helper)) {
+                require_once $helper;
+            }
         }
 
-        // Option B: Manual install in application/third_party/dompdf/
-        $manual = APPPATH . 'third_party/dompdf/autoload.inc.php';
-        if (file_exists($manual)) {
-            require_once $manual;
+        if (function_exists('ka_load_vendor_autoload') && ka_load_vendor_autoload()) {
             return;
         }
 
         show_error(
-            'DOMPDF not found.<br><br>'
-            . 'Install via Composer: <code>composer require dompdf/dompdf</code><br>'
-            . 'Or place dompdf folder in: <code>application/third_party/dompdf/</code>',
+            'DOMPDF not found or incompatible with this PHP version (' . PHP_VERSION . ').<br><br>'
+            . 'Run on the server: <code>composer install --no-dev</code> with dompdf ^2.0 (PHP 8.0 compatible).',
             500,
             'PDF Library Error'
         );

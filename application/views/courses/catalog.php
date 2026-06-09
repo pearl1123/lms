@@ -386,23 +386,38 @@ $thumb_gradients = [
       $est       = $course->enrollment_status ?? null;
 
       // Status tag for filtering
-      if ($is_enr && $pct >= 100) $status_tag = 'completed';
+      $course_cta = is_array($course->course_cta ?? null) ? $course->course_cta : null;
+      if ($is_enr && $course_cta !== null && ($course_cta['status'] ?? '') === 'completed') $status_tag = 'completed';
+      elseif ($is_enr && $course_cta !== null && ($course_cta['status'] ?? '') === 'in_progress') $status_tag = 'inprogress';
+      elseif ($is_enr && $pct >= 100) $status_tag = 'completed';
       elseif ($is_enr && $pct > 0) $status_tag = 'inprogress';
       elseif ($is_enr) $status_tag = 'enrolled';
       elseif ($est === 'pending') $status_tag = 'pending';
       elseif ($est === 'rejected') $status_tag = 'rejected';
       else $status_tag = 'available';
 
-      // CTA
+      // CTA (enrolled learners use authoritative course_cta from controller)
+      $course_cta = is_array($course->course_cta ?? null) ? $course->course_cta : null;
       if ($is_learner_role) {
-        if ($pct >= 100)  { $cta_text = 'Review';   $cta_class = 'cat-cta-review'; }
-        elseif ($is_enr)     { $cta_text = 'Continue'; $cta_class = 'cat-cta-continue'; }
-        elseif ($est === 'pending') { $cta_text = 'Waiting for approval'; $cta_class = 'cat-cta-view'; }
-        elseif ($est === 'rejected') { $cta_text = 'Request again'; $cta_class = 'cat-cta-enroll'; }
-        else                 { $cta_text = 'Request enrollment'; $cta_class = 'cat-cta-enroll'; }
+        if ($is_enr && $course_cta !== null) {
+          $cta_text  = (string) $course_cta['label'];
+          $cta_class = ka_course_cta_css_class($course_cta['status'], 'catalog');
+          $cta_href  = (string) $course_cta['url'];
+        } elseif ($pct >= 100) {
+          $cta_text = 'Review'; $cta_class = 'cat-cta-review'; $cta_href = base_url('courses/view/'.$course->id);
+        } elseif ($is_enr) {
+          $cta_text = 'Continue'; $cta_class = 'cat-cta-continue'; $cta_href = base_url('courses/view/'.$course->id);
+        } elseif ($est === 'pending') {
+          $cta_text = 'Waiting for approval'; $cta_class = 'cat-cta-view'; $cta_href = base_url('courses/view/'.$course->id);
+        } elseif ($est === 'rejected') {
+          $cta_text = 'Request again'; $cta_class = 'cat-cta-enroll'; $cta_href = base_url('index.php/courses/enroll/'.$course->id);
+        } else {
+          $cta_text = 'Request enrollment'; $cta_class = 'cat-cta-enroll'; $cta_href = base_url('index.php/courses/enroll/'.$course->id);
+        }
       } else {
         $cta_text  = 'View Details';
         $cta_class = 'cat-cta-view';
+        $cta_href  = base_url('courses/view/'.$course->id);
       }
     ?>
     <div class="cat-card animate__animated animate__fadeInUp"
@@ -497,9 +512,9 @@ $thumb_gradients = [
               <?= htmlspecialchars($cta_text) ?>
             </a>
           <?php else: ?>
-            <a href="<?= base_url('courses/view/'.$course->id) ?>"
+            <a href="<?= htmlspecialchars($cta_href, ENT_QUOTES, 'UTF-8') ?>"
                class="cat-cta <?= $cta_class ?>">
-              <?= $cta_text ?>
+              <?= htmlspecialchars($cta_text) ?>
             </a>
           <?php endif; ?>
 
@@ -546,6 +561,8 @@ $thumb_gradients = [
       elseif ($est === 'pending') $status_tag = 'pending';
       elseif ($est === 'rejected') $status_tag = 'rejected';
       else $status_tag = 'available';
+
+      $list_cta = is_array($course->course_cta ?? null) ? $course->course_cta : null;
     ?>
     <div class="cat-list-item"
          data-title="<?= htmlspecialchars(strtolower($course->title)) ?>"
@@ -602,10 +619,10 @@ $thumb_gradients = [
             <?= $est === 'rejected' ? 'Request again' : 'Request enrollment' ?>
           </a>
         <?php elseif ($is_enr): ?>
-          <a href="<?= base_url('courses/view/'.$course->id) ?>"
+          <a href="<?= htmlspecialchars($list_cta !== null ? (string) $list_cta['url'] : base_url('courses/view/'.$course->id), ENT_QUOTES, 'UTF-8') ?>"
              class="cat-list-btn"
              style="background:var(--ka-accent,#e8f4fd);color:var(--ka-primary-deep,#4a8eb0);">
-            <?= (int) $course->progress_pct >= 100 ? 'Review' : 'Continue' ?>
+            <?= htmlspecialchars($list_cta !== null ? (string) $list_cta['label'] : ((int) $course->progress_pct >= 100 ? 'Review' : 'Continue')) ?>
           </a>
         <?php else: ?>
           <a href="<?= base_url('courses/view/'.$course->id) ?>"

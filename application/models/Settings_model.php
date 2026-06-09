@@ -46,7 +46,7 @@ class Settings_model extends CI_Model {
                 'default_signatory'    => '',
                 'default_signatory_title' => '',
                 'cert_expiry_days'     => '',
-                'pdf_template'         => 'premium_lcp_certificate',
+                'pdf_template'         => 'template_pdf',
             ],
             'notifications' => [
                 'smtp_host'       => '',

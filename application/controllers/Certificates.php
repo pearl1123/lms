@@ -5,7 +5,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * Routes:
  *   GET  index.php/certificates                  → List (employee: mine / admin+teacher: all)
- *   GET  index.php/certificates/preview/{id}    → Raw HTML preview (same as PDF template)
+ *   GET  index.php/certificates/preview/{id}         → Raw HTML preview (active PDF template)
+ *   GET  index.php/certificates/preview_saas/{id}    → SaaS redesign preview (non-production)
  *   GET  index.php/certificates/download/{id}    → Stream PDF to browser
  *   POST index.php/certificates/regenerate/{id}  → Rebuild PDF (admin/teacher)
  *   GET  index.php/certificates/verify/{code}    → Public verification page
@@ -223,6 +224,50 @@ class Certificates extends KA_Controller {
     }
 
     // =========================================================
+    // preview_saas($id) — Enterprise SaaS credential preview (not production template)
+    // =========================================================
+    public function preview_saas($id = null)
+    {
+        if ( ! $id) {
+            show_404();
+        }
+        $id = (int) $id;
+
+        $cert = $this->certificate_model->get_by_id($id);
+        if ( ! $cert) {
+            show_404();
+        }
+
+        if ($this->auth_user->role === 'employee'
+            && (int) $cert->user_id !== (int) $this->auth_user->id) {
+            show_404();
+        }
+
+        $this->load->helper('certificate_pdf');
+
+        $signatories = $this->certificate_model->resolve_signatories_for_pdf(
+            (int) ($cert->course_id ?? 0),
+            $cert->signatory_name ?? '',
+            $cert->signatory_title ?? ''
+        );
+
+        $html = ka_cert_render_template_html($cert, $signatories, [
+            'template' => 'template_pdf',
+            'for_pdf'  => true,
+        ]);
+
+        if (ob_get_length()) {
+            @ob_end_clean();
+        }
+
+        header('Content-Type: text/html; charset=UTF-8');
+        header('X-Frame-Options: SAMEORIGIN');
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        echo $html;
+        exit;
+    }
+
+    // =========================================================
     // download($id) — Stream PDF to browser
     // =========================================================
     public function download($id = null)
@@ -312,7 +357,7 @@ class Certificates extends KA_Controller {
 
         if ($path) {
             $this->flash('success', 'Certificate PDF regenerated with the latest template.');
-            redirect('certificates/download/' . $id);
+            redirect('certificates/view/' . $id);
         }
 
         $this->flash('error', 'Certificate PDF could not be regenerated. Please try again.');

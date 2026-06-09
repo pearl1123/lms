@@ -4,53 +4,18 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 /**
  * Reports — enterprise analytics workspace (admin).
  *
- * @property CI_Session    $session
- * @property CI_Input      $input
- * @property User_model    $user_model
  * @property Reports_model  $reports_model
  * @property Reports_export $reports_export
  */
-class Reports extends CI_Controller {
-
-    /** @var object */
-    private $user;
+class Reports extends KA_Controller {
 
     public function __construct()
     {
         parent::__construct();
-        $this->load->library('session');
-        $this->load->model('User_model', 'user_model');
         $this->load->model('Reports_model', 'reports_model');
         $this->load->helper(['url', 'form', 'ka_layout', 'report_export']);
 
-        $user_id = $this->session->userdata('user_id');
-        if ( ! $user_id) {
-            redirect('auth/login');
-        }
-
-        $user = $this->user_model->get_user($user_id);
-        if ( ! $user) {
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-        if ((int) $user->banned === 1 || $user->status !== 'active' || (int) $user->DELETED === 1) {
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-        if ( ! empty($user->locked_until) && strtotime($user->locked_until) > time()) {
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-
-        if (strtolower((string) ($user->role ?? '')) !== 'admin') {
-            $this->session->set_flashdata('error', 'Only administrators can access reports and analytics.');
-            redirect('dashboard');
-        }
-
-        $this->load->helper('permission');
-        ka_gate_permission($user, 'reports.view', 'dashboard');
-
-        $this->user = $user;
+        $this->require_permission('reports.view');
     }
 
     public function index()
@@ -59,7 +24,7 @@ class Reports extends CI_Controller {
         $report = $this->reports_model->get_workspace_data($range);
 
         $data = [
-            'user'        => $this->user,
+            'user'        => $this->auth_user,
             'page_title'  => 'Reports & Analytics',
             'report'      => $report,
             'breadcrumbs' => [
@@ -107,8 +72,7 @@ class Reports extends CI_Controller {
      */
     private function _run_export($format, callable $streamer, $force_section = null)
     {
-        $this->load->helper('permission');
-        ka_gate_permission($this->user, 'reports.export', 'reports');
+        $this->require_permission('reports.export', 'reports');
 
         report_export_prepare_response();
 
@@ -119,7 +83,7 @@ class Reports extends CI_Controller {
             'format'   => $format,
             'range'    => $range,
             'section'  => $section,
-            'user_id'  => (int) ($this->user->id ?? 0),
+            'user_id'  => (int) ($this->auth_user->id ?? 0),
             'base_url' => base_url(),
             'host'     => $_SERVER['HTTP_HOST'] ?? '',
             'uri'      => $_SERVER['REQUEST_URI'] ?? '',
@@ -161,6 +125,6 @@ class Reports extends CI_Controller {
             ? $force_section
             : ($this->input->get('section', true) ?: 'all');
 
-        return $this->reports_model->get_export_bundle($range, $section, $this->user);
+        return $this->reports_model->get_export_bundle($range, $section, $this->auth_user);
     }
 }

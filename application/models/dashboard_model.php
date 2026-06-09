@@ -401,7 +401,8 @@ class dashboard_model extends CI_Model {
             }));
             $c->progress_pct   = (int) ($state['progress_percent'] ?? 0);
             $c->course_progress_percent = $c->progress_pct;
-            $c->resume_url = $this->course_completion_service->build_resume_url($uid, $cid);
+            $c->course_cta     = $this->course_completion_service->get_course_cta($cid, $uid);
+            $c->resume_url     = $c->course_cta['url'] ?? $this->course_completion_service->build_resume_url($uid, $cid);
 
             $enrolled_ts       = strtotime((string) ($c->enrolled_at ?? '')) ?: 0;
             $last_completed    = $last_done_map[$cid] ?? null;
@@ -534,8 +535,10 @@ class dashboard_model extends CI_Model {
             : ($remain === 1 ? '1 module left' : $remain . ' modules left');
 
         $hero                     = clone $best;
-        $hero->resume_url         = $this->course_completion_service->build_resume_url($uid, $cid);
-        $hero->outline_url        = site_url('course/' . $cid);
+        $cta                      = $this->course_completion_service->get_course_cta($cid, $uid);
+        $hero->course_cta         = $cta;
+        $hero->resume_url         = $cta['url'] ?? $this->course_completion_service->build_resume_url($uid, $cid);
+        $hero->outline_url        = $cta['outline_url'] ?? site_url('course/' . $cid);
         $hero->next_module_id      = $next ? (int) $next->id : null;
         $hero->next_module_title   = $next ? (string) $next->title : '';
         $hero->estimate_label      = $plan;

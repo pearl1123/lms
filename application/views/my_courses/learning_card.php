@@ -27,14 +27,19 @@ $card_class = $mode === 'enrolled' ? 'ec-course-card' : 'ec-available-card';
 $data_attrs = 'data-title="' . htmlspecialchars(strtolower((string) $course->title), ENT_QUOTES, 'UTF-8') . '"'
     . ' data-cat="' . htmlspecialchars((string) ($course->category_id ?? ''), ENT_QUOTES, 'UTF-8') . '"';
 
+$course_cta = is_array($course->course_cta ?? null) ? $course->course_cta : null;
+
 if ($mode === 'enrolled') {
     $pct = (int) ($course->course_progress_percent ?? $course->progress_pct ?? 0);
     $done = (int) ($course->modules_done ?? 0);
-    if ($pct >= 100) {
+    if ($course_cta !== null) {
+        $pct = (int) ($course_cta['progress_percent'] ?? $pct);
+    }
+    if ($pct >= 100 || ($course_cta['status'] ?? '') === 'completed') {
         $status = 'completed';
         $badge_class = 'ec-badge-completed';
         $badge_text = 'Completed';
-    } elseif ($pct > 0) {
+    } elseif ($pct > 0 || ($course_cta['status'] ?? '') === 'in_progress') {
         $status = 'inprogress';
         $badge_class = 'ec-badge-inprogress';
         $badge_text = 'In Progress';
@@ -43,8 +48,9 @@ if ($mode === 'enrolled') {
         $badge_class = 'ec-badge-notstarted';
         $badge_text = 'Not Started';
     }
-    $cta_text  = $pct >= 100 ? 'Review' : ($pct > 0 ? 'Continue' : 'Start');
-    $cta_class = $pct >= 100 ? 'ec-cta-review' : ($pct > 0 ? 'ec-cta-continue' : 'ec-cta-start');
+    $cta_text  = $course_cta !== null ? (string) $course_cta['label'] : ($pct >= 100 ? 'Review' : ($pct > 0 ? 'Continue' : 'Start'));
+    $cta_class = $course_cta !== null ? ka_course_cta_css_class($course_cta['status'], 'learning_card') : ($pct >= 100 ? 'ec-cta-review' : ($pct > 0 ? 'ec-cta-continue' : 'ec-cta-start'));
+    $cta_url   = $course_cta !== null ? (string) $course_cta['url'] : base_url('courses/view/' . $cid . '?' . ka_lms_return_q('my_courses'));
     $data_attrs .= ' data-progress="' . htmlspecialchars($status, ENT_QUOTES, 'UTF-8') . '"';
 }
 ?>
@@ -100,7 +106,7 @@ if ($mode === 'enrolled') {
     <div class="ec-card-footer">
       <?php if ($mode === 'enrolled'): ?>
         <?php if ($cid > 0): ?>
-        <a href="<?= base_url('courses/view/' . $cid . '?' . ka_lms_return_q('my_courses')) ?>" class="ec-card-cta <?= $cta_class ?>"><?= htmlspecialchars($cta_text) ?></a>
+        <a href="<?= htmlspecialchars($cta_url, ENT_QUOTES, 'UTF-8') ?>" class="ec-card-cta <?= $cta_class ?>"><?= htmlspecialchars($cta_text) ?></a>
         <?php else: ?>
         <span class="ec-card-cta <?= $cta_class ?> ec-card-cta--disabled" title="Course unavailable"><?= htmlspecialchars($cta_text) ?></span>
         <?php endif; ?>

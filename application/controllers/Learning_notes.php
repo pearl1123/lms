@@ -10,35 +10,16 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @property Learning_notes_model $learning_notes_model
  * @property Course_model         $course_model
  */
-class Learning_notes extends CI_Controller {
-
-    /** @var object */
-    private $user;
+class Learning_notes extends KA_Controller {
 
     public function __construct()
     {
         parent::__construct();
-        $this->load->library('session');
-        $this->load->model('User_model', 'user_model');
         $this->load->model('Learning_notes_model', 'learning_notes_model');
         $this->load->model('Course_model', 'course_model');
         $this->load->helper(['url', 'form', 'ka_layout']);
 
-        $user_id = $this->session->userdata('user_id');
-        if ( ! $user_id) {
-            if ($this->_is_ajax()) {
-                $this->_json(['success' => false, 'message' => 'Authentication required.'], 401);
-            }
-            redirect('auth/login');
-        }
-
-        $user = $this->user_model->get_user($user_id);
-        if ( ! $user || (int) $user->banned === 1 || $user->status !== 'active' || (int) $user->DELETED === 1) {
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-
-        $this->user = $user;
+        $this->require_permission('learning_notes.view');
     }
 
     /**
@@ -61,11 +42,11 @@ class Learning_notes extends CI_Controller {
             $filters['limit'] = 100;
         }
 
-        $notes = $this->learning_notes_model->get_notes_for_user((int) $this->user->id, $filters);
-        $courses = $this->learning_notes_model->get_courses_with_notes((int) $this->user->id);
+        $notes = $this->learning_notes_model->get_notes_for_user((int) $this->auth_user->id, $filters);
+        $courses = $this->learning_notes_model->get_courses_with_notes((int) $this->auth_user->id);
 
         $data = [
-            'user'        => $this->user,
+            'user'        => $this->auth_user,
             'page_title'  => 'My Notes',
             'notes'       => $notes,
             'courses'     => $courses,
@@ -108,7 +89,7 @@ class Learning_notes extends CI_Controller {
             $filters['module_id'] = $module_id;
         }
 
-        $notes = $this->learning_notes_model->get_notes_for_user((int) $this->user->id, $filters);
+        $notes = $this->learning_notes_model->get_notes_for_user((int) $this->auth_user->id, $filters);
 
         return $this->_json([
             'success' => true,
@@ -141,7 +122,7 @@ class Learning_notes extends CI_Controller {
             return $this->_json(['success' => false, 'message' => 'Note content is required.'], 422);
         }
 
-        $id = $this->learning_notes_model->create_note((int) $this->user->id, [
+        $id = $this->learning_notes_model->create_note((int) $this->auth_user->id, [
             'course_id'         => $course_id,
             'module_id'         => $module_id > 0 ? $module_id : null,
             'note_title'        => $payload['note_title'] ?? $this->input->post('note_title'),
@@ -160,7 +141,7 @@ class Learning_notes extends CI_Controller {
             return $this->_json(['success' => false, 'message' => 'Could not save note. Is the database migrated?'], 500);
         }
 
-        $note = $this->learning_notes_model->get_note($id, (int) $this->user->id);
+        $note = $this->learning_notes_model->get_note($id, (int) $this->auth_user->id);
 
         return $this->_json([
             'success' => true,
@@ -200,13 +181,13 @@ class Learning_notes extends CI_Controller {
             $upd['color_label'] = $payload['color_label'] ?? $this->input->post('color_label');
         }
 
-        $ok = $this->learning_notes_model->update_note($note_id, (int) $this->user->id, $upd);
+        $ok = $this->learning_notes_model->update_note($note_id, (int) $this->auth_user->id, $upd);
 
         if ( ! $ok) {
             return $this->_json(['success' => false, 'message' => 'Note not found or update failed.'], 404);
         }
 
-        $note = $this->learning_notes_model->get_note($note_id, (int) $this->user->id);
+        $note = $this->learning_notes_model->get_note($note_id, (int) $this->auth_user->id);
 
         return $this->_json([
             'success' => true,
@@ -225,7 +206,7 @@ class Learning_notes extends CI_Controller {
             return $this->_json(['success' => false, 'message' => 'Invalid note.'], 400);
         }
 
-        $ok = $this->learning_notes_model->archive_note($note_id, (int) $this->user->id);
+        $ok = $this->learning_notes_model->archive_note($note_id, (int) $this->auth_user->id);
 
         return $this->_json([
             'success' => $ok,
@@ -251,10 +232,10 @@ class Learning_notes extends CI_Controller {
         }
 
         $ok = $type === 'pin'
-            ? $this->learning_notes_model->toggle_pin($note_id, (int) $this->user->id)
-            : $this->learning_notes_model->toggle_favorite($note_id, (int) $this->user->id);
+            ? $this->learning_notes_model->toggle_pin($note_id, (int) $this->auth_user->id)
+            : $this->learning_notes_model->toggle_favorite($note_id, (int) $this->auth_user->id);
 
-        $note = $this->learning_notes_model->get_note($note_id, (int) $this->user->id);
+        $note = $this->learning_notes_model->get_note($note_id, (int) $this->auth_user->id);
 
         return $this->_json([
             'success' => $ok,
@@ -264,12 +245,11 @@ class Learning_notes extends CI_Controller {
 
     private function _user_may_access_course($course_id)
     {
-        $role = strtolower((string) ($this->user->role ?? ''));
-        if ($role === 'admin') {
+        if ($this->user_can('manage_courses.delete')) {
             return true;
         }
 
-        return $this->course_model->has_approved_enrollment((int) $this->user->id, (int) $course_id);
+        return $this->course_model->has_approved_enrollment((int) $this->auth_user->id, (int) $course_id);
     }
 
     /**

@@ -3,51 +3,18 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 /**
  * Settings — platform administration (admin only).
  *
- * @property User_model      $user_model
  * @property Settings_model  $settings_model
  */
-class Settings extends CI_Controller {
-
-    /** @var object */
-    private $user;
+class Settings extends KA_Controller {
 
     public function __construct()
     {
         parent::__construct();
-        $this->load->library('session');
         $this->load->library('form_validation');
-        $this->load->model('User_model', 'user_model');
         $this->load->model('Settings_model', 'settings_model');
         $this->load->helper(['url', 'form']);
 
-        $user_id = $this->session->userdata('user_id');
-        if ( ! $user_id) {
-            redirect('auth/login');
-        }
-
-        $user = $this->user_model->get_user($user_id);
-        if ( ! $user) {
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-        if ((int) $user->banned === 1 || $user->status !== 'active' || (int) $user->DELETED === 1) {
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-        if ( ! empty($user->locked_until) && strtotime($user->locked_until) > time()) {
-            $this->session->sess_destroy();
-            redirect('auth/login');
-        }
-
-        if (strtolower((string) ($user->role ?? '')) !== 'admin') {
-            $this->session->set_flashdata('error', 'Only administrators can access platform settings.');
-            redirect('dashboard');
-        }
-
-        $this->load->helper('permission');
-        ka_gate_permission($user, 'settings.view', 'dashboard');
-
-        $this->user = $user;
+        $this->require_permission('settings.view');
     }
 
     public function index()
@@ -61,7 +28,7 @@ class Settings extends CI_Controller {
         $admin_ctx = $this->settings_model->build_admin_context();
 
         $data = array_merge([
-            'user'       => $this->user,
+            'user'       => $this->auth_user,
             'page_title' => 'Settings',
             'settings'   => $settings,
             'breadcrumbs' => [
@@ -76,6 +43,8 @@ class Settings extends CI_Controller {
 
     private function _handle_save()
     {
+        $this->require_permission('settings.edit', 'settings');
+
         if ( ! $this->settings_model->table_ready()) {
             $this->session->set_flashdata('error', 'Run application/sql/migration_lms_settings.sql to enable saving platform settings.');
             return;
@@ -88,7 +57,7 @@ class Settings extends CI_Controller {
         }
 
         $current = $this->settings_model->get_all_settings();
-        $actor   = (int) $this->user->id;
+        $actor   = (int) $this->auth_user->id;
 
         if (isset($sections['notifications']['smtp_pass']) && trim((string) $sections['notifications']['smtp_pass']) === '') {
             unset($sections['notifications']['smtp_pass']);

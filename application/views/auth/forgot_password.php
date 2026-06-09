@@ -42,7 +42,6 @@
                  alt="Lung Center of the Philippines"
                  class="wmis-logo-login"
                  onerror="this.onerror=null;this.src='<?= base_url('assets/img/wmis-logo.svg'); ?>';" />
-            <div class="wmis-logo-subtext">kaBAGA Academy</div>
             <div class="wmis-logo-hospital">LUNG CENTER OF THE PHILIPPINES</div>
           </div>
 
@@ -53,10 +52,16 @@
 
           <?php $flash_messages = $flash_messages ?? []; ?>
           <?php if ( ! empty($flash_messages['error'])): ?>
-            <div class="alert alert-danger"><?= $flash_messages['error']; ?></div>
+            <div class="alert alert-danger"><?= html_escape($flash_messages['error']); ?></div>
           <?php endif; ?>
           <?php if ( ! empty($flash_messages['success'])): ?>
-            <div class="alert alert-success"><?= $flash_messages['success']; ?></div>
+            <div class="alert alert-success"><?= html_escape($flash_messages['success']); ?></div>
+          <?php endif; ?>
+          <?php if ( ! empty($reset_dev_url)): ?>
+            <div class="alert alert-info small mb-3">
+              <strong>Development reset link</strong> (expires in 60 minutes):<br>
+              <a href="<?= html_escape($reset_dev_url); ?>"><?= html_escape($reset_dev_url); ?></a>
+            </div>
           <?php endif; ?>
 
           <form method="post"

@@ -59,7 +59,7 @@ class KA_Library_controller extends KA_Controller {
             'include_archived' => $this->get_int('show_archived') === 1,
         ];
 
-        $rows = $this->library_crud_model->get_all($filters);
+        $rows = $this->_decorate_rows_archive_flags($this->library_crud_model->get_all($filters));
         $stats = $this->_build_stats($rows);
 
         $this->load->helper('library_crud');
@@ -190,6 +190,27 @@ class KA_Library_controller extends KA_Controller {
         }
 
         return (bool) $this->form_validation->run();
+    }
+
+    /**
+     * Precompute archive flag per row so views stay presentation-only.
+     *
+     * @param  object[] $rows
+     * @return object[]
+     */
+    protected function _decorate_rows_archive_flags(array $rows)
+    {
+        if (empty($this->lib_config['soft_delete'])) {
+            return $rows;
+        }
+
+        foreach ($rows as $row) {
+            if (is_object($row)) {
+                $row->is_archived = $this->library_crud_model->is_archived_row($row);
+            }
+        }
+
+        return $rows;
     }
 
     /**
