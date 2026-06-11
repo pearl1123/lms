@@ -174,7 +174,7 @@ foreach ($courses as $c) {
       <div class="mc-index-card-title"><?= htmlspecialchars($course->title) ?></div>
       <div class="mc-index-card-meta">
         <?= htmlspecialchars($course->category_name ?? '—') ?>
-        <?php if ( ! empty($course->modality_name)): ?> · <?= htmlspecialchars($course->modality_name) ?><?php endif; ?>
+        <?php if ( ! empty($course->modality_name)): ?> · <?= htmlspecialchars(etd_modality_display_label($course->modality_name)) ?><?php endif; ?>
         <?php if ($is_admin && ! empty($course->creator_name)): ?>
           <br><span style="font-weight:600;">Instructor:</span> <?= htmlspecialchars($course->creator_name) ?>
         <?php endif; ?>
@@ -243,7 +243,7 @@ foreach ($courses as $c) {
         <td>
           <div class="mc-course-title"><?= htmlspecialchars($course->title) ?></div>
           <div class="mc-course-meta">
-            <?= htmlspecialchars($course->modality_name ?? '') ?>
+            <?= htmlspecialchars(etd_modality_display_label($course->modality_name ?? '')) ?>
             <?php if ( ! empty($course->expiry_days)): ?> · <?= $course->expiry_days ?> day expiry<?php endif; ?>
           </div>
         </td>

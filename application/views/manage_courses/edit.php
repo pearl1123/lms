@@ -33,7 +33,7 @@ $content_types = [
     'meeting_link'  => ['label' => 'Meeting Link',  'icon' => '🎥', 'color' => '#06b6d4'],
 ];
 /** Content types shown but not selectable until feature ships */
-$coming_soon_types = ['slides', 'audio'];
+$coming_soon_types = [];
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
 <style>

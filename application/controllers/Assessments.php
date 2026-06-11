@@ -422,18 +422,22 @@ class Assessments extends CI_Controller {
 
         log_message('debug', 'ETD retake: user=' . (int) $this->user->id . ' assessment=' . $id . ' full_course=' . ($full ? '1' : '0'));
 
-        if ($full && (int) ($assessment->module_id ?? 0) > 0) {
-            $this->course_model->reset_module_progress_for_retake((int) $this->user->id, (int) $assessment->module_id);
-            $this->assessment_model->clear_user_assessment_attempt($this->user->id, $id);
-            $pre_list = $this->assessment_model->get_assessments((int) $assessment->module_id, 'pre');
-            foreach ($pre_list as $pre) {
-                $this->assessment_model->clear_user_assessment_attempt($this->user->id, (int) $pre->id);
-            }
+        if ($full && (int) ($assessment->course_id ?? 0) > 0) {
+            $this->load->library('etd_retake_service');
+            $this->etd_retake_service->execute_full_course_retake(
+                (int) $this->user->id,
+                (int) $assessment->course_id
+            );
             $this->session->set_flashdata(
                 'warning',
-                'Your module progress was reset. Please complete all lessons and checkpoints before retaking the post-assessment.'
+                'Your entire course progress was reset. Please complete all modules, lessons, and checkpoints before retaking the post-assessment.'
             );
-            redirect('courses/module/' . (int) $assessment->module_id);
+            $redirect_mid = (int) ($assessment->module_id ?? 0);
+            if ($redirect_mid < 1) {
+                $mods = $this->course_model->get_modules((int) $assessment->course_id, (int) $this->user->id);
+                $redirect_mid = ! empty($mods[0]->id) ? (int) $mods[0]->id : 0;
+            }
+            redirect($redirect_mid > 0 ? 'courses/module/' . $redirect_mid : 'my_courses');
         }
 
         $this->assessment_model->clear_user_assessment_attempt($this->user->id, $id);
@@ -468,8 +472,32 @@ class Assessments extends CI_Controller {
             }
         }
 
+        $essay_files = [];
+        $this->load->library('essay_submission_service');
+        $questions_for_files = $this->assessment_model->get_questions($id);
+        foreach ($questions_for_files as $q) {
+            if (($q->question_type ?? '') !== 'essay') {
+                continue;
+            }
+            $file_key = 'essay_file_' . (int) $q->id;
+            if (empty($_FILES[$file_key]['tmp_name'])) {
+                continue;
+            }
+            $stored = $this->essay_submission_service->store_submission(
+                (int) $this->user->id,
+                $id,
+                (int) $q->id,
+                $_FILES[$file_key]
+            );
+            if ( ! $stored['ok']) {
+                $this->session->set_flashdata('error', $stored['message']);
+                redirect('assessments/take/' . $id);
+            }
+            $essay_files[(int) $q->id] = $stored['path'];
+        }
+
         $result = $this->assessment_model
-            ->submit_answers($this->user->id, $id, $answers);
+            ->submit_answers($this->user->id, $id, $answers, $essay_files);
 
         $this->assessment_model->finalize_attempt_order_on_submit((int) $this->user->id, $id);
 
@@ -498,8 +526,48 @@ class Assessments extends CI_Controller {
             redirect('courses/module/' . (int) $assessment->module_id);
         }
 
+        $agg = $this->assessment_model->get_result($this->user->id, $id);
+        if ((int) ($agg['pending'] ?? 0) === 0
+            && $this->assessment_service->is_passing_assessment_result($agg)) {
+            $this->load->library('event_dispatcher');
+            $this->event_dispatcher->dispatch('assessment.passed', [
+                'user_id'       => (int) $this->user->id,
+                'assessment_id' => $id,
+                'course_id'     => (int) ($assessment->course_id ?? 0),
+            ]);
+        }
+
         $this->session->set_flashdata('success', $msg);
         redirect('assessments/result/' . $id);
+    }
+
+    /**
+     * GET — download learner essay PDF (instructors / admins).
+     */
+    public function download_essay($answer_id = null)
+    {
+        $answer_id = (int) $answer_id;
+        if ($answer_id < 1) {
+            show_404();
+        }
+
+        if ( ! in_array((string) ($this->user->role ?? ''), ['admin', 'teacher'], true)) {
+            show_error('Forbidden', 403);
+        }
+
+        $row = $this->db->where('id', $answer_id)->where('archived', 0)->get('assessment_answers', 1)->row();
+        if ( ! $row || empty($row->essay_file_path)) {
+            show_404();
+        }
+
+        $rel = ltrim(str_replace(['../', '..\\'], '', (string) $row->essay_file_path), '/\\');
+        $abs = FCPATH . $rel;
+        if ( ! is_file($abs)) {
+            show_404();
+        }
+
+        $this->load->helper('download');
+        force_download(basename($abs), file_get_contents($abs));
     }
 
     /**
@@ -1413,6 +1481,14 @@ class Assessments extends CI_Controller {
             return;
         }
 
+        $essay_mode = trim((string) $this->input->post('essay_response_mode'));
+        if ($essay_mode === '') {
+            $essay_mode = 'text';
+        }
+        if ( ! in_array($essay_mode, ['text', 'pdf', 'text_or_pdf'], true)) {
+            $essay_mode = 'text';
+        }
+
         $q_data = [
             'assessment_id' => $assessment_id,
             'question_text' => $question_text,
@@ -1422,6 +1498,9 @@ class Assessments extends CI_Controller {
             'encoded_by'    => $this->user->id,
             'modified_by'   => $this->user->id,
         ];
+        if ($validated['question_type'] === 'essay' && $this->db->field_exists('essay_response_mode', 'lib_assessment_questions')) {
+            $q_data['essay_response_mode'] = $essay_mode;
+        }
 
         if ($question_id > 0) {
             $saved = $this->assessment_model->update_question($question_id, $q_data);
@@ -1528,7 +1607,12 @@ class Assessments extends CI_Controller {
 
             $seen_texts[$norm] = true;
 
-            $to_insert[] = [
+            $essay_mode = trim((string) ($row['essay_response_mode'] ?? 'text'));
+            if ( ! in_array($essay_mode, ['text', 'pdf', 'text_or_pdf'], true)) {
+                $essay_mode = 'text';
+            }
+
+            $insert_row = [
                 'assessment_id' => $assessment_id,
                 'question_text' => $question_text,
                 'question_type' => $validated['question_type'],
@@ -1538,6 +1622,11 @@ class Assessments extends CI_Controller {
                 'modified_by'   => $this->user->id,
                 'choices'       => $validated['choices'],
             ];
+            if ($validated['question_type'] === 'essay'
+                && $this->db->field_exists('essay_response_mode', 'lib_assessment_questions')) {
+                $insert_row['essay_response_mode'] = $essay_mode;
+            }
+            $to_insert[] = $insert_row;
         }
 
         $result = $this->assessment_model->create_questions_batch($assessment_id, $to_insert);

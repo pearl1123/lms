@@ -103,7 +103,7 @@ $route['courses/complete_module/(:num)'] = 'courses/complete_module/$1';
 $route['courses/save_resume_state/(:num)'] = 'courses/save_resume_state/$1';
 $route['my_courses'] = 'My_courses/index';
 $route['my-learning'] = 'My_courses/index';
-$route['leaderboard'] = 'error_pages/under_construction';
+$route['leaderboard'] = 'leaderboard/index';
 $route['manage_courses/modules/(:num)'] = 'manage_courses/modules/$1';
 $route['manage_courses/publish/(:num)'] = 'manage_courses/publish/$1';
 $route['manage_courses/unpublish/(:num)'] = 'manage_courses/unpublish/$1';
@@ -143,6 +143,10 @@ $route['notifications'] = 'Announcements/index';
 $route['notifications/unread_count'] = 'Notifications/unread_count';
 $route['notifications/latest']       = 'Notifications/latest';
 $route['notifications/mark_read/(:num)'] = 'Notifications/mark_read/$1';
+
+// REST API v1 (session-authenticated JSON)
+$route['api/v1/courses']           = 'api_v1/courses/index';
+$route['api/v1/courses/(:num)']    = 'api_v1/courses/show/$1';
 
 $route['404_override'] = 'error_pages/not_found';
 $route['coming_soon'] = 'error_pages/under_construction';

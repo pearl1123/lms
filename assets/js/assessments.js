@@ -458,6 +458,8 @@
       document.getElementById('mfQType').value = 'multiple_choice';
       document.getElementById('mfRequired').checked = true;
       document.getElementById('mfMinWords').value = '';
+      var essayModeEl = document.getElementById('mfEssayMode');
+      if (essayModeEl) essayModeEl.value = 'text';
       document.getElementById('choicesList').innerHTML = '';
       addChoice();
       addChoice();
@@ -606,6 +608,8 @@
       document.getElementById('mfQType').value = el.dataset.type;
       document.getElementById('mfRequired').checked = el.dataset.required === '1';
       document.getElementById('mfMinWords').value = el.dataset.minwords || '';
+      var essayModeEl = document.getElementById('mfEssayMode');
+      if (essayModeEl) essayModeEl.value = el.dataset.essaymode || 'text';
 
       var choices = [];
       try {
@@ -644,6 +648,7 @@
       var type = document.getElementById('mfQType').value;
       var choicesEl = document.getElementById('mfChoicesSection');
       var minWEl = document.getElementById('mfMinWordsGroup');
+      var essayModeEl = document.getElementById('mfEssayModeGroup');
       var likertEl = document.getElementById('mfLikertNote');
       var essayEl = document.getElementById('mfEssayNote');
       var choicesLabel = document.getElementById('mfChoicesLabel');
@@ -651,6 +656,7 @@
 
       choicesEl.style.display = 'none';
       minWEl.style.display = 'none';
+      if (essayModeEl) essayModeEl.style.display = 'none';
       likertEl.style.display = 'none';
       essayEl.style.display = 'none';
 
@@ -667,6 +673,7 @@
       } else if (type === 'essay') {
         essayEl.style.display = '';
         minWEl.style.display = '';
+        if (essayModeEl) essayModeEl.style.display = '';
       }
     }
 
@@ -769,6 +776,7 @@
         question_type: p.question_type,
         is_required: p.is_required,
         min_words: p.min_words,
+        essay_response_mode: p.essay_response_mode || 'text',
         choices: (p.choices || []).map(function(c) {
           return { text: c.text, is_correct: c.is_correct };
         }),
@@ -780,6 +788,8 @@
       document.getElementById('mfQType').value = p.question_type || 'multiple_choice';
       document.getElementById('mfRequired').checked = !!p.is_required;
       document.getElementById('mfMinWords').value = p.min_words || '';
+      var essayModeEl = document.getElementById('mfEssayMode');
+      if (essayModeEl) essayModeEl.value = p.essay_response_mode || 'text';
       document.getElementById('choicesList').innerHTML = '';
       var choices = p.choices || [];
       if (choices.length > 0) {
@@ -862,6 +872,12 @@
         return { ok: false, message: 'Add at least one accepted answer.' };
       }
 
+      var essayMode = 'text';
+      var essayModeEl = document.getElementById('mfEssayMode');
+      if (essayModeEl && type === 'essay') {
+        essayMode = essayModeEl.value || 'text';
+      }
+
       return {
         ok: true,
         payload: {
@@ -869,6 +885,7 @@
           question_type: type,
           is_required: document.getElementById('mfRequired').checked ? 1 : 0,
           min_words: parseInt(document.getElementById('mfMinWords').value, 10) || 0,
+          essay_response_mode: essayMode,
           choices: choices,
         },
       };
@@ -881,6 +898,7 @@
         question_type: payload.question_type,
         is_required: payload.is_required,
         min_words: payload.min_words || null,
+        essay_response_mode: payload.essay_response_mode || 'text',
         choices: (payload.choices || []).map(function(c, i) {
           return {
             id: 'tmp-' + tempId + '-' + i,
@@ -904,7 +922,8 @@
         + '&question_text=' + encodeURIComponent(payload.question_text)
         + '&question_type=' + encodeURIComponent(payload.question_type)
         + '&is_required=' + encodeURIComponent(payload.is_required)
-        + '&min_words=' + encodeURIComponent(payload.min_words);
+        + '&min_words=' + encodeURIComponent(payload.min_words)
+        + '&essay_response_mode=' + encodeURIComponent(payload.essay_response_mode || 'text');
 
       (payload.choices || []).forEach(function(c, i) {
         body += '&choices[' + i + '][text]=' + encodeURIComponent(c.text);
@@ -920,6 +939,7 @@
         body += '&questions[' + qi + '][question_type]=' + encodeURIComponent(q.question_type);
         body += '&questions[' + qi + '][is_required]=' + encodeURIComponent(q.is_required);
         body += '&questions[' + qi + '][min_words]=' + encodeURIComponent(q.min_words);
+        body += '&questions[' + qi + '][essay_response_mode]=' + encodeURIComponent(q.essay_response_mode || 'text');
         (q.choices || []).forEach(function(c, ci) {
           body += '&questions[' + qi + '][choices][' + ci + '][text]=' + encodeURIComponent(c.text);
           body += '&questions[' + qi + '][choices][' + ci + '][is_correct]=' + encodeURIComponent(c.is_correct);
@@ -1128,6 +1148,7 @@
         + ' data-type="' + q.question_type + '"'
         + ' data-required="' + (q.is_required ? '1' : '0') + '"'
         + ' data-minwords="' + (q.min_words || '') + '"'
+        + ' data-essaymode="' + escAttr(q.essay_response_mode || 'text') + '"'
         + ' data-choices="' + escAttr(choicesData) + '">'
         + '<div class="q-item-hdr">'
         + '<div class="q-item-num">?</div>'
@@ -1142,6 +1163,8 @@
         + '<div class="q-item-body">'
         + '<div class="q-text">' + escHtml(q.question_text).replace(/\n/g, '<br>') + '</div>'
         + (q.min_words ? '<div class="q-meta"><span>Min ' + q.min_words + ' words</span></div>' : '')
+        + (q.question_type === 'essay' && q.essay_response_mode && q.essay_response_mode !== 'text'
+          ? '<div class="q-meta"><span>Response: ' + escHtml(q.essay_response_mode) + '</span></div>' : '')
         + choicesHtml
         + '</div></div>';
 

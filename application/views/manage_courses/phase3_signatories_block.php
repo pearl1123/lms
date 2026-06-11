@@ -19,7 +19,11 @@
       </div>
       <div class="ef-group" style="flex:0 0 70px;">
         <label class="ef-label">Order</label>
-        <input type="number" name="signatory_order[]" class="ef-input" min="1" value="1">
+        <input type="number" name="signatory_order[]" class="ef-input" min="0" step="1" value="1">
+      </div>
+      <div class="ef-group" style="flex:1.5;">
+        <label class="ef-label">E-signature (PNG/JPEG)</label>
+        <input type="file" name="signatory_image[]" class="ef-input" accept="image/png,image/jpeg">
       </div>
     </div>
     <?php else: ?>
@@ -38,8 +42,19 @@
       </div>
       <div class="ef-group" style="flex:0 0 70px;">
         <label class="ef-label">Order</label>
-        <input type="number" name="signatory_order[]" class="ef-input" min="1"
-               value="<?= (int) ($sig->order_no ?? ($i + 1)) ?>">
+        <input type="number" name="signatory_order[]" class="ef-input" min="0" step="1"
+               value="<?= max(1, (int) ($sig->order_no ?? ($i + 1))) ?>">
+      </div>
+      <div class="ef-group" style="flex:1.5;">
+        <label class="ef-label">E-signature (PNG/JPEG)</label>
+        <input type="file" name="signatory_image[]" class="ef-input" accept="image/png,image/jpeg">
+        <?php if ( ! empty($sig->signature_image_path) && function_exists('ka_cert_sig_image_src')):
+          $sig_preview = ka_cert_sig_image_src($sig->signature_image_path);
+          if ($sig_preview !== ''): ?>
+        <div style="margin-top:.35rem;">
+          <img src="<?= htmlspecialchars($sig_preview, ENT_QUOTES, 'UTF-8') ?>" alt="Signature preview" style="max-height:48px;max-width:160px;background:transparent;">
+        </div>
+        <?php endif; endif; ?>
       </div>
     </div>
     <?php endforeach; ?>

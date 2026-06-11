@@ -103,6 +103,11 @@ if ($mode === 'enrolled') {
     <?php elseif ($mode === 'available' && ! empty($course->description)): ?>
     <p class="ec-available-desc"><?= htmlspecialchars($course->description) ?></p>
     <?php endif; ?>
+    <?php if ($mode === 'enrolled' && ! empty($course->show_f2f_notice)): ?>
+    <div class="ec-card-f2f-notice">
+      <?php $this->load->view('components/etd_f2f_notice'); ?>
+    </div>
+    <?php endif; ?>
     <div class="ec-card-footer">
       <?php if ($mode === 'enrolled'): ?>
         <?php if ($cid > 0): ?>

@@ -82,6 +82,9 @@ if ( ! function_exists('ka_merge_layout_vars')) {
             $data['flash_messages'] = [];
         }
 
+        $f2f_flash = $CI->{'session'}->flashdata('etd_f2f_advisory');
+        $data['etd_f2f_advisory_html'] = is_string($f2f_flash) ? trim($f2f_flash) : '';
+
         $csrf_enabled = (bool) config_item('csrf_protection');
         if ($csrf_enabled) {
             $SEC =& load_class('Security', 'core');

@@ -56,7 +56,7 @@ $dept_select_enabled = ! empty($dept_select_enabled);
         <input type="email" id="crs_p2_invite_email" name="invite_email" class="crs-input ef-input"
                placeholder="colleague@organization.gov.ph" style="width:100%;">
       </div>
-      <button type="submit" name="invite_submit" value="1" class="crs-p2-invite-btn">Send invitations</button>
+      <button type="submit" name="invite_submit" value="1" class="crs-p2-invite-btn" formnovalidate>Send invitations</button>
     </div>
 
     <div class="crs-p2-field crs-p2-invite-activity">

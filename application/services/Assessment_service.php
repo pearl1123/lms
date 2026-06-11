@@ -45,9 +45,13 @@ class Assessment_service {
         $this->CI->load->model('assessment_model');
     }
 
-    public function pass_threshold()
+    /**
+     * @param int|null $course_id
+     * @param int|null $assessment_id
+     */
+    public function pass_threshold($course_id = null, $assessment_id = null)
     {
-        return ka_assessment_pass_threshold();
+        return ka_assessment_pass_threshold($course_id, $assessment_id);
     }
 
     /**
@@ -55,12 +59,12 @@ class Assessment_service {
      *
      * @param array $result assessment_model::get_result shape
      */
-    public function is_passing_assessment_result(array $result)
+    public function is_passing_assessment_result(array $result, $course_id = null, $assessment_id = null)
     {
         $pending = (int) ($result['pending'] ?? 0);
         $score   = (float) ($result['score'] ?? 0);
 
-        return $pending === 0 && $score >= $this->pass_threshold();
+        return $pending === 0 && $score >= $this->pass_threshold($course_id, $assessment_id);
     }
 
     /** DB `type` values for standard timed assessments */

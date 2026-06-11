@@ -31,6 +31,7 @@ if ( ! function_exists('render_q_item')) {
      data-type="<?= $q->question_type ?>"
      data-required="<?= $q->is_required ? '1' : '0' ?>"
      data-minwords="<?= $q->min_words ?? '' ?>"
+     data-essaymode="<?= htmlspecialchars((string) ($q->essay_response_mode ?? 'text'), ENT_QUOTES) ?>"
      data-choices="<?= htmlspecialchars(json_encode(array_map(function($c) { return ['id' => $c->id, 'text' => $c->choice_text, 'is_correct' => $c->is_correct]; }, $q->choices ?? [])), ENT_QUOTES) ?>">
   <div class="q-item-hdr">
     <div class="q-item-num"><?= $num ?></div>
@@ -140,6 +141,14 @@ $this->load->view('assessments/assessment_editor_shell', get_defined_vars());
         <div class="mf-group" id="mfMinWordsGroup" style="display:none;">
           <label class="mf-label" for="mfMinWords">Min. Words (optional)</label>
           <input type="number" id="mfMinWords" class="mf-input" min="0" placeholder="e.g. 50">
+        </div>
+        <div class="mf-group" id="mfEssayModeGroup" style="display:none;">
+          <label class="mf-label" for="mfEssayMode">Response format</label>
+          <select id="mfEssayMode" class="mf-select">
+            <option value="text">Text only</option>
+            <option value="pdf">PDF upload only</option>
+            <option value="text_or_pdf">Text or PDF (learner chooses)</option>
+          </select>
         </div>
       </div>
       <div class="mf-group">

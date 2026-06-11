@@ -122,7 +122,7 @@ class Manage_courses extends KA_Controller {
         $data = array_merge([
             'user'         => $user,
             'page_title'   => 'Create Course',
-            'categories'   => $this->course_model->get_categories(),
+            'categories'   => $this->course_model->get_categories_for_display(),
             'modalities'   => $this->course_model->get_modalities(),
             'teachers'     => $this->user_can('manage_courses.delete') ? $this->course_model->get_teachers() : [],
             'breadcrumbs'  => [
@@ -179,7 +179,7 @@ class Manage_courses extends KA_Controller {
                     redirect('manage_courses/edit/' . $id . $edit_rt_suffix());
                 }
 
-                $this->course_model->update_course($id, [
+                $update = [
                     'title'          => $this->input->post('title'),
                     'description'    => $this->input->post('description'),
                     'category_id'    => $this->input->post('category_id'),
@@ -189,10 +189,30 @@ class Manage_courses extends KA_Controller {
                     'certificate_prefix' => $this->input->post('certificate_prefix'),
                     'signatory_name'     => $this->input->post('signatory_name'),
                     'signatory_title'    => $this->input->post('signatory_title'),
-                ], $this->auth_user->id);
+                    'schedule_date'      => $this->input->post('schedule_date') ?: null,
+                    'schedule_time'      => $this->input->post('schedule_time') ?: null,
+                    'venue'              => trim((string) $this->input->post('venue')) ?: null,
+                ];
+                if ($this->db->field_exists('pass_threshold_pct', 'courses')) {
+                    $pt = $this->input->post('pass_threshold_pct');
+                    $update['pass_threshold_pct'] = ($pt !== '' && $pt !== null) ? (float) $pt : null;
+                }
+                if ($this->db->field_exists('enforce_sequential_modules', 'courses')) {
+                    $update['enforce_sequential_modules'] = $this->input->post('enforce_sequential_modules') ? 1 : 0;
+                }
+                if ($this->db->field_exists('max_capacity', 'courses')) {
+                    $cap = (int) $this->input->post('max_capacity');
+                    $update['max_capacity'] = $cap > 0 ? $cap : null;
+                }
+                if ($this->db->field_exists('enrollment_deadline', 'courses')) {
+                    $dl = trim((string) $this->input->post('enrollment_deadline'));
+                    $update['enrollment_deadline'] = $dl !== '' ? date('Y-m-d H:i:s', strtotime($dl)) : null;
+                }
+                $this->course_model->update_course($id, $update, $this->auth_user->id);
 
                 $this->course_phase2->save_course_meta_from_post($id, $_POST, (int) $this->auth_user->id);
                 $this->_sync_phase3_course_meta($id, (int) $this->auth_user->id);
+                $this->_sync_signatory_image_uploads($id);
 
                 $this->session->set_flashdata('success', 'Course details updated.');
                 redirect('manage_courses/edit/' . $id . $edit_rt_suffix());
@@ -467,7 +487,7 @@ class Manage_courses extends KA_Controller {
                 ? $this->certificate_model->get_signatories_for_course($id) : [],
             'course_batches' => $phase3_batches
                 ? $this->course_model->get_course_batches($id) : [],
-            'categories'   => $this->course_model->get_categories(),
+            'categories'   => $this->course_model->get_categories_for_display(),
             'modalities'   => $this->course_model->get_modalities(),
             'teachers'     => $this->user_can('manage_courses.delete')
                               ? $this->course_model->get_teachers() : [],
@@ -585,6 +605,64 @@ class Manage_courses extends KA_Controller {
                 }
             }
             $this->course_model->sync_course_batches($cid, $batch_rows, (int) $actor_id);
+        }
+    }
+
+    /**
+     * Process signatory_image[] uploads after signatory rows are synced.
+     *
+     * @param int $course_id
+     */
+    private function _sync_signatory_image_uploads($course_id)
+    {
+        $cid = (int) $course_id;
+        if ($cid < 1 || ! $this->certificate_model->signatories_table_ready()) {
+            return;
+        }
+
+        if (empty($_FILES['signatory_image']) || ! is_array($_FILES['signatory_image']['name'])) {
+            return;
+        }
+
+        $signatories = $this->certificate_model->get_signatories_for_course($cid);
+        if ($signatories === []) {
+            return;
+        }
+
+        $this->load->library('signatory_upload_service');
+
+        foreach ($_FILES['signatory_image']['name'] as $i => $name) {
+            if (trim((string) $name) === '') {
+                continue;
+            }
+            if ( ! isset($signatories[$i])) {
+                continue;
+            }
+
+            $sig = $signatories[$i];
+            $sid = (int) ($sig->id ?? 0);
+            if ($sid < 1) {
+                continue;
+            }
+
+            $file = [
+                'name'     => $_FILES['signatory_image']['name'][$i] ?? '',
+                'type'     => $_FILES['signatory_image']['type'][$i] ?? '',
+                'tmp_name' => $_FILES['signatory_image']['tmp_name'][$i] ?? '',
+                'error'    => $_FILES['signatory_image']['error'][$i] ?? UPLOAD_ERR_NO_FILE,
+                'size'     => $_FILES['signatory_image']['size'][$i] ?? 0,
+            ];
+
+            $res = $this->signatory_upload_service->store($file, $cid, $sid);
+            if (empty($res['ok']) || empty($res['path'])) {
+                continue;
+            }
+
+            if ( ! empty($sig->signature_image_path)) {
+                $this->signatory_upload_service->delete_if_exists((string) $sig->signature_image_path);
+            }
+
+            $this->certificate_model->update_signatory_image_path($sid, $cid, (string) $res['path'], (int) $this->auth_user->id);
         }
     }
 

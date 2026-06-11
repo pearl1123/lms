@@ -225,6 +225,46 @@ class User_model extends CI_Model {
     }
 
     /**
+     * Best deliverable email for outbound notifications.
+     * Employees: HRMIS tblemployee.emailadd first, then LMS email (skip @lms.local placeholders).
+     *
+     * @param int $user_id
+     * @return string Valid email or empty string
+     */
+    public function resolve_notification_email($user_id)
+    {
+        $uid = (int) $user_id;
+        if ($uid < 1) {
+            return '';
+        }
+
+        $user = $this->get_user($uid);
+        if ( ! $user) {
+            return '';
+        }
+
+        $emp_id = trim((string) ($user->employee_id ?? ''));
+        if ($emp_id !== '') {
+            $hr = $this->get_hrmis_employee($emp_id);
+            if ($hr) {
+                $hrmis_email = trim((string) ($hr->emailadd ?? ''));
+                if ($hrmis_email !== '' && filter_var($hrmis_email, FILTER_VALIDATE_EMAIL)) {
+                    return strtolower($hrmis_email);
+                }
+            }
+        }
+
+        $lms_email = trim((string) ($user->email ?? ''));
+        if ($lms_email !== ''
+            && filter_var($lms_email, FILTER_VALIDATE_EMAIL)
+            && ! preg_match('/@lms\.local$/i', $lms_email)) {
+            return strtolower($lms_email);
+        }
+
+        return '';
+    }
+
+    /**
      * Active, non-deleted LMS account by employee ID (password reset eligibility).
      *
      * @param  string $employee_id

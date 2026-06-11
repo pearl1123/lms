@@ -9,6 +9,7 @@
     clone.querySelectorAll('input').forEach(function (inp) {
       if (inp.type === 'hidden' && inp.name === 'signatory_id[]') inp.value = '0';
       if (inp.type === 'hidden' && inp.name === 'batch_id[]') inp.value = '0';
+      else if (inp.name === 'signatory_order[]') inp.value = '1';
       else if (inp.type !== 'hidden') inp.value = '';
     });
     clone.querySelectorAll('select').forEach(function (sel) { sel.selectedIndex = 0; });

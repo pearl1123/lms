@@ -32,7 +32,16 @@ $lms_enrolled_back_label = ($lms_return_target === 'manage_courses') ? '← Back
 
 if ( ! $course) return;
 
+$show_f2f = function_exists('etd_is_face_to_face_modality')
+    && etd_is_face_to_face_modality($course->modality_name ?? '');
+$etd_f2f_advisory_html = isset($etd_f2f_advisory_html) ? trim((string) $etd_f2f_advisory_html) : '';
+
 echo $alerts_partial_html ?? '';
+if ( ! empty($etd_f2f_advisory_html)) {
+    $this->load->view('components/etd_f2f_notice', ['notice_html' => $etd_f2f_advisory_html]);
+} elseif ($show_f2f) {
+    $this->load->view('components/etd_f2f_notice');
+}
 
 $content_icons = [
     'pdf'           => '📄',
@@ -67,17 +76,28 @@ $content_colors = [
       <?php if ( ! empty($course->description)): ?>
         <p class="cd-hero-desc"><?= htmlspecialchars($course->description) ?></p>
       <?php endif; ?>
-      <?php
-      $modality_label = etd_modality_display_label($course->modality_name ?? '');
-      $show_f2f = etd_is_face_to_face_modality($course->modality_name ?? '');
-      ?>
+      <?php $modality_label = etd_modality_display_label($course->modality_name ?? ''); ?>
       <?php if ($modality_label !== ''): ?>
       <div class="cd-hero-modality">
         <span class="cd-modality-pill"><?= htmlspecialchars($modality_label, ENT_QUOTES) ?></span>
       </div>
       <?php endif; ?>
-      <?php if ($show_f2f): ?>
-      <?php $this->load->view('components/etd_f2f_notice'); ?>
+      <?php if ($show_f2f && ( ! empty($course->schedule_date) || ! empty($course->venue))): ?>
+      <div class="cd-f2f-schedule" style="margin-top:.75rem;font-size:.875rem;color:var(--ka-text,#334155);">
+        <?php if ( ! empty($course->schedule_date)): ?>
+        <div><strong>Date:</strong> <?= htmlspecialchars(date('M j, Y', strtotime((string) $course->schedule_date)), ENT_QUOTES) ?>
+          <?php if ( ! empty($course->schedule_time)): ?>
+          at <?= htmlspecialchars(date('g:i A', strtotime((string) $course->schedule_time)), ENT_QUOTES) ?>
+          <?php endif; ?>
+        </div>
+        <?php endif; ?>
+        <?php if ( ! empty($course->venue)): ?>
+        <div><strong>Venue:</strong> <?= htmlspecialchars((string) $course->venue, ENT_QUOTES) ?></div>
+        <?php endif; ?>
+        <?php if ( ! empty($course->max_capacity)): ?>
+        <div><strong>Capacity:</strong> <?= (int) $course->max_capacity ?> seats</div>
+        <?php endif; ?>
+      </div>
       <?php endif; ?>
       <div class="cd-hero-meta">
         <div class="cd-hero-meta-item">

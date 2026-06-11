@@ -11,6 +11,9 @@ $issued_at        = (string) ($issued_at ?? '');
 $verify_url       = (string) ($verify_url ?? '');
 $category_name    = trim((string) ($category_name ?? ''));
 $modality_name    = trim((string) ($modality_name ?? ''));
+if ($modality_name !== '' && function_exists('etd_modality_display_label')) {
+    $modality_name = etd_modality_display_label($modality_name);
+}
 $training_hours   = trim((string) ($training_hours ?? ''));
 $employee_id      = trim((string) ($employee_id ?? ''));
 $org_name         = (string) ($org_name ?? 'Lung Center of the Philippines');
@@ -72,10 +75,15 @@ $sig_rows = [];
 foreach (array_slice($signatories, 0, 2) as $sig) {
     $title = trim((string) ($sig->title ?? ''));
     $lines = $title !== '' ? preg_split('/\r\n|\r|\n/', $title) : [];
+    $sig_img = '';
+    if ( ! empty($sig->signature_image_path) && function_exists('ka_cert_sig_image_src')) {
+        $sig_img = ka_cert_sig_image_src($sig->signature_image_path);
+    }
     $sig_rows[] = [
         'name'  => trim((string) ($sig->name ?? '')),
         'role'  => (string) ($lines[0] ?? ''),
         'org'   => (string) ($lines[1] ?? ''),
+        'image' => $sig_img,
     ];
 }
 if ($sig_rows === []) {
@@ -478,6 +486,11 @@ html, body {
                             <tr>
                                 <?php foreach ($sig_rows as $sig): ?>
                                 <td class="sig-cell">
+                                    <?php if ( ! empty($sig['image'])): ?>
+                                    <div class="sig-image" style="margin-bottom:6pt;">
+                                        <img src="<?= htmlspecialchars($sig['image'], ENT_QUOTES, 'UTF-8') ?>" alt="" style="max-height:52pt;max-width:180pt;">
+                                    </div>
+                                    <?php endif; ?>
                                     <div class="sig-name"><?= htmlspecialchars($sig['name']) ?></div>
                                     <?php if ($sig['role'] !== ''): ?>
                                     <div class="sig-role"><?= htmlspecialchars($sig['role']) ?></div>

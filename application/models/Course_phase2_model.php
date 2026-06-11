@@ -1321,17 +1321,32 @@ class Course_phase2_model extends CI_Model {
             return;
         }
 
+        $cat_ids = [$fc];
+        if ( ! isset($this->course_model)) {
+            $this->load->model('Course_model', 'course_model');
+        }
+        if ($this->course_model->categories_have_parent_column()) {
+            $cat_ids = $this->course_model->get_category_descendant_ids($fc);
+        }
+
+        $cat_ids = array_values(array_unique(array_map('intval', $cat_ids)));
+        if ($cat_ids === []) {
+            $cat_ids = [$fc];
+        }
+
+        $in_list = implode(',', $cat_ids);
+
         if ($this->schema_ready() && $this->db->table_exists('course_categories_map')) {
             $this->db->group_start();
-            $this->db->where('c.category_id', $fc);
+            $this->db->where_in('c.category_id', $cat_ids);
             $this->db->or_where(
-                'EXISTS (SELECT 1 FROM course_categories_map m WHERE m.course_id = c.id AND m.archived = 0 AND m.category_id = ' . $fc . ')',
+                'EXISTS (SELECT 1 FROM course_categories_map m WHERE m.course_id = c.id AND m.archived = 0 AND m.category_id IN (' . $in_list . '))',
                 null,
                 false
             );
             $this->db->group_end();
         } else {
-            $this->db->where('c.category_id', $fc);
+            $this->db->where_in('c.category_id', $cat_ids);
         }
     }
 

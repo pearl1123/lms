@@ -14,6 +14,13 @@ $full_name        = $nc['full_name'] ?? 'User';
 $emp_id           = $nc['employee_id'] ?? '';
 $initials         = $nc['initials'] ?? '';
 $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
+$ka_branding      = $ka_branding ?? (function_exists('ka_branding_settings') ? ka_branding_settings() : []);
+$brand_logo_url   = trim((string) ($ka_branding['logo_url'] ?? ''));
+if ($brand_logo_url === '') {
+    $brand_logo_url = base_url('assets/img/LMS-LOGO.png');
+}
+$brand_lms_name = trim((string) ($ka_branding['lms_name'] ?? 'kaBAGA Academy'));
+$brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the Philippines'));
 ?>
 
 <!-- ============================================================
@@ -164,11 +171,13 @@ $my_courses_label = $nc['my_courses_label'] ?? 'My Courses';
   <!-- Brand -->
   <a href="<?= base_url('index.php/dashboard') ?>" class="ka-sidebar-brand">
     <div class="ka-sidebar-brand-logo">
-      <img src="<?= base_url('assets/img/LMS-LOGO.png') ?>" alt="kaBAGA Academy">
+      <img src="<?= htmlspecialchars($brand_logo_url, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($brand_lms_name, ENT_QUOTES, 'UTF-8') ?>">
     </div>
     <div class="ka-sidebar-brand-text">
-      <span class="ka-sidebar-brand-name">kaBAGA Academy</span>
-      <span class="ka-sidebar-brand-sub">Lung Center of the Philippines</span>
+      <span class="ka-sidebar-brand-name"><?= htmlspecialchars($brand_lms_name, ENT_QUOTES, 'UTF-8') ?></span>
+      <?php if ($brand_org_name !== ''): ?>
+      <span class="ka-sidebar-brand-sub"><?= htmlspecialchars($brand_org_name, ENT_QUOTES, 'UTF-8') ?></span>
+      <?php endif; ?>
     </div>
   </a>
 

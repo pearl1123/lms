@@ -1,0 +1,24 @@
+/**
+ * kaBAGA auth pages — aliases legacy wmis-* classes to ka design tokens.
+ * Load after Tabler; keeps existing auth markup working during theme migration.
+ */
+.wmis-app-shell,
+.ka-app-shell { min-height: 100vh; }
+
+.wmis-login-page,
+.ka-login-page { background: var(--ka-bg, #f8fafc); }
+
+/* Login logo size: custom.css (.wmis-logo-login → width min(218px, 100%)) */
+
+.wmis-logo-hospital,
+.ka-logo-org { font-size: .7rem; letter-spacing: .08em; color: var(--ka-text-muted, #64748b); }
+
+.wmis-register-card,
+.wmis-forgot-card,
+.ka-auth-card { border-radius: 14px; }
+
+.wmis-theme-toggle,
+.ka-theme-toggle { border: 0; background: transparent; }
+
+/* Prefer branding logo when set via inline style from PHP */
+.ka-auth-brand img { max-height: 72px; object-fit: contain; }

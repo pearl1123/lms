@@ -26,6 +26,7 @@ class Certificates extends KA_Controller {
     public function __construct()
     {
         parent::__construct();
+        $this->require_permission('certificates.view');
         $this->load->model('Certificate_model', 'certificate_model');
         $this->load->model('Course_model',      'course_model');
 

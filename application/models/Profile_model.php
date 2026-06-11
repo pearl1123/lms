@@ -336,9 +336,24 @@ class Profile_model extends CI_Model {
             return ['ok' => false, 'message' => 'No image uploaded.'];
         }
 
+        $max_bytes = 2 * 1024 * 1024;
+        if ((int) ($file['size'] ?? 0) > $max_bytes) {
+            return ['ok' => false, 'message' => 'Profile photo must be 2 MB or smaller.'];
+        }
+
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
         if ( ! in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
             return ['ok' => false, 'message' => 'Use JPG, PNG, or WebP for your profile photo.'];
+        }
+
+        $image_info = @getimagesize($file['tmp_name']);
+        if ($image_info === false || empty($image_info[0]) || empty($image_info[1])) {
+            return ['ok' => false, 'message' => 'Upload a valid image file (JPG, PNG, or WebP).'];
+        }
+
+        $allowed_mimes = ['image/jpeg', 'image/png', 'image/webp'];
+        if ( ! in_array((string) ($image_info['mime'] ?? ''), $allowed_mimes, true)) {
+            return ['ok' => false, 'message' => 'Invalid image type. Use JPG, PNG, or WebP.'];
         }
 
         $dir = FCPATH . 'uploads/avatars/';
@@ -347,10 +362,25 @@ class Profile_model extends CI_Model {
         }
 
         $filename = 'user_' . (int) $user_id . '_' . time() . '.' . ($ext === 'jpeg' ? 'jpg' : $ext);
-        $rel      = 'uploads/avatars/' . $filename;
+        $tmp_abs  = $dir . $filename;
 
-        if ( ! move_uploaded_file($file['tmp_name'], $dir . $filename)) {
+        if ( ! move_uploaded_file($file['tmp_name'], $tmp_abs)) {
             return ['ok' => false, 'message' => 'Upload failed.'];
+        }
+
+        $user_row = $this->db->where('id', (int) $user_id)->get($this->table, 1)->row();
+        if ($user_row && ! empty($user_row->avatar_path)) {
+            $CI =& get_instance();
+            $CI->load->library('avatar_service');
+            $CI->avatar_service->delete_avatar_files((string) $user_row->avatar_path);
+        }
+
+        $rel = 'uploads/avatars/' . $filename;
+        if (function_exists('get_instance')) {
+            $CI =& get_instance();
+            $CI->load->library('avatar_service');
+            $processed = $CI->avatar_service->process_saved_file($tmp_abs, (int) $user_id, $ext);
+            $rel = (string) ($processed['full'] ?? $rel);
         }
 
         $update = array_merge(['avatar_path' => $rel], $this->audit_fields((int) $user_id));
