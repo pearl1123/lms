@@ -89,7 +89,7 @@ class Courses extends KA_Controller {
         $total_available = $total_all - $total_enrolled;
 
         // ── Categories for filter dropdown & pills ────────────
-        $categories = $this->course_model->get_categories();
+        $categories = $this->course_model->get_categories_for_display();
 
         $data = [
             'user'            => $user,
@@ -291,6 +291,14 @@ class Courses extends KA_Controller {
                     'success',
                     'You are now enrolled in <strong>' . htmlspecialchars($course->title) . '</strong>.'
                 );
+                if (function_exists('etd_is_face_to_face_modality')
+                    && etd_is_face_to_face_modality($course->modality_name ?? '')
+                    && function_exists('etd_f2f_notice_html')) {
+                    $f2f_html = etd_f2f_notice_html();
+                    if ($f2f_html !== '') {
+                        $this->session->set_flashdata('etd_f2f_advisory', $f2f_html);
+                    }
+                }
             } else {
                 $this->session->set_flashdata(
                     'success',
@@ -446,6 +454,20 @@ class Courses extends KA_Controller {
             }
             if ( ! $this->course_model->has_approved_enrollment($user->id, (int) $module->course_id)) {
                 redirect('courses/enrollment_pending/' . (int) $module->course_id);
+            }
+
+            $this->load->library('module_access_service');
+            $access = $this->module_access_service->can_access_module((int) $user->id, $mid);
+            if (empty($access['allowed'])) {
+                $block_mid = (int) ($access['blocked_by_module_id'] ?? 0);
+                $this->session->set_flashdata(
+                    'warning',
+                    (string) ($access['message'] ?? 'Complete the previous module first.')
+                );
+                if ($block_mid > 0) {
+                    redirect('courses/module/' . $block_mid);
+                }
+                redirect('courses/view/' . (int) $module->course_id);
             }
 
             // Server-enforced pre-test gate for required pre-assessments.

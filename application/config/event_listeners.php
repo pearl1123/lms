@@ -4,6 +4,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 return [
     'course.completed' => [
         'Notification_listener@onCourseCompleted',
+        'Points_listener@onCourseCompleted',
     ],
     'enrollment.requested' => [
         'Notification_listener@onEnrollmentRequested',
@@ -17,6 +18,10 @@ return [
     // Existing behavior preserved (certificate check/revoke paths).
     'certificate.issued' => [
         'Notification_listener@onCertificateIssued',
+        'Points_listener@onCertificateIssued',
+    ],
+    'assessment.passed' => [
+        'Points_listener@onAssessmentPassed',
     ],
     'certificate.revoked' => [
         'Notification_listener@onCertificateRevoked',

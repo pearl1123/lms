@@ -39,7 +39,7 @@ $total = count($questions);
 </div>
 
 <!-- ══ Form ══════════════════════════════════════════════════ -->
-<form method="post" action="<?= base_url('index.php/assessments/submit/'.$assessment->id) ?>" id="takeForm">
+<form method="post" action="<?= base_url('index.php/assessments/submit/'.$assessment->id) ?>" id="takeForm" enctype="multipart/form-data">
    <input type="hidden" name="<?= $csrf_field_name ?>" value="<?= $csrf_hash ?>">
 
   <div class="take-layout">
@@ -81,16 +81,34 @@ $total = count($questions);
               <?php endif; ?>
             </div>
 
-          <?php elseif ($q->question_type === 'essay'): ?>
+          <?php elseif ($q->question_type === 'essay'):
+            $essay_mode = (string) ($q->essay_response_mode ?? 'text');
+            if ($essay_mode === '') { $essay_mode = 'text'; }
+            $show_text = in_array($essay_mode, ['text', 'text_or_pdf'], true);
+            $show_pdf  = in_array($essay_mode, ['pdf', 'text_or_pdf'], true);
+          ?>
+            <?php if ($show_text): ?>
             <textarea class="take-essay"
                       name="answer_<?= $q->id ?>"
                       placeholder="Type your answer here…"
-                      <?= $q->is_required ? 'required' : '' ?>
+                      <?= ($q->is_required && $essay_mode === 'text') ? 'required' : '' ?>
                       <?php if ($q->min_words): ?> data-minwords="<?= $q->min_words ?>"<?php endif; ?>
                       oninput="updateWordCount(this, <?= $q->id ?>); markAnswered(<?= $q->id ?>)"></textarea>
             <div class="take-word-count" id="wc-<?= $q->id ?>">
               0 words<?php if ($q->min_words): ?> (minimum <?= $q->min_words ?>)<?php endif; ?>
             </div>
+            <?php endif; ?>
+            <?php if ($show_pdf): ?>
+            <div style="margin-top:.75rem;">
+              <label class="ef-label" for="essay_file_<?= $q->id ?>">Upload PDF response</label>
+              <input type="file" id="essay_file_<?= $q->id ?>" name="essay_file_<?= $q->id ?>"
+                     accept="application/pdf,.pdf"
+                     class="ef-input"
+                     <?= ($q->is_required && $essay_mode === 'pdf') ? 'required' : '' ?>
+                     onchange="markAnswered(<?= $q->id ?>)">
+              <p style="font-size:.75rem;color:var(--ka-text-muted,#64748b);margin-top:.25rem;">PDF only, max 5 MB.</p>
+            </div>
+            <?php endif; ?>
 
           <?php elseif ($q->question_type === 'fill_blank'): ?>
             <input type="text" class="take-fill-input"

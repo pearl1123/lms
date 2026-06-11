@@ -37,6 +37,7 @@ class Settings_model extends CI_Model {
                 'default_enrollment_mode'   => 'approval_required',
                 'require_approval'          => '1',
                 'completion_threshold'      => '100',
+                'default_pass_threshold'    => '75',
                 'default_expiry_days'       => '',
                 'auto_unpublish_expired'    => '0',
             ],

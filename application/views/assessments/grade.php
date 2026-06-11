@@ -121,7 +121,14 @@ $initials = substr($initials, 0, 2);
     <?php else: ?>
       <?php if ($ans_text !== ''): ?>
         <div class="grd-answer-box"><?= nl2br(htmlspecialchars($ans_text)) ?></div>
-      <?php else: ?>
+      <?php endif; ?>
+      <?php if ($q_type === 'essay' && ! empty($a->essay_file_path)): ?>
+        <p style="margin:.5rem 0;">
+          <a href="<?= base_url('index.php/assessments/download_essay/' . (int) $a->id) ?>"
+             class="grd-save-btn" style="display:inline-flex;text-decoration:none;">Download PDF submission</a>
+        </p>
+      <?php endif; ?>
+      <?php if ($ans_text === '' && empty($a->essay_file_path)): ?>
         <div class="grd-answer-box" style="color:var(--ka-text-muted,#64748b);font-style:italic;">No answer submitted.</div>
       <?php endif; ?>
 

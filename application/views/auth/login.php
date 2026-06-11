@@ -4,7 +4,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>kaBAGA Academy</title>
+  <?php
+  $ka_brand = function_exists('ka_branding_settings') ? ka_branding_settings() : [];
+  $ka_lms_name = trim((string) ($ka_brand['lms_name'] ?? 'kaBAGA Academy'));
+  $ka_org_name = trim((string) ($ka_brand['org_name'] ?? 'Lung Center of the Philippines'));
+  $ka_logo_url = trim((string) ($ka_brand['logo_url'] ?? ''));
+  if ($ka_logo_url === '') {
+      $ka_logo_url = base_url('assets/img/LMS-LOGO.png');
+  }
+  ?>
+  <title><?= htmlspecialchars($ka_lms_name, ENT_QUOTES, 'UTF-8') ?></title>
   <script>
     (function() {
       var key = "wmis-theme";
@@ -27,6 +36,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="<?= base_url('assets/tabler/css/tabler.min.css'); ?>" />
   <link rel="stylesheet" href="<?= base_url('assets/css/custom.css?v=20260317navytheme01'); ?>" />
+  <link rel="stylesheet" href="<?= base_url('assets/css/ka-saas-tokens.css'); ?>" />
+  <link rel="stylesheet" href="<?= base_url('assets/css/ka-auth.css'); ?>" />
 </head>
 
 <body class="wmis-app-shell wmis-login-page">
@@ -47,11 +58,13 @@
       <div class="card card-md login-card-future">
         <div class="card-body">
           <div class="login-brand">
-            <img src="<?= base_url('assets/img/LMS-LOGO.png'); ?>"
-                 alt="kaBAGA Academy"
+            <img src="<?= htmlspecialchars($ka_logo_url, ENT_QUOTES, 'UTF-8') ?>"
+                 alt="<?= htmlspecialchars($ka_lms_name, ENT_QUOTES, 'UTF-8') ?>"
                  class="wmis-logo-login"
-                 onerror="this.onerror=null;this.src='<?= base_url('assets/img/wmis-logo.svg'); ?>';" />
-            <div class="wmis-logo-hospital">LUNG CENTER OF THE PHILIPPINES</div>
+                 onerror="this.onerror=null;this.src='<?= base_url('assets/img/LMS-LOGO.png'); ?>';" />
+            <?php if ($ka_org_name !== ''): ?>
+            <div class="wmis-logo-hospital"><?= htmlspecialchars(strtoupper($ka_org_name), ENT_QUOTES, 'UTF-8') ?></div>
+            <?php endif; ?>
           </div>
           <h4 class="h4 text-center mb-1">Empowering learners with the skills of tomorrow.</h4>
           </br>

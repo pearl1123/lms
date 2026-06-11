@@ -33,7 +33,12 @@
           <label class="stg-label" for="stg_completion">Completion threshold (%)</label>
           <input type="number" class="stg-input" id="stg_completion" name="settings[learning][completion_threshold]"
                  min="1" max="100" value="<?= htmlspecialchars($l['completion_threshold'] ?? '100', ENT_QUOTES, 'UTF-8') ?>">
-          <p class="stg-help">Module weight total expected for course completion.</p>
+        </div>
+        <div class="stg-field">
+          <label class="stg-label" for="stg_pass_threshold">Default assessment pass threshold (%)</label>
+          <input type="number" class="stg-input" id="stg_pass_threshold" name="settings[learning][default_pass_threshold]"
+                 min="1" max="100" step="0.1" value="<?= htmlspecialchars($l['default_pass_threshold'] ?? '75', ENT_QUOTES, 'UTF-8') ?>">
+          <p class="stg-help">Used when a course or assessment has no override (fallback 75%).</p>
         </div>
         <div class="stg-field">
           <label class="stg-label" for="stg_expiry">Default expiry (days)</label>

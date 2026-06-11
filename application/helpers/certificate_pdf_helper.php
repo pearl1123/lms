@@ -347,7 +347,9 @@ if ( ! function_exists('ka_cert_build_view_data')) {
             'course_title'       => (string) ($cert->course_title ?? ''),
             'course_description' => (string) ($cert->course_description ?? ''),
             'category_name'      => (string) ($cert->category_name ?? ''),
-            'modality_name'      => (string) ($cert->modality_name ?? ''),
+            'modality_name'      => function_exists('etd_modality_display_label')
+                ? etd_modality_display_label((string) ($cert->modality_name ?? ''))
+                : (string) ($cert->modality_name ?? ''),
             'certificate_prefix' => (string) ($cert->certificate_prefix ?? ''),
             'training_hours'     => (string) ($cert->training_hours ?? ''),
             'facilitator'        => (string) ($cert->facilitator ?? ''),

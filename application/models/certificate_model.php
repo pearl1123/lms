@@ -574,6 +574,36 @@ class certificate_model extends CI_Model {
     }
 
     /**
+     * @param int    $signatory_id
+     * @param int    $course_id
+     * @param string $relative_path
+     * @param int    $actor_id
+     */
+    public function update_signatory_image_path($signatory_id, $course_id, $relative_path, $actor_id = 0)
+    {
+        if ( ! $this->signatories_table_ready()
+            || ! $this->db->field_exists('signature_image_path', 'certificate_signatories')) {
+            return false;
+        }
+
+        $sid = (int) $signatory_id;
+        $cid = (int) $course_id;
+        if ($sid < 1 || $cid < 1) {
+            return false;
+        }
+
+        return (bool) $this->db
+            ->where('id', $sid)
+            ->where('course_id', $cid)
+            ->where('archived', 0)
+            ->update('certificate_signatories', [
+                'signature_image_path' => (string) $relative_path,
+                'date_last_modified' => date('Y-m-d H:i:s'),
+                'modified_by'        => (int) $actor_id,
+            ]);
+    }
+
+    /**
      * Generate a unique certificate code: {PREFIX}-{YEAR}-{NNNN}
      * (Legacy KABAGA-{PREFIX}-{YEAR}-{NNNN} codes remain valid.)
      */

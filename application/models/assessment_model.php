@@ -901,7 +901,7 @@ class assessment_model extends CI_Model {
     /** Create a question. Returns new question ID. */
     public function create_question($data)
     {
-        $ok = $this->db->insert('lib_assessment_questions', [
+        $payload = [
             'assessment_id' => (int) $data['assessment_id'],
             'question_text' => trim($data['question_text']),
             'question_type' => $data['question_type'],
@@ -910,7 +910,10 @@ class assessment_model extends CI_Model {
                                ? (int) $data['min_words'] : null,
             'date_encoded'  => date('Y-m-d H:i:s'),
             'encoded_by'    => (int) $data['encoded_by'],
-        ]);
+        ];
+        $payload = $this->_merge_essay_response_mode($payload, $data);
+
+        $ok = $this->db->insert('lib_assessment_questions', $payload);
         if ( ! $ok) {
             return 0;
         }
@@ -930,23 +933,49 @@ class assessment_model extends CI_Model {
             ->get('lib_assessment_questions', 1)
             ->row();
 
+        $payload = [
+            'question_text'      => trim($data['question_text']),
+            'question_type'      => $data['question_type'],
+            'is_required'        => empty($data['is_required']) ? 0 : 1,
+            'min_words'          => ( ! empty($data['min_words']) && (int)$data['min_words'] > 0)
+                                    ? (int) $data['min_words'] : null,
+            'date_last_modified' => date('Y-m-d H:i:s'),
+            'modified_by'        => (int) $data['modified_by'],
+        ];
+        $payload = $this->_merge_essay_response_mode($payload, $data);
+
         $ok = (bool) $this->db
             ->where('id', (int) $question_id)
-            ->update('lib_assessment_questions', [
-                'question_text'      => trim($data['question_text']),
-                'question_type'      => $data['question_type'],
-                'is_required'        => empty($data['is_required']) ? 0 : 1,
-                'min_words'          => ( ! empty($data['min_words']) && (int)$data['min_words'] > 0)
-                                        ? (int) $data['min_words'] : null,
-                'date_last_modified' => date('Y-m-d H:i:s'),
-                'modified_by'        => (int) $data['modified_by'],
-            ]);
+            ->update('lib_assessment_questions', $payload);
 
         if ($ok && $qrow) {
             $this->bump_assessment_content_version((int) $qrow->assessment_id);
         }
 
         return $ok;
+    }
+
+    /**
+     * @param array $payload
+     * @param array $data
+     * @return array
+     */
+    private function _merge_essay_response_mode(array $payload, array $data)
+    {
+        if (($data['question_type'] ?? '') !== 'essay') {
+            return $payload;
+        }
+        if ( ! $this->db->field_exists('essay_response_mode', 'lib_assessment_questions')) {
+            return $payload;
+        }
+
+        $mode = trim((string) ($data['essay_response_mode'] ?? 'text'));
+        if ( ! in_array($mode, ['text', 'pdf', 'text_or_pdf'], true)) {
+            $mode = 'text';
+        }
+        $payload['essay_response_mode'] = $mode;
+
+        return $payload;
     }
 
     /** Soft-delete question and its choices. */
@@ -1208,18 +1237,22 @@ class assessment_model extends CI_Model {
      *
      * @return array ['submitted'=>int, 'auto_scored'=>int, 'pending_review'=>int]
      */
-    public function submit_answers($user_id, $assessment_id, $answers)
+    public function submit_answers($user_id, $assessment_id, $answers, array $essay_files = [])
     {
         $questions   = $this->get_questions($assessment_id);
         $submitted   = 0;
         $auto_scored = 0;
         $pending     = 0;
         $now         = date('Y-m-d H:i:s');
+        $has_essay_path_col = $this->db->field_exists('essay_file_path', 'assessment_answers');
 
         foreach ($questions as $q) {
             $answer_text = trim($answers[$q->id] ?? '');
+            $essay_path  = trim((string) ($essay_files[$q->id] ?? ''));
 
-            if ($answer_text === '' && ! $q->is_required) continue;
+            if ($answer_text === '' && $essay_path === '' && ! $q->is_required) {
+                continue;
+            }
 
             // ── Auto-score ────────────────────────────────────
             $score = null;
@@ -1258,25 +1291,33 @@ class assessment_model extends CI_Model {
                 ->get('assessment_answers')
                 ->row();
 
+            $payload = [
+                'answer_text'        => $answer_text,
+                'score'              => $score,
+                'checked_by'         => null,
+                'checked_at'         => null,
+                'date_last_modified' => $now,
+                'modified_by'        => (int) $user_id,
+            ];
+            if ($has_essay_path_col && $essay_path !== '') {
+                $payload['essay_file_path'] = $essay_path;
+            }
+
             if ($existing) {
-                $this->db->where('id', $existing->id)
-                         ->update('assessment_answers', [
-                             'answer_text'        => $answer_text,
-                             'score'              => $score,
-                             'checked_by'         => null,
-                             'checked_at'         => null,
-                             'date_last_modified' => $now,
-                             'modified_by'        => (int) $user_id,
-                         ]);
+                $this->db->where('id', $existing->id)->update('assessment_answers', $payload);
             } else {
-                $this->db->insert('assessment_answers', [
+                $insert = [
                     'question_id'  => $q->id,
                     'user_id'      => (int) $user_id,
                     'answer_text'  => $answer_text,
                     'score'        => $score,
                     'date_encoded' => $now,
                     'encoded_by'   => (int) $user_id,
-                ]);
+                ];
+                if ($has_essay_path_col && $essay_path !== '') {
+                    $insert['essay_file_path'] = $essay_path;
+                }
+                $this->db->insert('assessment_answers', $insert);
             }
             $submitted++;
         }

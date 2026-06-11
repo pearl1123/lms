@@ -506,6 +506,11 @@ class Auth extends CI_Controller {
             ]);
             $this->apply_remember_me_from_post();
 
+            $this->load->library('audit_service');
+            $this->audit_service->log('login', 'auth', (int) $result->id, (int) $result->id, [
+                'employee_id' => (string) ($result->employee_id ?? ''),
+            ]);
+
             redirect('dashboard');
         }
 

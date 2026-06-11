@@ -10,5 +10,6 @@ class Notification_types {
     const REJECTION   = 'rejection';
     const REQUEST     = 'request';
     const SYSTEM      = 'system';
+    const F2F         = 'f2f';
 }
 

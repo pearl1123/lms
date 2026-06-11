@@ -223,7 +223,7 @@ class Notification_service {
         $course = $course_model->get_course_any($cid);
         $title = (string) ($course->title ?? 'your course');
 
-        return $this->send_database_once(
+        $sent = $this->send_database_once(
             [$uid],
             Notification_model::TYPE_ENROLLMENT,
             $cid,
@@ -232,6 +232,54 @@ class Notification_service {
             0,
             Notification_types::APPROVAL,
             base_url('index.php/my_courses')
+        );
+
+        if ($course && function_exists('etd_is_face_to_face_modality')
+            && etd_is_face_to_face_modality($course->modality_name ?? '')) {
+            $this->f2f_enrollment_confirmed($uid, $cid);
+        }
+
+        return $sent;
+    }
+
+    /**
+     * Face-to-face enrollment confirmation with schedule/venue details.
+     *
+     * @param int $user_id
+     * @param int $course_id
+     */
+    public function f2f_enrollment_confirmed($user_id, $course_id)
+    {
+        $uid = (int) $user_id;
+        $cid = (int) $course_id;
+        if ($uid < 1 || $cid < 1) {
+            return false;
+        }
+
+        $course = $this->CI->course_model->get_course_any($cid);
+        if ( ! $course) {
+            return false;
+        }
+
+        $title = (string) ($course->title ?? 'your course');
+        $parts = ['You are enrolled in the face-to-face course: ' . $title . '.'];
+        if ( ! empty($course->schedule_date)) {
+            $parts[] = 'Schedule: ' . (string) $course->schedule_date . '.';
+        }
+        if ( ! empty($course->venue)) {
+            $parts[] = 'Venue: ' . (string) $course->venue . '.';
+        }
+
+        return $this->send_database_once(
+            [$uid],
+            Notification_model::TYPE_ENROLLMENT,
+            $cid,
+            'Face-to-face training enrollment',
+            implode(' ', $parts),
+            0,
+            Notification_types::F2F,
+            base_url('index.php/courses/view/' . $cid),
+            false
         );
     }
 
@@ -382,6 +430,8 @@ class Notification_service {
                     'type_key'        => (string) $type_key,
                     'reference_id'    => (int) $reference_id,
                     'url'             => (string) $url,
+                    'title'           => (string) $title,
+                    'message'         => (string) $message,
                 ]);
                 log_message('debug', 'NOTIFICATION SENT: ' . json_encode([
                     'notification_id' => (int) $id,
@@ -404,10 +454,236 @@ class Notification_service {
      */
     protected function afterNotificationCreated(array $notification)
     {
-        // RESERVED FOR:
-        // - websocket broadcast
-        // - push notification
-        // - email dispatch
+        $this->dispatch_notification_email($notification);
+    }
+
+    /**
+     * SMTP side-effect for in-app notifications (Settings toggles).
+     *
+     * @param array $notification
+     */
+    public function dispatch_notification_email(array $notification)
+    {
+        $uid = (int) ($notification['user_id'] ?? 0);
+        if ($uid < 1) {
+            return;
+        }
+
+        $map = $this->_email_template_for_notification($notification);
+        if ($map === null) {
+            return;
+        }
+
+        $this->CI->load->model('User_model', 'user_model');
+        $this->CI->load->model('Settings_model', 'settings_model');
+        $this->CI->load->model('Notification_email_log_model', 'notification_email_log_model');
+
+        $toggle_key = $map['toggle'];
+        if ($this->CI->settings_model->table_ready()) {
+            $settings = $this->CI->settings_model->get_all_settings();
+            $n        = is_array($settings['notifications'] ?? null) ? $settings['notifications'] : [];
+            if (empty($n[$toggle_key]) || $n[$toggle_key] === '0') {
+                $this->_log_email_attempt($notification, $map['template'], '', 'skipped', 'Toggle disabled: ' . $toggle_key);
+
+                return;
+            }
+        }
+
+        $to = $this->CI->user_model->resolve_notification_email($uid);
+        if ($to === '') {
+            $this->_log_email_attempt($notification, $map['template'], '', 'skipped', 'No deliverable email address');
+
+            return;
+        }
+
+        $user = $this->CI->user_model->get_user($uid);
+        $course_title = $map['course_title'];
+        if ($course_title === '' && (int) ($notification['reference_id'] ?? 0) > 0) {
+            $course_title = $this->_resolve_course_title_for_notification($notification);
+        }
+
+        $subject = (string) ($notification['title'] ?? 'kaBAGA Academy notification');
+        $email_vars = [
+            'subject'       => $subject,
+            'learner_name'  => ($user && ! empty($user->fullname)) ? (string) $user->fullname : 'Learner',
+            'course_title'  => $course_title !== '' ? $course_title : 'your course',
+            'action_url'    => (string) ($notification['url'] ?? base_url()),
+        ];
+
+        if ($map['template'] === 'f2f' && (int) ($notification['reference_id'] ?? 0) > 0) {
+            $f2f_course = $this->CI->course_model->get_course_any((int) $notification['reference_id']);
+            if ($f2f_course) {
+                $email_vars['schedule'] = (string) ($f2f_course->schedule_date ?? '');
+                $email_vars['venue']    = (string) ($f2f_course->venue ?? '');
+                if ($course_title === '') {
+                    $email_vars['course_title'] = (string) ($f2f_course->title ?? 'your course');
+                }
+            }
+        }
+
+        $result = $this->send_email_template($to, $map['template'], $email_vars);
+
+        $status = ! empty($result['ok']) ? 'sent' : 'failed';
+        $this->_log_email_attempt(
+            $notification,
+            $map['template'],
+            $to,
+            $status,
+            $status === 'sent' ? '' : (string) ($result['message'] ?? 'Send failed')
+        );
+    }
+
+    /**
+     * @param array $notification
+     * @return array{template:string,toggle:string,course_title:string}|null
+     */
+    private function _email_template_for_notification(array $notification)
+    {
+        $type_key = (string) ($notification['type_key'] ?? '');
+        $title    = strtolower((string) ($notification['title'] ?? ''));
+
+        if ($type_key === Notification_types::CERTIFICATE) {
+            return ['template' => 'certificate', 'toggle' => 'certificate_email', 'course_title' => ''];
+        }
+
+        if ($type_key === Notification_types::APPROVAL) {
+            return ['template' => 'approval', 'toggle' => 'approval_email', 'course_title' => ''];
+        }
+
+        if ($type_key === Notification_types::REQUEST && strpos($title, 'invitation') !== false) {
+            return ['template' => 'invite', 'toggle' => 'invite_email', 'course_title' => ''];
+        }
+
+        if ($type_key === Notification_types::F2F) {
+            return ['template' => 'f2f', 'toggle' => 'approval_email', 'course_title' => ''];
+        }
+
+        if ($type_key === Notification_types::SYSTEM && strpos($title, 'completed') !== false) {
+            return ['template' => 'certificate', 'toggle' => 'certificate_email', 'course_title' => ''];
+        }
+
+        return null;
+    }
+
+    /**
+     * Retry failed notification emails (cron/CLI). Max 3 attempts per log row.
+     *
+     * @param int $limit
+     * @return int Number of successfully resent emails
+     */
+    public function process_failed_email_retries($limit = 25)
+    {
+        $this->CI->load->model('Notification_email_log_model', 'notification_email_log_model');
+        if ( ! $this->CI->notification_email_log_model->table_ready()) {
+            return 0;
+        }
+
+        $this->CI->load->model('User_model', 'user_model');
+
+        $rows = $this->CI->notification_email_log_model->get_failed_for_retry($limit);
+        $sent = 0;
+
+        foreach ($rows as $row) {
+            $notification = [
+                'notification_id' => (int) ($row->notification_id ?? 0),
+                'user_id'         => (int) ($row->user_id ?? 0),
+                'title'           => (string) ($row->subject ?? ''),
+            ];
+
+            $map = $this->_email_template_for_notification([
+                'type_key' => $this->_infer_type_key_from_template((string) ($row->template_key ?? '')),
+                'title'    => (string) ($row->subject ?? ''),
+            ]);
+            if ($map === null) {
+                continue;
+            }
+
+            $to = (string) ($row->email_to ?? '');
+            if ($to === '') {
+                continue;
+            }
+
+            $user = $this->CI->user_model->get_user((int) ($row->user_id ?? 0));
+            $result = $this->send_email_template($to, $map['template'], [
+                'subject'      => (string) ($row->subject ?? 'kaBAGA Academy notification'),
+                'learner_name' => ($user && ! empty($user->fullname)) ? (string) $user->fullname : 'Learner',
+                'course_title' => $this->_resolve_course_title_for_notification($notification),
+                'action_url'   => base_url('index.php/my_courses'),
+            ]);
+
+            $ok = ! empty($result['ok']);
+            $this->CI->notification_email_log_model->mark_retry((int) $row->id, $ok, $ok ? '' : (string) ($result['message'] ?? ''));
+            if ($ok) {
+                $sent++;
+            }
+        }
+
+        return $sent;
+    }
+
+    /**
+     * @param string $template_key
+     */
+    private function _infer_type_key_from_template($template_key)
+    {
+        $map = [
+            'invite'      => Notification_types::REQUEST,
+            'approval'    => Notification_types::APPROVAL,
+            'certificate' => Notification_types::CERTIFICATE,
+            'f2f'         => Notification_types::F2F,
+        ];
+
+        return $map[$template_key] ?? Notification_types::SYSTEM;
+    }
+
+    /**
+     * @param array $notification
+     */
+    private function _resolve_course_title_for_notification(array $notification)
+    {
+        $this->CI->load->model('Course_model', 'course_model');
+        $ref = (int) ($notification['reference_id'] ?? 0);
+        if ($ref < 1) {
+            return '';
+        }
+
+        $course = $this->CI->course_model->get_course_any($ref);
+        if ($course && ! empty($course->title)) {
+            return (string) $course->title;
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array  $notification
+     * @param string $template_key
+     * @param string $email_to
+     * @param string $status sent|failed|skipped
+     * @param string $error
+     */
+    private function _log_email_attempt(array $notification, $template_key, $email_to, $status, $error = '')
+    {
+        if ( ! isset($this->CI->notification_email_log_model)) {
+            $this->CI->load->model('Notification_email_log_model', 'notification_email_log_model');
+        }
+
+        if ( ! $this->CI->notification_email_log_model->table_ready()) {
+            log_message('debug', 'EMAIL ' . strtoupper($status) . ': user=' . (int) ($notification['user_id'] ?? 0)
+                . ' template=' . $template_key . ($error !== '' ? ' err=' . $error : ''));
+
+            return;
+        }
+
+        $this->CI->notification_email_log_model->log([
+            'notification_id' => (int) ($notification['notification_id'] ?? 0),
+            'user_id'         => (int) ($notification['user_id'] ?? 0),
+            'email_to'        => $email_to,
+            'template_key'    => $template_key,
+            'subject'         => (string) ($notification['title'] ?? ''),
+            'status'          => $status,
+            'error_message'   => $error !== '' ? $error : null,
+        ]);
     }
 }
 

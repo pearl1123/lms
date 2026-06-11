@@ -208,12 +208,19 @@ if ( ! function_exists('ka_user_avatar_url')) {
             return $path;
         }
 
-        $full = FCPATH . ltrim(str_replace(['../', '..\\'], '', $path), '/\\');
+        $rel = ltrim(str_replace(['../', '..\\'], '', $path), '/\\');
+        $thumb = preg_replace('/(\.[^.]+)$/', '_thumb$1', $rel);
+        $thumb_full = $thumb ? FCPATH . $thumb : '';
+        if ($thumb_full !== '' && is_file($thumb_full)) {
+            return base_url($thumb);
+        }
+
+        $full = FCPATH . $rel;
         if ( ! is_file($full)) {
             return '';
         }
 
-        return base_url(ltrim($path, '/'));
+        return base_url($rel);
     }
 }
 

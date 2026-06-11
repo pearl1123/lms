@@ -3,9 +3,42 @@
 $is_edit_form = true;
 $focus_modules = ! empty($focus_modules);
 $phase2_ready_ui = ! empty($phase2_schema_ready);
+$csrf_field_name = $csrf_field_name ?? '';
+$csrf_hash       = $csrf_hash ?? '';
+if ($csrf_field_name === '' && config_item('csrf_protection')) {
+    $SEC =& load_class('Security', 'core');
+    $csrf_field_name = (string) $SEC->get_csrf_token_name();
+    $csrf_hash       = (string) $SEC->get_csrf_hash();
+}
+$course = $course ?? null;
+if ( ! $course) {
+    return;
+}
+if ( ! isset($modules) || ! is_array($modules)) {
+    $modules = [];
+}
+if ( ! isset($module_rows) || ! is_array($module_rows)) {
+    $module_rows = $modules;
+}
+$module_count = isset($module_count) ? (int) $module_count : count($modules);
+if ( ! isset($modalities) || ! is_array($modalities)) {
+    $modalities = [];
+}
+if ( ! isset($categories) || ! is_array($categories)) {
+    $categories = [];
+}
+if ( ! isset($edit_category_ids) || ! is_array($edit_category_ids)) {
+    $edit_category_ids = [];
+    if ( ! empty($course->category_id)) {
+        $edit_category_ids = [(int) $course->category_id];
+    }
+}
+$checkpoint_schema_ready = isset($checkpoint_schema_ready) ? (bool) $checkpoint_schema_ready : false;
+$phase3_ready            = isset($phase3_ready) ? (bool) $phase3_ready : false;
+$phase3_batches_ready    = isset($phase3_batches_ready) ? (bool) $phase3_batches_ready : false;
 ?>
-<form method="post" action="<?= base_url('manage_courses/edit/'.$course->id) ?>" id="course-edit-form" data-initial-edit-tab="<?= ! empty($focus_modules) ? 'modules' : '' ?>">
-  <input type="hidden" name="<?= $csrf_field_name ?>" value="<?= $csrf_hash ?>">
+<form method="post" action="<?= base_url('manage_courses/edit/'.$course->id) ?>" id="course-edit-form" enctype="multipart/form-data" data-initial-edit-tab="<?= ! empty($focus_modules) ? 'modules' : '' ?>">
+  <input type="hidden" name="<?= htmlspecialchars($csrf_field_name, ENT_QUOTES, 'UTF-8') ?>" value="<?= htmlspecialchars($csrf_hash, ENT_QUOTES, 'UTF-8') ?>">
   <input type="hidden" name="return_url" value="<?= htmlspecialchars($lms_return_target ?? '', ENT_QUOTES, 'UTF-8') ?>">
   <?php if ($phase2_ready_ui): ?>
   <input type="hidden" id="edit_category_id" name="category_id" value="<?= (int) ($edit_category_ids[0] ?? 0) ?>">
@@ -86,6 +119,71 @@ $phase2_ready_ui = ! empty($phase2_schema_ready);
             <?php if (form_error('category_id')): ?><div class="ef-error"><?= form_error('category_id') ?></div><?php endif; ?>
           </div>
           <?php endif; ?>
+          <div class="ef-row" style="margin-top:.75rem;">
+            <div class="ef-group">
+              <label class="ef-label" for="pass_threshold_pct">Pass threshold (%)</label>
+              <input type="number" id="pass_threshold_pct" name="pass_threshold_pct" class="ef-input" min="1" max="100" step="0.1"
+                     placeholder="75 (platform default)"
+                     value="<?= htmlspecialchars(set_value('pass_threshold_pct', $course->pass_threshold_pct ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+              <p class="ef-help" style="font-size:.72rem;color:var(--ka-text-muted,#64748b);margin-top:.25rem;">Leave blank to use platform default (75%).</p>
+            </div>
+            <div class="ef-group">
+              <label class="ef-label">Sequential modules</label>
+              <label class="ef-toggle" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem;">
+                <input type="hidden" name="enforce_sequential_modules" value="0">
+                <input type="checkbox" name="enforce_sequential_modules" value="1"
+                       <?= ! isset($course->enforce_sequential_modules) || (int) $course->enforce_sequential_modules === 1 ? 'checked' : '' ?>>
+                <span>Learners must complete modules in order</span>
+              </label>
+            </div>
+          </div>
+          <?php
+          $modality_label = function_exists('etd_modality_display_label')
+              ? etd_modality_display_label($course->modality_name ?? '') : '';
+          $is_f2f_course = function_exists('etd_is_face_to_face_modality')
+              && etd_is_face_to_face_modality($course->modality_name ?? '');
+          ?>
+          <?php if ($is_f2f_course): ?>
+          <div class="ef-section" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--ka-border,#e2e8f0);">
+            <h4 class="ef-section-title" style="font-size:.9rem;margin-bottom:.75rem;">Face-to-face schedule</h4>
+            <div class="ef-row">
+              <div class="ef-group">
+                <label class="ef-label" for="schedule_date">Date</label>
+                <input type="date" id="schedule_date" name="schedule_date" class="ef-input"
+                       value="<?= htmlspecialchars(set_value('schedule_date', $course->schedule_date ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+              </div>
+              <div class="ef-group">
+                <label class="ef-label" for="schedule_time">Time</label>
+                <input type="time" id="schedule_time" name="schedule_time" class="ef-input"
+                       value="<?= htmlspecialchars(set_value('schedule_time', $course->schedule_time ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+              </div>
+            </div>
+            <div class="ef-row">
+              <div class="ef-group">
+                <label class="ef-label" for="venue">Venue</label>
+                <input type="text" id="venue" name="venue" class="ef-input" maxlength="255"
+                       placeholder="e.g. EMG Auditorium"
+                       value="<?= htmlspecialchars(set_value('venue', $course->venue ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+              </div>
+              <div class="ef-group">
+                <label class="ef-label" for="max_capacity">Capacity</label>
+                <input type="number" id="max_capacity" name="max_capacity" class="ef-input" min="1"
+                       placeholder="Optional"
+                       value="<?= htmlspecialchars(set_value('max_capacity', $course->max_capacity ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+              </div>
+            </div>
+          </div>
+          <?php endif; ?>
+          <div class="ef-row" style="margin-top:.75rem;">
+            <div class="ef-group">
+              <label class="ef-label" for="enrollment_deadline">Enrollment deadline</label>
+              <input type="datetime-local" id="enrollment_deadline" name="enrollment_deadline" class="ef-input"
+                     value="<?php
+                       $dl = $course->enrollment_deadline ?? '';
+                       echo $dl ? htmlspecialchars(date('Y-m-d\TH:i', strtotime((string) $dl)), ENT_QUOTES, 'UTF-8') : '';
+                     ?>">
+            </div>
+          </div>
         </div>
       </div>
       <?php if ($phase2_ready_ui): ?>
@@ -260,7 +358,7 @@ $phase2_ready_ui = ! empty($phase2_schema_ready);
               <label class="ef-label">Certificate Prefix <span>*</span></label>
               <input type="text" name="certificate_prefix" class="ef-input"
                      value="<?= htmlspecialchars(set_value('certificate_prefix', $course->certificate_prefix ?? '')) ?>"
-                     maxlength="12" placeholder="e.g. UIUX" required>
+                     maxlength="12" placeholder="e.g. UIUX">
               <?php if (form_error('certificate_prefix')): ?><div class="ef-error"><?= form_error('certificate_prefix') ?></div><?php endif; ?>
               <div class="ef-help" style="margin-top:.35rem;font-size:.72rem;color:var(--ka-text-muted,#64748b);">
                 Serial format: {PREFIX}-<?= date('Y') ?>-0001
@@ -377,5 +475,23 @@ $phase2_ready_ui = ! empty($phase2_schema_ready);
     }
   }
   setTab(initial);
+
+  if (formEl) {
+    formEl.addEventListener('submit', function (e) {
+      if (e.submitter && e.submitter.formNoValidate) {
+        return;
+      }
+      panels.forEach(function (panel) {
+        if ( ! panel.hasAttribute('hidden')) {
+          return;
+        }
+        panel.querySelectorAll('input, select, textarea').forEach(function (el) {
+          el.required = false;
+          el.removeAttribute('min');
+          el.removeAttribute('max');
+        });
+      });
+    });
+  }
 })();
 </script>

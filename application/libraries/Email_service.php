@@ -123,6 +123,20 @@ class Email_service {
                 return '<p>Hello ' . $name . ',</p><p>Your certificate for <strong>' . $course . '</strong> is ready.</p><p><a href="' . $link . '">View certificate</a></p>';
             case 'reassessment':
                 return '<p>Hello ' . $name . ',</p><p>Please retake the assessment for <strong>' . $course . '</strong>.</p><p><a href="' . $link . '">Go to assessment</a></p>';
+            case 'f2f':
+                $venue = htmlspecialchars((string) ($vars['venue'] ?? ''), ENT_QUOTES, 'UTF-8');
+                $schedule = htmlspecialchars((string) ($vars['schedule'] ?? ''), ENT_QUOTES, 'UTF-8');
+                $extra = '';
+                if ($schedule !== '') {
+                    $extra .= '<p><strong>Schedule:</strong> ' . $schedule . '</p>';
+                }
+                if ($venue !== '') {
+                    $extra .= '<p><strong>Venue:</strong> ' . $venue . '</p>';
+                }
+                return '<p>Hello ' . $name . ',</p><p>You are enrolled in the face-to-face course <strong>' . $course . '</strong>.</p>'
+                    . $extra . '<p><a href="' . $link . '">View course details</a></p>';
+            case 'reminder':
+                return '<p>Hello ' . $name . ',</p><p>Reminder for <strong>' . $course . '</strong>.</p><p><a href="' . $link . '">View details</a></p>';
             default:
                 return '<p>Hello ' . $name . ',</p><p>' . htmlspecialchars((string) ($vars['message'] ?? 'You have a new notification.'), ENT_QUOTES, 'UTF-8') . '</p>';
         }

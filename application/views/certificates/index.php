@@ -196,7 +196,7 @@ $is_admin           = ! empty($is_admin);
           <?php if ( ! empty($cert->modality_name)): ?>
           <div class="cert-card-meta-item">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/></svg>
-            <?= htmlspecialchars($cert->modality_name) ?>
+            <?= htmlspecialchars(etd_modality_display_label($cert->modality_name)) ?>
           </div>
           <?php endif; ?>
         </div>

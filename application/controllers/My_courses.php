@@ -120,6 +120,12 @@ class My_courses extends KA_Controller {
         $enrolled_rows = $this->my_courses_model->get_user_enrollments_by_status((int) $user->id, 'approved');
         $enrolled_courses = [];
         foreach ($enrolled_rows as $ec) {
+            $full_course = $this->course_model->get_course((int) $ec->course_id);
+            if ($full_course) {
+                $ec->modality_name = (string) ($full_course->modality_name ?? '');
+                $ec->show_f2f_notice = function_exists('etd_is_face_to_face_modality')
+                    && etd_is_face_to_face_modality($ec->modality_name);
+            }
             $agg = $this->assessment_service->get_course_progress_aggregate(
                 (int) $user->id,
                 (int) $ec->course_id

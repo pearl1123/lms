@@ -760,14 +760,66 @@ class Course_model extends CI_Model {
 
         log_message('debug', 'ETD retake: reset module_progress user=' . (int) $user_id . ' module=' . (int) $module_id);
 
+        $update = [
+            'status'       => 'not_started',
+            'completed_at' => null,
+            'score'        => null,
+        ];
+        if ($this->module_progress_has_resume_column()) {
+            $update['resume_state'] = null;
+        }
+
         return (bool) $this->db
             ->where('user_id', (int) $user_id)
             ->where('module_id', (int) $module_id)
-            ->update('module_progress', [
-                'status'       => 'not_started',
-                'completed_at' => null,
-                'score'        => null,
-            ]);
+            ->update('module_progress', $update);
+    }
+
+    /**
+     * Full-course retake reset — all modules, no certificate archival.
+     *
+     * @param int $user_id
+     * @param int $course_id
+     * @return bool
+     */
+    public function reset_all_modules_for_retake($user_id, $course_id)
+    {
+        $uid = (int) $user_id;
+        $cid = (int) $course_id;
+        if ($uid < 1 || $cid < 1) {
+            return false;
+        }
+
+        $module_ids = $this->db
+            ->select('id')
+            ->from('course_modules')
+            ->where('course_id', $cid)
+            ->where('archived', 0)
+            ->get()
+            ->result_array();
+        $module_ids = array_map('intval', array_column($module_ids, 'id'));
+
+        if ($module_ids === []) {
+            return true;
+        }
+
+        log_message('debug', 'ETD retake: reset all modules user=' . $uid . ' course=' . $cid);
+
+        $update = [
+            'status'       => 'not_started',
+            'completed_at' => null,
+            'score'        => null,
+        ];
+        if ($this->module_progress_has_resume_column()) {
+            $update['resume_state'] = null;
+        }
+
+        $this->db
+            ->where('user_id', $uid)
+            ->where_in('module_id', $module_ids)
+            ->update('module_progress', $update);
+
+        return true;
     }
 
     /**
@@ -948,6 +1000,99 @@ class Course_model extends CI_Model {
         return ($result && $result->num_rows() > 0)
             ? $result->result()
             : [];
+    }
+
+    /**
+     * Whether nested categories are available (parent_id column).
+     */
+    public function categories_have_parent_column()
+    {
+        return $this->db->field_exists('parent_id', 'course_categories');
+    }
+
+    /**
+     * Categories for dropdowns — indented when hierarchy is enabled.
+     *
+     * @return object[]
+     */
+    public function get_categories_for_display()
+    {
+        $flat = $this->get_categories();
+        if ( ! $this->categories_have_parent_column() || $flat === []) {
+            return $flat;
+        }
+
+        $by_parent = [];
+        foreach ($flat as $cat) {
+            $pid = (int) ($cat->parent_id ?? 0);
+            if ( ! isset($by_parent[$pid])) {
+                $by_parent[$pid] = [];
+            }
+            $by_parent[$pid][] = $cat;
+        }
+
+        $out = [];
+        $walk = function ($parent_id, $depth) use (&$walk, &$out, $by_parent) {
+            $pid = (int) $parent_id;
+            if (empty($by_parent[$pid])) {
+                return;
+            }
+            usort($by_parent[$pid], function ($a, $b) {
+                return strcasecmp((string) ($a->name ?? ''), (string) ($b->name ?? ''));
+            });
+            foreach ($by_parent[$pid] as $cat) {
+                $prefix = $depth > 0 ? str_repeat('— ', $depth) : '';
+                $display        = clone $cat;
+                $display->name  = $prefix . (string) ($cat->name ?? '');
+                $display->depth = $depth;
+                $out[]          = $display;
+                $walk((int) $cat->id, $depth + 1);
+            }
+        };
+        $walk(0, 0);
+
+        return $out !== [] ? $out : $flat;
+    }
+
+    /**
+     * Category id plus all descendant ids (for catalog filtering).
+     *
+     * @param int $category_id
+     * @return int[]
+     */
+    public function get_category_descendant_ids($category_id)
+    {
+        $root = (int) $category_id;
+        if ($root < 1) {
+            return [];
+        }
+        if ( ! $this->categories_have_parent_column()) {
+            return [$root];
+        }
+
+        $flat = $this->get_categories();
+        $children = [];
+        foreach ($flat as $cat) {
+            $pid = (int) ($cat->parent_id ?? 0);
+            if ( ! isset($children[$pid])) {
+                $children[$pid] = [];
+            }
+            $children[$pid][] = (int) $cat->id;
+        }
+
+        $ids   = [$root];
+        $queue = [$root];
+        while ($queue !== []) {
+            $pid = array_shift($queue);
+            foreach ($children[$pid] ?? [] as $cid) {
+                if ( ! in_array($cid, $ids, true)) {
+                    $ids[]   = $cid;
+                    $queue[] = $cid;
+                }
+            }
+        }
+
+        return $ids;
     }
 
     /**
