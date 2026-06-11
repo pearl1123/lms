@@ -11,14 +11,8 @@
 		"source": "https://github.com/bcit-ci/CodeIgniter"
 	},
 	"require": {
-		"php": ">=7.4",
-		"dompdf/dompdf": "^2.0.8"
-	},
-	"config": {
-		"platform": {
-			"php": "8.0.25"
-		},
-		"platform-check": false
+		"php": ">=5.3.7",
+		"dompdf/dompdf": "2.0"
 	},
 	"suggest": {
 		"paragonie/random_compat": "Provides better randomness in PHP 5.x"
