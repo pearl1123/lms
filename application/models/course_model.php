@@ -1020,7 +1020,15 @@ class Course_model extends CI_Model {
         }
 
         $normalized = ka_resume_normalize_state($state);
-        if ($normalized['type'] === '' && $normalized['position'] <= 0) {
+        $existing   = $this->get_module_resume_state($uid, $mid);
+        $meta         = is_array($existing['meta'] ?? null) ? $existing['meta'] : [];
+        if (is_array($normalized['meta'] ?? null)) {
+            $meta = array_merge($meta, $normalized['meta']);
+        }
+        $normalized['meta'] = $meta;
+
+        $has_playback_flag = ! empty($meta['playback_completed']);
+        if ($normalized['type'] === '' && $normalized['position'] <= 0 && ! $has_playback_flag) {
             return false;
         }
 
@@ -1049,6 +1057,56 @@ class Course_model extends CI_Model {
         }
 
         return $ok;
+    }
+
+    /**
+     * Whether the learner has watched the module video through to the end.
+     *
+     * @param int $user_id
+     * @param int $module_id
+     * @return bool
+     */
+    public function has_video_playback_completed($user_id, $module_id)
+    {
+        if ( ! $this->module_progress_has_resume_column()) {
+            return false;
+        }
+
+        $state = $this->get_module_resume_state((int) $user_id, (int) $module_id);
+
+        return ! empty($state['meta']['playback_completed']);
+    }
+
+    /**
+     * Persist that the learner finished watching the module video (playback ended).
+     *
+     * @param int $user_id
+     * @param int $module_id
+     * @return bool
+     */
+    public function mark_video_playback_completed($user_id, $module_id)
+    {
+        $uid = (int) $user_id;
+        $mid = (int) $module_id;
+        if ($uid < 1 || $mid < 1) {
+            return false;
+        }
+
+        $existing = $this->get_module_resume_state($uid, $mid);
+        $meta     = is_array($existing['meta'] ?? null) ? $existing['meta'] : [];
+        $meta['playback_completed']    = true;
+        $meta['playback_completed_at'] = date('c');
+
+        $type = (string) ($existing['type'] ?? '');
+        if ($type === '') {
+            $type = 'video';
+        }
+
+        return $this->save_module_resume_state($uid, $mid, [
+            'type'     => $type,
+            'position' => (float) ($existing['position'] ?? 0),
+            'meta'     => $meta,
+        ]);
     }
 
     /**

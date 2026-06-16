@@ -103,6 +103,7 @@ $route['courses/accept_invitation/(:num)'] = 'courses/accept_invitation/$1';
 $route['courses/reject_invitation/(:num)'] = 'courses/reject_invitation/$1';
 $route['courses/complete_module/(:num)'] = 'courses/complete_module/$1';
 $route['courses/save_resume_state/(:num)'] = 'courses/save_resume_state/$1';
+$route['courses/mark_video_playback_complete/(:num)'] = 'courses/mark_video_playback_complete/$1';
 $route['my_courses'] = 'My_courses/index';
 $route['my-learning'] = 'My_courses/index';
 $route['leaderboard'] = 'leaderboard/index';

@@ -30,7 +30,9 @@ $module_completion_state         = $module_completion_state ?? [
     'flow'                     => null,
 ];
 $mcs_post_passed                 = ! empty($module_completion_state['post_assessment_passed']);
+$mcs_can_mark_complete           = ! empty($module_completion_state['can_mark_complete']);
 $can_start_post_assessment       = ! empty($can_start_post_assessment);
+$module_post_modal               = $module_post_modal ?? null;
 
 if ( ! $module) {
     return;
@@ -94,7 +96,9 @@ $module_app_context = [
     'moduleStateUrl'             => (string) $MODULE_STATE_URL,
     'preBlocked'                 => (bool) ($pre_blocked && $pre_assessment),
     'preResultModal'             => $module_pre_modal,
+    'postResultModal'            => $module_post_modal,
     'postAssessmentPassed'       => (bool) $mcs_post_passed,
+    'canMarkCompleteInitial'     => (bool) $mcs_can_mark_complete,
     'canStartPostAssessment'     => (bool) $can_start_post_assessment,
     'moduleProgressPercent'      => $module_progress_pct,
     'isYoutubeIframe'            => (bool) $youtube_video_id,
@@ -112,6 +116,7 @@ $module_app_context = [
     'hasPostAssessments'         => (bool) ! empty($post_assessments),
     'firstPostAssessmentHref'    => (string) $first_post_take_url,
     'resumeSaveUrl'              => base_url('index.php/courses/save_resume_state/' . (int) ($module->id ?? 0)),
+    'videoPlaybackCompleteUrl'   => base_url('index.php/courses/mark_video_playback_complete/' . (int) ($module->id ?? 0)),
     'resumeUserId'               => (int) ($user->id ?? 0),
     'resumeServerState'          => isset($resume_server_state) && is_array($resume_server_state) ? $resume_server_state : [],
     'resumeQueryHints'           => isset($resume_query_hints) && is_array($resume_query_hints) ? $resume_query_hints : [],
@@ -145,6 +150,24 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
       <div class="mv-pre-result-actions">
         <button type="button" class="mv-pre-btn-primary" id="mvPreAssessmentContinue">Continue to video</button>
         <a class="mv-pre-link-muted" id="mvPreAssessmentDetail" href="#">View detailed results</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Post-assessment immediate feedback; full answer review + certificate flow stay in course -->
+<div class="mv-pre-result-overlay" id="mvPostAssessmentOverlay" aria-hidden="true" aria-modal="true" role="dialog" aria-labelledby="mvPostAssessmentTitle">
+  <div class="mv-pre-result-card mv-post-result-card" onclick="event.stopPropagation();">
+    <div class="mv-pre-result-hdr" id="mvPostAssessmentTitle">Post-assessment results</div>
+    <div class="mv-pre-result-body">
+      <div id="mvPostAssessmentBadge" class="mv-pre-result-badge"></div>
+      <div class="mv-pre-result-score" id="mvPostAssessmentScore"></div>
+      <p class="mv-pre-result-note" id="mvPostAssessmentNote"></p>
+      <div class="mv-pre-result-actions">
+        <button type="button" class="mv-pre-btn-primary" id="mvPostAssessmentMark" hidden>Mark module complete</button>
+        <button type="button" class="mv-pre-btn-primary mv-post-btn-secondary" id="mvPostAssessmentContinue" hidden>Continue module</button>
+        <a class="mv-pre-link-muted" id="mvPostAssessmentDetail" href="#">Review your answers</a>
+        <a class="mv-pre-link-muted" id="mvPostAssessmentRetake" href="#" hidden>Retake assessment</a>
       </div>
     </div>
   </div>
@@ -457,7 +480,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
         <?php if ($is_completed): ?>
         Review your post-assessment results for this module.
         <?php elseif ( ! $can_start_post_assessment && ! $mcs_post_passed): ?>
-        <strong>Locked:</strong> Locked until you complete the video checkpoints.
+        <strong>Locked:</strong> Finish watching the video to unlock the post-assessment.
         <?php elseif ( ! $mcs_post_passed): ?>
         <strong>Required:</strong> pass all post-assessments below before you can mark this module complete (you can retake until you pass).
         <?php else: ?>
@@ -474,7 +497,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
           <a href="javascript:void(0)"
              class="mv-post-asx-btn is-disabled"
              aria-disabled="true"
-             title="Locked until you complete the video checkpoints">Locked until you complete the video checkpoints</a>
+             title="Finish watching the video to unlock the post-assessment">Finish the video to unlock</a>
         <?php elseif ($passed): ?>
           <div class="mv-post-result-pass">
             ✓ Passed (<?= number_format($result['score'], 1) ?>%)

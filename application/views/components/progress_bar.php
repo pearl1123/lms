@@ -26,7 +26,7 @@ $post_assessment_passed = ! empty($post_assessment_passed);
 if ($post_assessment_passed) {
     $progress_meta = 'Post-assessment passed. Module progress complete.';
 } elseif ($video_completed) {
-    $progress_meta = 'Video checkpoints completed. Post-assessment unlocked.';
+    $progress_meta = 'Video finished. Post-assessment unlocked.';
 } elseif ($checkpoints_total > 0) {
     $progress_meta = 'Checkpoint progress: ' . $checkpoints_completed . '/' . $checkpoints_total . ' required completed.';
 } else {

@@ -256,10 +256,9 @@ class Assessment_service {
      * Rules:
      * - Pre-assessment is optional unless the assessment row is marked required.
      *   Passing pre is not required for unlock/completion.
-     * - Video completion is derived from required checkpoints:
-     *   - no required checkpoints => completed
-     *   - required checkpoints exist => all required must be passed
-     * - Post-assessment is unlocked only after video is completed (video modules).
+     * - Video playback completion is recorded when the learner watches to the end.
+     * - Checkpoints report in-player progress only (do not unlock post-assessment).
+     * - Post-assessment is unlocked only after video playback completes (video modules).
      * - {@see can_mark_complete} mirrors {@see get_module_flow_state()} completion (post pass only;
      *   post remains locked until video segment is complete, so progression stays strict).
      *
@@ -324,10 +323,10 @@ class Assessment_service {
      *
      * Phases:
      * 1. Pre — optional module config; if present, first attempt unlocks video; pass not required.
-     * 2. Video — checkpoints report progress only; {@see video.completed} when all required checkpoints pass
-     *    (or none configured on supported YouTube video modules).
-     * 3. Post — locked on video modules until {@see video.completed}; pass uses {@see is_passing_assessment_result()}
-     *    (threshold + no pending). Unlimited retries; model returns latest aggregate result.
+     * 2. Video — checkpoints track in-player progress; {@see video.completed} when playback ends
+     *    (stored in module resume meta, not when the last checkpoint is answered).
+     * 3. Post — locked on video modules until {@see video.completed} (playback ended);
+     *    pass uses {@see is_passing_assessment_result()} (threshold + no pending).
      * 4. Completion — {@see can_mark_complete} is true only when every post assessment has passed.
      *
      * @param int $user_id
@@ -680,7 +679,9 @@ class Assessment_service {
             }
         }
 
-        $video_completed = ($chk_total === 0) || ($chk_done >= $chk_total);
+        $playback_completed = $this->CI->course_model->has_video_playback_completed($uid, $mid);
+        $checkpoints_complete = ($chk_total === 0) || ($chk_done >= $chk_total);
+        $video_completed = $playback_completed;
 
         // Video unlock: video modules are blocked only when the pre-assessment is explicitly required.
         $video_unlocked = true;
@@ -691,7 +692,7 @@ class Assessment_service {
             $video_unlocked = $pre_passed;
         }
 
-        // --- Phase 4: Post-assessment (locked until video segment complete on video modules) ---
+        // --- Phase 4: Post-assessment (locked until video playback ends on video modules) ---
         $post_raw = $this->CI->course_model->get_assessments($mid, 'post');
 
         $post_unlocked = ! $content_video || $video_completed;
@@ -743,6 +744,7 @@ class Assessment_service {
             'checkpoints' => [
                 'total'     => $chk_total,
                 'completed' => $chk_done,
+                'complete'  => $checkpoints_complete,
             ],
             'post_assessment' => [
                 'unlocked'   => $post_unlocked,

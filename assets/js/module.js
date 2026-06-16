@@ -45,8 +45,10 @@ var VIDEO_COMPLETED_INITIAL = !!C.videoCompletedInitial;
 var HAS_POST_ASSESSMENTS = !!C.hasPostAssessments;
 var FIRST_POST_ASSESSMENT_HREF = C.firstPostAssessmentHref || '';
 var PRE_RESULT_MODAL = C.preResultModal || null;
+var POST_RESULT_MODAL = C.postResultModal || null;
 var POST_ASSESSMENT_PASSED = !!C.postAssessmentPassed;
 var CAN_START_POST_ASSESSMENT = !!C.canStartPostAssessment;
+var CAN_MARK_COMPLETE = !!C.canMarkCompleteInitial;
 var MODULE_PROGRESS_PERCENT = typeof C.moduleProgressPercent === 'number' ? C.moduleProgressPercent : 0;
 
 var IS_YOUTUBE_IFRAME = !!C.isYoutubeIframe;
@@ -55,6 +57,7 @@ var COURSE_ID = parseInt(C.courseId, 10) || 0;
 var VIDEO_CHECKPOINTS = Array.isArray(C.videoCheckpoints) ? C.videoCheckpoints : [];
 var VIDEO_CHECKPOINT_GATE = !!C.videoCheckpointGate;
 var VIDEO_CHECKPOINT_SUBMIT_URL = C.videoCheckpointSubmitUrl || '';
+var VIDEO_PLAYBACK_COMPLETE_URL = C.videoPlaybackCompleteUrl || '';
 var ytPlayer = null;
 var vcPassed = {};
 var ytCheckTimer = null;
@@ -136,6 +139,19 @@ function showCompletionModal(res) {
   document.body.appendChild(overlay);
 }
 
+function syncMarkCompleteButton() {
+  if (IS_COMPLETED) return;
+  var markBtn = document.getElementById('mvMarkBtn');
+  if (!markBtn) return;
+  if (CAN_MARK_COMPLETE && POST_ASSESSMENT_PASSED) {
+    markBtn.disabled = false;
+    var hint = document.getElementById('mvCompleteHint');
+    if (hint) {
+      hint.textContent = 'Post-assessment passed. Click Mark as Complete when ready.';
+    }
+  }
+}
+
 function updatePostAssessmentSummaryText() {
   var s = document.getElementById('mvPostAssessmentSummary');
   if (!s) return;
@@ -144,7 +160,7 @@ function updatePostAssessmentSummaryText() {
   } else if (POST_ASSESSMENT_PASSED) {
     s.innerHTML = 'All post-assessments passed. Finish any remaining content steps, then use <strong>Mark as Complete</strong>.';
   } else if (!CAN_START_POST_ASSESSMENT) {
-    s.innerHTML = '<strong>Locked:</strong> Locked until you complete the video checkpoints.';
+    s.innerHTML = '<strong>Locked:</strong> Finish watching the video to unlock the post-assessment.';
   } else {
     s.innerHTML = '<strong>Required:</strong> pass all post-assessments below before you can mark this module complete (you can retake until you pass).';
   }
@@ -156,7 +172,7 @@ function updatePostAssessmentButtonsState() {
     if (!CAN_START_POST_ASSESSMENT) {
       a.classList.add('is-disabled');
       a.setAttribute('aria-disabled', 'true');
-      a.setAttribute('title', 'Locked until you complete the video checkpoints');
+      a.setAttribute('title', 'Finish watching the video to unlock the post-assessment');
       a.setAttribute('href', 'javascript:void(0)');
     } else {
       var to = a.getAttribute('data-href') || '';
@@ -233,7 +249,7 @@ function updateProgressBarUI(state) {
   if (state.post_assessment_passed) {
     meta.textContent = 'Post-assessment passed. Module progress complete.';
   } else if (state.video_completed) {
-    meta.textContent = 'Video checkpoints completed. Post-assessment unlocked.';
+    meta.textContent = 'Video finished. Post-assessment unlocked.';
   } else if (t > 0) {
     meta.textContent = 'Checkpoint progress: ' + c + '/' + t + ' required completed.';
   } else {
@@ -248,12 +264,16 @@ function applyModuleFlowState(state) {
   var prevCanStart = CAN_START_POST_ASSESSMENT;
   POST_ASSESSMENT_PASSED = !!state.post_assessment_passed;
   CAN_START_POST_ASSESSMENT = !!state.can_start_post_assessment;
+  if (typeof state.can_mark_complete !== 'undefined') {
+    CAN_MARK_COMPLETE = !!state.can_mark_complete;
+  }
   if (!prevPostPassed && POST_ASSESSMENT_PASSED) {
     dispatchCourseProgressUpdated();
   }
   updateProgressBarUI(state);
   updatePostAssessmentSummaryText();
   updatePostAssessmentButtonsState();
+  syncMarkCompleteButton();
   if (!prevCanStart && CAN_START_POST_ASSESSMENT) {
     triggerPostUnlockAnimation();
   }
@@ -331,6 +351,31 @@ function fetchModuleFlowStateAndApply() {
     .catch(function(e) {
       console.error('module_state fetch error:', e);
     });
+}
+
+function mvMarkVideoPlaybackComplete() {
+  if (!VIDEO_PLAYBACK_COMPLETE_URL) return Promise.resolve({ ok: false });
+  var fd = new FormData();
+  if (CSRF_NAME) {
+    fd.append(CSRF_NAME, CSRF_HASH || '');
+  }
+  return fetch(VIDEO_PLAYBACK_COMPLETE_URL, {
+    method: 'POST',
+    body: fd,
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  })
+    .then(parseJsonResponse)
+    .catch(function() {
+      return { ok: false };
+    });
+}
+
+function mvOnVideoPlaybackEnded() {
+  if (IS_COMPLETED) return;
+  mvMarkVideoPlaybackComplete().then(function() {
+    emitModuleFlowUpdated();
+  });
 }
 
 function emitModuleFlowUpdated() {
@@ -628,6 +673,90 @@ function mvShowPreAssessmentModal(data) {
   preAssessmentModalTimer = setTimeout(mvDismissPreAssessmentModal, 4200);
 }
 
+var postAssessmentModalTimer = null;
+
+function mvDismissPostAssessmentModal() {
+  var el = document.getElementById('mvPostAssessmentOverlay');
+  if (!el || !el.classList.contains('is-open')) return;
+  el.classList.remove('is-open');
+  el.setAttribute('aria-hidden', 'true');
+  if (postAssessmentModalTimer) {
+    clearTimeout(postAssessmentModalTimer);
+    postAssessmentModalTimer = null;
+  }
+  document.body.style.overflow = '';
+}
+
+function mvShowPostAssessmentModal(data) {
+  if (!data || typeof data !== 'object') return;
+  var el = document.getElementById('mvPostAssessmentOverlay');
+  var badge = document.getElementById('mvPostAssessmentBadge');
+  var scoreEl = document.getElementById('mvPostAssessmentScore');
+  var note = document.getElementById('mvPostAssessmentNote');
+  var markBtn = document.getElementById('mvPostAssessmentMark');
+  var contBtn = document.getElementById('mvPostAssessmentContinue');
+  var link = document.getElementById('mvPostAssessmentDetail');
+  var retake = document.getElementById('mvPostAssessmentRetake');
+  if (!el || !badge || !scoreEl || !note || !markBtn || !contBtn || !link || !retake) return;
+
+  var pending = parseInt(data.pending_count, 10) || 0;
+  badge.classList.remove('pass', 'fail', 'pending');
+
+  if (pending > 0) {
+    badge.classList.add('pending');
+    badge.textContent = 'Awaiting review';
+    scoreEl.textContent = (typeof data.score === 'number' ? data.score : parseFloat(data.score || 0)) + '% (provisional)';
+  } else if (data.passed) {
+    badge.classList.add('pass');
+    badge.textContent = 'Passed';
+    scoreEl.textContent = (typeof data.score === 'number' ? data.score : parseFloat(data.score || 0)) + '%';
+  } else {
+    badge.classList.add('fail');
+    badge.textContent = 'Below threshold';
+    scoreEl.textContent = (typeof data.score === 'number' ? data.score : parseFloat(data.score || 0)) + '%';
+  }
+
+  var th = typeof data.threshold === 'number' ? data.threshold : parseFloat(data.threshold || 0);
+  if (pending > 0) {
+    note.textContent = 'Your essay answers are pending instructor review. You can review your submission now; marking the module complete may wait until grading finishes.';
+  } else if (data.passed) {
+    note.textContent = 'Great work! Review your answers if you like, then mark this module complete'
+      + (data.can_mark_complete ? ' to finish the course and claim your certificate when eligible.' : '.');
+  } else {
+    note.textContent = 'You need at least ' + th + '% to pass. Review your answers, then retake when ready.';
+  }
+
+  link.href = data.detail_url || '#';
+  link.style.display = data.detail_url ? 'inline-block' : 'none';
+
+  if (data.retake_url && !data.passed && pending === 0) {
+    retake.href = data.retake_url;
+    retake.hidden = false;
+  } else {
+    retake.hidden = true;
+  }
+
+  if (data.passed && data.can_mark_complete && !IS_COMPLETED) {
+    markBtn.hidden = false;
+    contBtn.hidden = true;
+  } else {
+    markBtn.hidden = true;
+    contBtn.hidden = false;
+    contBtn.textContent = pending > 0 ? 'Continue module' : (data.passed ? 'Continue module' : 'Back to module');
+  }
+
+  CAN_MARK_COMPLETE = !!data.can_mark_complete;
+  POST_ASSESSMENT_PASSED = !!data.passed || POST_ASSESSMENT_PASSED;
+  syncMarkCompleteButton();
+  updatePostAssessmentSummaryText();
+  updatePostAssessmentButtonsState();
+
+  el.classList.add('is-open');
+  el.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  (data.passed && data.can_mark_complete && !IS_COMPLETED ? markBtn : contBtn).focus();
+}
+
 function ytTick() {
   if (!ytPlaybackActive || !ytPlayer || !ytPlayer.getCurrentTime || vcModalIsOpen()) return;
   var d = ytPlayer.getDuration();
@@ -710,7 +839,7 @@ function onYouTubeIframeAPIReady() {
           } else if (ev.data === YS.ENDED) {
             ytPlaybackActive = false;
             ytStopProgressCheck();
-            emitModuleFlowUpdated();
+            mvOnVideoPlaybackEnded();
             if (VIDEO_CHECKPOINT_GATE) {
               if (vcAllRequiredPassed() && POST_ASSESSMENT_PASSED) {
                 if (markBtn) markBtn.disabled = false;
@@ -752,6 +881,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   updatePostAssessmentSummaryText();
   updatePostAssessmentButtonsState();
+  syncMarkCompleteButton();
   emitModuleFlowUpdated();
 
   if (PRE_RESULT_MODAL) {
@@ -765,6 +895,28 @@ document.addEventListener('DOMContentLoaded', function() {
       if (o && o.classList.contains('is-open') && ev.key === 'Escape') {
         ev.preventDefault();
         mvDismissPreAssessmentModal();
+      }
+    }, true);
+  }
+
+  if (POST_RESULT_MODAL) {
+    mvShowPostAssessmentModal(POST_RESULT_MODAL);
+    var postMark = document.getElementById('mvPostAssessmentMark');
+    var postCont = document.getElementById('mvPostAssessmentContinue');
+    if (postMark) {
+      postMark.addEventListener('click', function() {
+        mvDismissPostAssessmentModal();
+        markComplete();
+      });
+    }
+    if (postCont) {
+      postCont.addEventListener('click', function() { mvDismissPostAssessmentModal(); });
+    }
+    document.addEventListener('keydown', function(ev) {
+      var o = document.getElementById('mvPostAssessmentOverlay');
+      if (o && o.classList.contains('is-open') && ev.key === 'Escape') {
+        ev.preventDefault();
+        mvDismissPostAssessmentModal();
       }
     }, true);
   }
@@ -1028,7 +1180,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var video = document.getElementById('mvVideo');
     if (video) {
       video.addEventListener('ended', function() {
-        emitModuleFlowUpdated();
+        mvOnVideoPlaybackEnded();
         if (markBtn && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
         if (POST_ASSESSMENT_PASSED) showToast('Video finished. Click Mark as Complete when ready.');
       });

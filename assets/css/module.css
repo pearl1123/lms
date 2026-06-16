@@ -438,6 +438,11 @@
 .mv-video-complete-actions .mv-pre-btn-primary.is-disabled {
   opacity:.45;pointer-events:none;cursor:not-allowed;transform:none;
 }
+.mv-post-result-card { max-width:420px; }
+.mv-post-btn-secondary {
+  background:transparent;color:var(--ka-navy,#1a3a5c);border:1px solid var(--ka-border,#e2e8f0);
+}
+.mv-post-btn-secondary:hover { background:var(--ka-bg,#f8fafc); }
 
 /* Breadcrumb + back outline (module page) */
 .mv-breadcrumb-row { margin-bottom:1rem; }

@@ -208,6 +208,27 @@ $type_colors = ['multiple_choice'=>'#3b82f6','essay'=>'#f59f00','likert'=>'#22c5
     </div>
     <?php endif; ?>
 
+    <?php if ( ! empty($module_return_url)): ?>
+    <div class="res-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.03s;">
+      <div class="res-panel-body">
+        <a href="<?= htmlspecialchars($module_return_url, ENT_QUOTES) ?>" class="res-back-btn res-back-btn--primary">← Back to module</a>
+        <?php if ($passed && empty($certificate_url) && ($assessment->type ?? '') === 'post'): ?>
+        <p style="margin:.75rem 0 0;font-size:.75rem;color:var(--ka-text-muted,#64748b);line-height:1.45;">
+          Mark this module complete from the module page to finish the course and receive your certificate.
+        </p>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ( ! empty($certificate_url)): ?>
+    <div class="res-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.035s;">
+      <div class="res-panel-body">
+        <a href="<?= htmlspecialchars($certificate_url, ENT_QUOTES) ?>" class="res-back-btn res-back-btn--primary" target="_blank" rel="noopener">🏆 View certificate</a>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <div class="res-panel animate__animated animate__fadeInUp animate__fast" style="animation-delay:.05s;">
       <div class="res-panel-body">
         <a href="<?= base_url('index.php/assessments') ?>" class="res-back-btn">← Back to Assessments</a>

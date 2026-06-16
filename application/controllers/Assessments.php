@@ -509,10 +509,20 @@ class Assessments extends CI_Controller {
                   . ' question(s) awaiting instructor review.';
         }
 
+        $agg = $this->assessment_model->get_result($this->user->id, $id);
+        $passed = $this->assessment_service->is_passing_assessment_result($agg);
+
+        if ((int) ($agg['pending'] ?? 0) === 0 && $passed) {
+            $this->load->library('event_dispatcher');
+            $this->event_dispatcher->dispatch('assessment.passed', [
+                'user_id'       => (int) $this->user->id,
+                'assessment_id' => $id,
+                'course_id'     => (int) ($assessment->course_id ?? 0),
+            ]);
+        }
+
         // Pre-assessment on a video module: return to module with modal feedback (full result page still available).
         if ($this->_pre_assessment_use_module_modal_redirect($assessment)) {
-            $agg    = $this->assessment_model->get_result($this->user->id, $id);
-            $passed = $this->assessment_service->is_passing_assessment_result($agg);
             $this->session->set_flashdata('pre_assessment_modal', [
                 'module_id'      => (int) $assessment->module_id,
                 'assessment_id' => $id,
@@ -526,15 +536,26 @@ class Assessments extends CI_Controller {
             redirect('courses/module/' . (int) $assessment->module_id);
         }
 
-        $agg = $this->assessment_model->get_result($this->user->id, $id);
-        if ((int) ($agg['pending'] ?? 0) === 0
-            && $this->assessment_service->is_passing_assessment_result($agg)) {
-            $this->load->library('event_dispatcher');
-            $this->event_dispatcher->dispatch('assessment.passed', [
-                'user_id'       => (int) $this->user->id,
-                'assessment_id' => $id,
-                'course_id'     => (int) ($assessment->course_id ?? 0),
+        // Post-assessment on a module: stay in the course flow (review answers + mark complete + certificate).
+        if ($this->_post_assessment_use_module_modal_redirect($assessment)) {
+            $mid = (int) $assessment->module_id;
+            $mcs = $this->assessment_service->get_module_completion_state((int) $this->user->id, $mid);
+            $summary = $this->assessment_model->get_user_assessment_result_summary($this->user->id, $id);
+            $can_retake = empty($summary['passed']) && empty($summary['pending_essays']);
+
+            $this->session->set_flashdata('post_assessment_modal', [
+                'module_id'          => $mid,
+                'assessment_id'      => $id,
+                'title'              => (string) ($assessment->title ?? 'Post-assessment'),
+                'score'              => round((float) ($agg['score'] ?? 0), 1),
+                'passed'             => $passed,
+                'pending_count'      => (int) ($agg['pending'] ?? 0),
+                'threshold'          => $this->assessment_service->pass_threshold(),
+                'can_mark_complete'  => ! empty($mcs['can_mark_complete']),
+                'can_retake'         => $can_retake,
+                'success_note'       => $msg,
             ]);
+            redirect('courses/module/' . $mid);
         }
 
         $this->session->set_flashdata('success', $msg);
@@ -589,6 +610,18 @@ class Assessments extends CI_Controller {
         return $mod && $this->_module_row_is_video_contract($mod);
     }
 
+    /**
+     * Post-assessment tied to a module: return to module player so learners can review, mark complete, and claim certificate.
+     */
+    private function _post_assessment_use_module_modal_redirect($assessment)
+    {
+        if (($assessment->type ?? '') !== 'post') {
+            return false;
+        }
+
+        return (int) ($assessment->module_id ?? 0) > 0;
+    }
+
     // =========================================================
     // result($id) — Employee sees own result
     // =========================================================
@@ -618,6 +651,21 @@ class Assessments extends CI_Controller {
             && empty($summary['passed'])
             && empty($summary['pending_essays']);
 
+        $module_return_url = '';
+        $mid = (int) ($assessment->module_id ?? 0);
+        if ($mid > 0) {
+            $module_return_url = base_url('index.php/courses/module/' . $mid);
+        }
+
+        $certificate_url = '';
+        if ((int) ($assessment->course_id ?? 0) > 0) {
+            $this->load->model('certificate_model');
+            $cert = $this->certificate_model->get_by_user_course((int) $user->id, (int) $assessment->course_id);
+            if ($cert) {
+                $certificate_url = base_url('index.php/certificates/view/' . (int) $cert->id);
+            }
+        }
+
         $data = [
             'user'         => $user,
             'page_title'   => 'Assessment Result — ' . $assessment->title,
@@ -628,6 +676,8 @@ class Assessments extends CI_Controller {
             'can_retake'   => $can_retake,
             'retake_full_course' => $can_retake && etd_retake_requires_full_course($course),
             'retake_url'   => base_url('index.php/assessments/retake/' . $id),
+            'module_return_url' => $module_return_url,
+            'certificate_url'   => $certificate_url,
             'breadcrumbs'  => [
                 ['label' => 'Dashboard',   'url' => 'dashboard'],
                 ['label' => 'Assessments', 'url' => 'assessments'],

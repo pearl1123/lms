@@ -554,6 +554,7 @@ class Courses extends KA_Controller {
             'module view id=' . (int) ($module->id ?? 0)
         );
         $module_pre_modal = $this->_build_module_pre_modal($module, $eff_type);
+        $module_post_modal = $this->_build_module_post_modal($module);
 
         $module_progress_summary = $this->assessment_service->get_module_progress_summary((int) $user->id, $mid);
 
@@ -585,6 +586,7 @@ class Courses extends KA_Controller {
             'lms_return_q'                    => ka_lms_return_q($lms_rt),
             'ln_notes_ready'                  => $this->learning_notes_model->table_ready(),
             'module_pre_modal'                => $module_pre_modal,
+            'module_post_modal'               => $module_post_modal,
             'module_progress_summary'         => $module_progress_summary,
             'breadcrumbs'       => [
                 ['label' => 'Dashboard',      'url' => 'dashboard'],
@@ -684,6 +686,7 @@ class Courses extends KA_Controller {
         }
 
         $summary = $this->assessment_service->get_module_progress_summary((int) $user->id, $mid);
+        $mcs = $this->assessment_service->get_module_completion_state((int) $user->id, $mid);
 
         return $this->_complete_module_json([
             'ok'                        => true,
@@ -693,6 +696,7 @@ class Courses extends KA_Controller {
             'post_assessment_passed'    => ! empty($summary['post_assessment_passed']),
             'progress_percent'          => (int) $summary['progress_percent'],
             'can_start_post_assessment' => $this->assessment_service->can_start_post_assessment((int) $user->id, $mid),
+            'can_mark_complete'         => ! empty($mcs['can_mark_complete']),
         ]);
     }
 
@@ -740,6 +744,49 @@ class Courses extends KA_Controller {
         return $this->_complete_module_json([
             'ok'      => $ok,
             'message' => $ok ? 'Resume saved.' : 'Could not save resume.',
+        ]);
+    }
+
+    /**
+     * POST — record that the learner watched the module video to the end.
+     * URL: index.php/courses/mark_video_playback_complete/{module_id}
+     *
+     * @param int|null $module_id
+     */
+    public function mark_video_playback_complete($module_id = null)
+    {
+        if (strtolower((string) $this->input->method()) !== 'post') {
+            show_404();
+        }
+
+        $user = $this->auth_user;
+        $mid  = (int) $module_id;
+        if ($mid < 1) {
+            return $this->_complete_module_json(['ok' => false, 'message' => 'Invalid module.']);
+        }
+
+        $module = $this->course_model->get_module($mid);
+        if ( ! $module) {
+            return $this->_complete_module_json(['ok' => false, 'message' => 'Module not found.']);
+        }
+
+        if (in_array((string) ($user->role ?? ''), ['employee', 'student'], true)) {
+            if ( ! $this->course_model->has_approved_enrollment((int) $user->id, (int) $module->course_id)) {
+                return $this->_complete_module_json(['ok' => false, 'message' => 'Not enrolled.']);
+            }
+        }
+
+        $ok = $this->course_model->mark_video_playback_completed((int) $user->id, $mid);
+        if ($ok) {
+            $this->assessment_service->invalidate_course_progress_aggregate_cache(
+                (int) $user->id,
+                (int) $module->course_id
+            );
+        }
+
+        return $this->_complete_module_json([
+            'ok'      => $ok,
+            'message' => $ok ? 'Video playback recorded.' : 'Could not save video progress.',
         ]);
     }
 
@@ -921,6 +968,36 @@ class Courses extends KA_Controller {
             'pending_count' => (int) ($pm['pending_count'] ?? 0),
             'threshold'     => (float) ($pm['threshold'] ?? ka_assessment_pass_threshold()),
             'detail_url'    => ($_aid > 0) ? base_url('index.php/assessments/result/' . $_aid) : '',
+        ];
+    }
+
+    /**
+     * Post-assessment modal DTO from session flash (module-linked post assessments).
+     *
+     * @param object $module
+     * @return array<string,mixed>|null
+     */
+    private function _build_module_post_modal($module)
+    {
+        $pm = $this->session->flashdata('post_assessment_modal');
+        if ( ! is_array($pm) || (int) ($pm['module_id'] ?? 0) !== (int) ($module->id ?? 0)) {
+            return null;
+        }
+
+        $_aid = (int) ($pm['assessment_id'] ?? 0);
+
+        return [
+            'assessment_id'     => $_aid,
+            'title'             => (string) ($pm['title'] ?? 'Post-assessment'),
+            'score'             => (float) ($pm['score'] ?? 0),
+            'passed'            => ! empty($pm['passed']),
+            'pending_count'     => (int) ($pm['pending_count'] ?? 0),
+            'threshold'         => (float) ($pm['threshold'] ?? ka_assessment_pass_threshold()),
+            'detail_url'        => ($_aid > 0) ? base_url('index.php/assessments/result/' . $_aid) : '',
+            'can_mark_complete' => ! empty($pm['can_mark_complete']),
+            'retake_url'        => ! empty($pm['can_retake']) && $_aid > 0
+                ? base_url('index.php/assessments/retake/' . $_aid)
+                : '',
         ];
     }
 
