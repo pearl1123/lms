@@ -926,12 +926,79 @@ document.addEventListener('DOMContentLoaded', function() {
   }, true);
 });
 
+/**
+ * PDF/slides viewer — must run after LMS_RESUME.init so resume page is merged.
+ */
+window.mvBootstrapPdfViewer = function() {
+  if (IS_COMPLETED || (PRE_BLOCKED && !VIDEO_PRE_OPTIONAL)) return;
+  var isPdf = CONTENT_TYPE === 'pdf';
+  var isPdfSlides = CONTENT_TYPE === 'slides' && String(C.slidesFileExt || '').toLowerCase() === 'pdf';
+  if (!isPdf && !isPdfSlides) return;
+  if (window.mvPdfViewerBootstrapped) return;
+  window.mvPdfViewerBootstrapped = true;
+
+  var markBtn = document.getElementById('mvMarkBtn');
+  if (markBtn) markBtn.disabled = true;
+
+  function enablePdfComplete(hintText) {
+    if (markBtn && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
+    var hint = document.getElementById('mvCompleteHint');
+    if (hint && hintText) hint.textContent = hintText;
+    if (POST_ASSESSMENT_PASSED) showToast('All pages reviewed. Click Mark as Complete when ready.');
+  }
+
+  function resolvePdfStartPage() {
+    var fallback = 1;
+    if (C.resumeServerState && C.resumeServerState.position > 0) {
+      fallback = Math.max(1, parseInt(C.resumeServerState.position, 10) || 1);
+    }
+    if (C.resumeQueryHints && C.resumeQueryHints.position > 0) {
+      fallback = Math.max(fallback, parseInt(C.resumeQueryHints.position, 10) || 1);
+    }
+    if (window.LMS_RESUME && typeof window.LMS_RESUME.getMergedStartPage === 'function') {
+      return window.LMS_RESUME.getMergedStartPage(fallback);
+    }
+    return fallback;
+  }
+
+  if (!window.ModulePdfViewer || typeof window.ModulePdfViewer.init !== 'function') {
+    console.warn('[module] ModulePdfViewer unavailable; PDF completion gate disabled.');
+    return;
+  }
+
+  var rootId = isPdf ? 'mvPdfViewer' : 'mvSlidesPdfViewer';
+  var resumeType = isPdfSlides ? 'slides' : 'pdf';
+  var startPage = resolvePdfStartPage();
+
+  window.ModulePdfViewer.init({
+    rootId: rootId,
+    pdfUrl: C.pdfUrl || '',
+    startPage: startPage,
+    onPageChange: function(page, total) {
+      if (window.LMS_RESUME && typeof window.LMS_RESUME.saveNow === 'function') {
+        window.LMS_RESUME.saveNow(resumeType, page);
+      }
+      var hint = document.getElementById('mvCompleteHint');
+      if (hint && total > 0) {
+        hint.textContent = 'Page ' + page + ' of ' + total + ' — continue to the last page';
+      }
+    },
+    onLastPageReached: function() {
+      enablePdfComplete('All pages reviewed — ready to mark complete');
+    },
+  });
+
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'pdf-scrolled-end') {
+      enablePdfComplete('All pages reviewed — ready to mark complete');
+    }
+  });
+};
+
 document.addEventListener('DOMContentLoaded', function() {
   if (IS_COMPLETED || (PRE_BLOCKED && !VIDEO_PRE_OPTIONAL)) return;
 
   var markBtn = document.getElementById('mvMarkBtn');
-
-  // ── VIDEO: YouTube (IFrame API + checkpoints) ───────────────
   if (CONTENT_TYPE === 'video' && IS_YOUTUBE_IFRAME) {
     if (markBtn) {
       markBtn.disabled = true;
@@ -990,43 +1057,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // ── PDF: detect scroll completion via postMessage from iframe ──
-  else if (CONTENT_TYPE === 'pdf') {
-    // Enable after 30 seconds as fallback for PDF
-    setTimeout(function() {
-      if (markBtn && !IS_COMPLETED && POST_ASSESSMENT_PASSED) {
-        markBtn.disabled = false;
-        var hint = document.getElementById('mvCompleteHint');
-        if (hint) hint.textContent = 'Ready to mark as complete';
-      }
-    }, 30000);
-
-    // PDF iframe scroll detection via message (works with same-origin PDFs)
-    window.addEventListener('message', function(e) {
-      if (e.data && e.data.type === 'pdf-scrolled-end') {
-        if (markBtn && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
-        if (POST_ASSESSMENT_PASSED) showToast('Document reviewed. Click Mark as Complete when ready.');
-      }
-    });
+  // PDF viewer is bootstrapped after LMS_RESUME.init (see module.php).
+  else if (CONTENT_TYPE === 'pdf' || (CONTENT_TYPE === 'slides' && String(C.slidesFileExt || '').toLowerCase() === 'pdf')) {
+    /* initialized via window.mvBootstrapPdfViewer */
   }
 
-  // ── SLIDES (PDF): same as PDF ───────────────────────────────
-  else if (CONTENT_TYPE === 'slides') {
-    var ext = String(C.slidesFileExt || '').toLowerCase();
-    if (ext === 'pdf') {
-      setTimeout(function() {
-        if (markBtn && !IS_COMPLETED && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
-      }, 20000);
-    } else {
-      // PPTX: enable after download click
-      var dlBtn = document.getElementById('mvSlidesDownload');
-      if (dlBtn) {
-        dlBtn.addEventListener('click', function() {
-          setTimeout(function() {
-            if (markBtn && !IS_COMPLETED && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
-          }, 2000);
-        });
-      }
+  // ── SLIDES (PPTX): enable after download click ───────────────
+  else if (CONTENT_TYPE === 'slides' && String(C.slidesFileExt || '').toLowerCase() !== 'pdf') {
+    var dlBtn = document.getElementById('mvSlidesDownload');
+    if (dlBtn) {
+      dlBtn.addEventListener('click', function() {
+        setTimeout(function() {
+          if (markBtn && !IS_COMPLETED && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
+        }, 2000);
+      });
     }
   }
 
@@ -1055,6 +1099,17 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       if (!this.disabled) markComplete();
     });
+  }
+
+  // Fallback if inline resume bootstrap did not run (e.g. script order).
+  var isPdfModule = CONTENT_TYPE === 'pdf'
+    || (CONTENT_TYPE === 'slides' && String(C.slidesFileExt || '').toLowerCase() === 'pdf');
+  if (isPdfModule && !window.mvPdfViewerBootstrapped && typeof window.mvBootstrapPdfViewer === 'function') {
+    setTimeout(function() {
+      if (!window.mvPdfViewerBootstrapped) {
+        window.mvBootstrapPdfViewer();
+      }
+    }, 0);
   }
 });
 

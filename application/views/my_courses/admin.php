@@ -405,10 +405,14 @@ a.mc-kpi--clickable:focus-visible {
               View Details
             </a></li>
             <li><hr class="dropdown-divider"></li>
+            <?php if ( ! empty($course->can_delete)): ?>
             <li><a class="dropdown-item text-danger" href="<?= base_url('manage_courses/delete/'.$course->id) ?>" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
               Delete
             </a></li>
+            <?php else: ?>
+            <li><span class="dropdown-item text-muted" style="cursor:not-allowed;" title="Cannot delete while learners are enrolled">Delete (locked)</span></li>
+            <?php endif; ?>
           </ul>
         </div>
       </div>
@@ -435,7 +439,9 @@ a.mc-kpi--clickable:focus-visible {
         <div class="mc-card-footer">
           <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="mc-card-btn mc-card-btn-primary">Edit</a>
           <a href="<?= base_url('manage_courses/view/'.$course->id) ?>" class="mc-card-btn mc-card-btn-primary">View</a>
+          <?php if ( ! empty($course->can_delete)): ?>
           <a href="<?= base_url('manage_courses/delete/'.$course->id) ?>" class="mc-card-btn mc-card-btn-danger" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Delete</a>
+          <?php endif; ?>
         </div>
       </div>
     </div>
@@ -503,7 +509,11 @@ a.mc-kpi--clickable:focus-visible {
             <td>
               <div class="mc-action-row">
                 <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="mc-action-link mc-action-edit">Edit</a>
+                <?php if ( ! empty($course->can_delete)): ?>
                 <a href="<?= base_url('manage_courses/delete/'.$course->id) ?>" class="mc-action-link mc-action-delete" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Delete</a>
+                <?php else: ?>
+                <span class="mc-action-link" style="opacity:.5;cursor:not-allowed;" title="Locked: course has enrollments">Delete</span>
+                <?php endif; ?>
               </div>
             </td>
           </tr>

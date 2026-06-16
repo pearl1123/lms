@@ -944,6 +944,19 @@ class Assessments extends CI_Controller {
             }
         }
 
+        $this->load->helper('ka_layout');
+        $preselect_return_raw = $this->input->get('return_url', true);
+        if ($this->input->method() === 'post') {
+            $posted_return = $this->input->post('return_url', true);
+            if ($posted_return !== null && $posted_return !== '') {
+                $preselect_return_raw = $posted_return;
+            }
+        }
+        $create_return_target = ka_lms_resolve_return_target($user, $preselect_return_raw);
+        $create_back_href       = ($preselect_course_id > 0)
+            ? ka_assessment_create_back_href($user, $preselect_course_id, $preselect_return_raw)
+            : 'assessments';
+
         $data = [
             'user'           => $user,
             'page_title'     => 'Create Assessment',
@@ -952,6 +965,8 @@ class Assessments extends CI_Controller {
             'preselect_course_id' => $preselect_course_id,
             'preselect_mod'  => $preselect_mod,
             'preselect_type' => $preselect_type,
+            'create_back_href' => $create_back_href,
+            'create_return_target' => $create_return_target,
             'breadcrumbs'    => [
                 ['label' => 'Dashboard',   'url' => 'dashboard'],
                 ['label' => 'Assessments', 'url' => 'assessments'],

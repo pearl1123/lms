@@ -478,8 +478,8 @@ class Courses extends KA_Controller {
                 $pre_list = $this->course_model->get_assessments($mid, 'pre');
                 if (! empty($pre_list) && ! empty($pre_list[0]->id)) {
                     $this->session->set_flashdata(
-                        'error',
-                        'You must pass the required pre-assessment before accessing this module content.'
+                        'reminder',
+                        'Please complete this pre-assessment before accessing the module content.'
                     );
                     redirect('assessments/take/' . (int) $pre_list[0]->id);
                 }
@@ -555,6 +555,8 @@ class Courses extends KA_Controller {
         );
         $module_pre_modal = $this->_build_module_pre_modal($module, $eff_type);
 
+        $module_progress_summary = $this->assessment_service->get_module_progress_summary((int) $user->id, $mid);
+
         $data = [
             'user'              => $user,
             'page_title'        => $module->title,
@@ -583,6 +585,7 @@ class Courses extends KA_Controller {
             'lms_return_q'                    => ka_lms_return_q($lms_rt),
             'ln_notes_ready'                  => $this->learning_notes_model->table_ready(),
             'module_pre_modal'                => $module_pre_modal,
+            'module_progress_summary'         => $module_progress_summary,
             'breadcrumbs'       => [
                 ['label' => 'Dashboard',      'url' => 'dashboard'],
                 ['label' => 'Course Catalog', 'url' => 'courses'],

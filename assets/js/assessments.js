@@ -113,6 +113,114 @@
     if (!total || total < 1) {
       total = document.querySelectorAll('.take-q-card[data-qid]').length;
     }
+    var assessmentId = parseInt(ctx.assessmentId, 10) || 0;
+    var userId = parseInt(ctx.userId, 10) || 0;
+    var takeUrl = String(ctx.takeUrl || '').trim();
+    var returnUrl = String(ctx.returnUrl || '').trim();
+    var moduleUrl = String(ctx.moduleUrl || '').trim();
+
+    function takeDraftKey() {
+      return 'lms_take_draft_a' + assessmentId + '_u' + userId;
+    }
+
+    function collectTakeDraft() {
+      var data = {};
+      form.querySelectorAll('input, textarea, select').forEach(function(el) {
+        if (!el.name || el.type === 'file' || el.type === 'hidden') return;
+        if (el.type === 'radio' || el.type === 'checkbox') {
+          if (!el.checked) return;
+        }
+        data[el.name] = el.value;
+      });
+      return data;
+    }
+
+    function saveTakeDraft() {
+      if (assessmentId < 1 || userId < 1) return false;
+      try {
+        localStorage.setItem(takeDraftKey(), JSON.stringify({
+          savedAt: Date.now(),
+          answers: collectTakeDraft(),
+        }));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function clearTakeDraft() {
+      try {
+        localStorage.removeItem(takeDraftKey());
+      } catch (e) {}
+    }
+
+    function restoreTakeDraft() {
+      if (assessmentId < 1 || userId < 1) return;
+      var raw;
+      try {
+        raw = localStorage.getItem(takeDraftKey());
+      } catch (e) {
+        return;
+      }
+      if (!raw) return;
+      var payload;
+      try {
+        payload = JSON.parse(raw);
+      } catch (e) {
+        return;
+      }
+      var answers = payload && payload.answers;
+      if (!answers || typeof answers !== 'object') return;
+
+      Object.keys(answers).forEach(function(name) {
+        var value = answers[name];
+        var fields = Array.prototype.filter.call(
+          form.querySelectorAll('input, textarea, select'),
+          function(field) { return field.name === name; }
+        );
+        if (!fields.length) return;
+        fields.forEach(function(field) {
+          if (field.type === 'radio' || field.type === 'checkbox') {
+            field.checked = String(field.value) === String(value);
+          } else if (field.tagName === 'SELECT') {
+            field.value = value;
+          } else if (field.type !== 'file') {
+            field.value = value;
+          }
+        });
+        var qidMatch = name.match(/^answer_(\d+)$/);
+        if (qidMatch) {
+          markAnswered(parseInt(qidMatch[1], 10));
+          var essay = form.querySelector('textarea[name="' + name + '"]');
+          if (essay && typeof updateWordCount === 'function') {
+            updateWordCount(essay, parseInt(qidMatch[1], 10));
+          }
+        }
+      });
+      if (window.KA && typeof window.KA.toast === 'function') {
+        window.KA.toast('info', 'Restored your saved progress.');
+      }
+    }
+
+    function saveTakeDraftLater() {
+      var ok = saveTakeDraft();
+      var dest = returnUrl || moduleUrl;
+      if (!dest && assessmentId > 0) {
+        dest = window.location.pathname.indexOf('index.php') >= 0
+          ? window.location.pathname.replace(/assessments\/take\/\d+.*$/, 'my_courses')
+          : '/index.php/my_courses';
+      }
+      if (window.KA && typeof window.KA.toast === 'function') {
+        window.KA.toast(
+          ok ? 'success' : 'error',
+          ok
+            ? 'Progress saved. You can resume this assessment from My Courses.'
+            : 'Could not save progress locally. Please try again or submit when ready.'
+        );
+      }
+      if (!ok || !dest) return;
+      setTimeout(function() { window.location.href = dest; }, 450);
+    }
 
     var answeredSet = new Set();
 
@@ -165,7 +273,10 @@
         confirmText: 'Yes, submit now',
         cancelText: 'Review answers',
         type: unanswered > 0 ? 'warning' : 'info',
-        onConfirm: function() { form.submit(); },
+        onConfirm: function() {
+          clearTakeDraft();
+          form.submit();
+        },
       });
     }
 
@@ -176,8 +287,12 @@
     var ui = kaEnsureAssessmentsUi();
     ui.updateWordCount = updateWordCount;
     ui.confirmSubmit = confirmSubmit;
+    ui.saveTakeDraftLater = saveTakeDraftLater;
     window.updateWordCount = ui.updateWordCount;
     window.confirmSubmit = ui.confirmSubmit;
+    window.saveTakeDraftLater = ui.saveTakeDraftLater;
+
+    restoreTakeDraft();
   }
 
   function initCreate() {
@@ -212,6 +327,48 @@
       }
     }
 
+    function updateCheckpointCardForModule() {
+      var sel = document.getElementById('module_id');
+      var cp = document.getElementById('card-checkpoint');
+      var cpInput = cp ? cp.querySelector('input[type="radio"][value="checkpoint"]') : null;
+      var hint = document.getElementById('checkpointModuleHint');
+      if (!cp || !cpInput) return;
+
+      var schemaOk = cpInput.getAttribute('data-schema-ready') === '1';
+      var opt = sel && sel.options[sel.selectedIndex];
+      var hasModule = !!(opt && opt.value);
+      var isVideo = hasModule && opt.getAttribute('data-video-module') === '1';
+      var allow = schemaOk && (!hasModule || isVideo);
+
+      cp.classList.toggle('disabled', !allow);
+      cpInput.disabled = !allow;
+      if (!allow) {
+        cp.title = hasModule && !isVideo
+          ? 'Video checkpoints are only available for video modules'
+          : 'Video checkpoints are not available on this server';
+      } else {
+        cp.title = '';
+      }
+
+      if (hint) {
+        if (schemaOk && hasModule && !isVideo) {
+          hint.style.display = 'block';
+          hint.innerHTML = 'Video checkpoints are only available for <strong>video</strong> modules. The selected module is not a video module — use Pre- or Post-Assessment instead.';
+        } else {
+          hint.style.display = 'none';
+          hint.textContent = '';
+        }
+      }
+
+      if (!allow && cpInput.checked) {
+        var pre = document.querySelector('input[name="type"][value="pre"]');
+        if (pre) {
+          pre.checked = true;
+          selectType('pre');
+        }
+      }
+    }
+
     function selectType(type) {
       var pre = document.getElementById('card-pre');
       var post = document.getElementById('card-post');
@@ -221,7 +378,17 @@
       if (cp) cp.classList.toggle('selected', type === 'checkpoint');
       var panel = document.getElementById('checkpointFields');
       var hint = document.getElementById('createSidebarHint');
-      if (panel) panel.classList.toggle('visible', type === 'checkpoint');
+      if (panel) {
+        panel.classList.toggle('visible', type === 'checkpoint');
+        panel.querySelectorAll('input, select, textarea').forEach(function(el) {
+          el.disabled = type !== 'checkpoint';
+        });
+      }
+      if (type !== 'checkpoint') {
+        var agOff = document.getElementById('checkpoint_auto_generate');
+        if (agOff) agOff.checked = false;
+        toggleCheckpointAuto(false);
+      }
       filterModulesForAssessmentType(type);
       if (type === 'checkpoint') {
         var ag = document.getElementById('checkpoint_auto_generate');
@@ -249,6 +416,13 @@
 
     var checked = document.querySelector('input[name="type"]:checked');
     if (checked) selectType(checked.value);
+    updateCheckpointCardForModule();
+
+    var moduleSel = document.getElementById('module_id');
+    if (moduleSel) {
+      moduleSel.addEventListener('change', updateCheckpointCardForModule);
+    }
+
     var ag = document.getElementById('checkpoint_auto_generate');
     if (ag) {
       ag.addEventListener('change', function() {

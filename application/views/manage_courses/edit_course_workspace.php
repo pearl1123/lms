@@ -36,10 +36,13 @@ if ( ! isset($edit_category_ids) || ! is_array($edit_category_ids)) {
 $checkpoint_schema_ready = isset($checkpoint_schema_ready) ? (bool) $checkpoint_schema_ready : false;
 $phase3_ready            = isset($phase3_ready) ? (bool) $phase3_ready : false;
 $phase3_batches_ready    = isset($phase3_batches_ready) ? (bool) $phase3_batches_ready : false;
+$course_structure_locked = ! empty($course_structure_locked) || ! empty($enrollment_guard['blocks_structure']);
+$lms_return_target     = $lms_return_target ?? ka_lms_default_return_target_for_role($user ?? null);
 ?>
 <form method="post" action="<?= base_url('manage_courses/edit/'.$course->id) ?>" id="course-edit-form" enctype="multipart/form-data" data-initial-edit-tab="<?= ! empty($focus_modules) ? 'modules' : '' ?>">
   <input type="hidden" name="<?= htmlspecialchars($csrf_field_name, ENT_QUOTES, 'UTF-8') ?>" value="<?= htmlspecialchars($csrf_hash, ENT_QUOTES, 'UTF-8') ?>">
   <input type="hidden" name="return_url" value="<?= htmlspecialchars($lms_return_target ?? '', ENT_QUOTES, 'UTF-8') ?>">
+  <input type="hidden" name="edit_return_tab" id="editReturnTab" value="">
   <?php if ($phase2_ready_ui): ?>
   <input type="hidden" id="edit_category_id" name="category_id" value="<?= (int) ($edit_category_ids[0] ?? 0) ?>">
   <?php endif; ?>
@@ -236,7 +239,7 @@ $phase3_batches_ready    = isset($phase3_batches_ready) ? (bool) $phase3_batches
                         ⏱ Pre (<?= $mod->pre_count ?>)
                       </a>
                     <?php else: ?>
-                      <a href="<?= base_url('assessments/create?course_id='.(int) $course->id.'&module_id='.$mod->id.'&type=pre') ?>"
+                      <a href="<?= htmlspecialchars(ka_lms_append_return_to_url(base_url('assessments/create?course_id='.(int) $course->id.'&module_id='.$mod->id.'&type=pre'), $lms_return_target), ENT_QUOTES) ?>"
                          class="mod-asx-badge add" title="Add pre-assessment">
                         + Pre-assessment
                       </a>
@@ -247,7 +250,7 @@ $phase3_batches_ready    = isset($phase3_batches_ready) ? (bool) $phase3_batches
                         🏆 Post (<?= $mod->post_count ?>)
                       </a>
                     <?php else: ?>
-                      <a href="<?= base_url('assessments/create?course_id='.(int) $course->id.'&module_id='.$mod->id.'&type=post') ?>"
+                      <a href="<?= htmlspecialchars(ka_lms_append_return_to_url(base_url('assessments/create?course_id='.(int) $course->id.'&module_id='.$mod->id.'&type=post'), $lms_return_target), ENT_QUOTES) ?>"
                          class="mod-asx-badge add" title="Add post-assessment">
                         + Post-assessment
                       </a>
@@ -263,7 +266,7 @@ $phase3_batches_ready    = isset($phase3_batches_ready) ? (bool) $phase3_batches
                         ▶ Checkpoint (<?= $cp_n ?>)
                       </a>
                       <?php elseif ($checkpoint_schema_ready): ?>
-                      <a href="<?= base_url('assessments/create?course_id='.(int) $course->id.'&module_id='.$mod->id.'&type=checkpoint') ?>"
+                      <a href="<?= htmlspecialchars(ka_lms_append_return_to_url(base_url('assessments/create?course_id='.(int) $course->id.'&module_id='.$mod->id.'&type=checkpoint'), $lms_return_target), ENT_QUOTES) ?>"
                          class="mod-asx-badge add" title="Add video progress checkpoint for this module">
                         + Video Checkpoint
                       </a>
@@ -280,9 +283,11 @@ $phase3_batches_ready    = isset($phase3_batches_ready) ? (bool) $phase3_batches
                   <button type="button" class="mod-action-btn" title="Edit" onclick="editModule(<?= $mod->id ?>)">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   </button>
+                  <?php if ( ! $course_structure_locked): ?>
                   <button type="button" class="mod-action-btn danger" title="Delete" onclick="deleteModule(<?= $mod->id ?>)">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
                   </button>
+                  <?php endif; ?>
                 </div>
               </div>
               <?php endforeach; ?>
@@ -296,10 +301,17 @@ $phase3_batches_ready    = isset($phase3_batches_ready) ? (bool) $phase3_batches
               ]); ?>
             <?php endif; ?>
           </div>
+          <?php if ($course_structure_locked): ?>
+          <button type="button" class="add-mod-btn is-disabled" disabled title="Locked while learners are enrolled">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Module (locked)
+          </button>
+          <?php else: ?>
           <button type="button" class="add-mod-btn" onclick="openModModal()">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Module
           </button>
+          <?php endif; ?>
         </div>
       </div>
     </section>
@@ -364,21 +376,6 @@ $phase3_batches_ready    = isset($phase3_batches_ready) ? (bool) $phase3_batches
                 Serial format: {PREFIX}-<?= date('Y') ?>-0001
               </div>
             </div>
-            <div class="ef-group">
-              <label class="ef-label">Signatory Name</label>
-              <input type="text" name="signatory_name" class="ef-input"
-                     value="<?= htmlspecialchars(set_value('signatory_name', $course->signatory_name ?? '')) ?>"
-                     maxlength="120" placeholder="e.g. Maria L. Santos">
-            </div>
-          </div>
-          <div class="ef-row">
-            <div class="ef-group">
-              <label class="ef-label">Signatory Title</label>
-              <input type="text" name="signatory_title" class="ef-input"
-                     value="<?= htmlspecialchars(set_value('signatory_title', $course->signatory_title ?? '')) ?>"
-                     maxlength="120" placeholder="e.g. Learning & Development Manager">
-            </div>
-            <div class="ef-group"></div>
           </div>
           <?php if ( ! empty($phase3_ready)): ?>
           <?php $this->load->view('manage_courses/phase3_signatories_block', get_defined_vars()); ?>
@@ -450,6 +447,10 @@ $phase3_batches_ready    = isset($phase3_batches_ready) ? (bool) $phase3_batches
     });
     if (progress) {
       progress.textContent = 'Step ' + i + ' / ' + total;
+    }
+    var tabField = document.getElementById('editReturnTab');
+    if (tabField) {
+      tabField.value = name || '';
     }
     try {
       if (history.replaceState) {

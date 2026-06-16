@@ -73,7 +73,44 @@ if ( ! function_exists('ka_nav_can')) {
             return true;
         }
 
-        return ka_user_can($perm);
+        if (ka_user_can($perm)) {
+            return true;
+        }
+
+        return ka_learner_role_has_manifest_permission($perm, $role);
+    }
+}
+
+if ( ! function_exists('ka_learner_role_has_manifest_permission')) {
+    /**
+     * @param string|string[] $permissions
+     * @param string|null     $role
+     */
+    function ka_learner_role_has_manifest_permission($permissions, $role = null)
+    {
+        $role = strtolower((string) ($role ?? ''));
+        if ($role === '' && function_exists('get_instance')) {
+            $CI = &get_instance();
+            $role = strtolower((string) ($CI->session->userdata('role') ?? ''));
+        }
+        if ( ! in_array($role, ['employee', 'student'], true)) {
+            return false;
+        }
+
+        $manifest = ka_permission_manifest();
+        $allowed  = $manifest['groups']['Employee']['permissions'] ?? [];
+        if ($allowed === []) {
+            return false;
+        }
+
+        foreach ((array) $permissions as $permission) {
+            $permission = trim((string) $permission);
+            if ($permission !== '' && in_array($permission, $allowed, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

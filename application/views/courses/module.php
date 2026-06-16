@@ -74,6 +74,12 @@ $content_path = $module->content_path ?? '';
 $is_external  = (strpos($content_path, 'http://') === 0 || strpos($content_path, 'https://') === 0);
 $content_url  = $is_external ? $content_path : base_url($content_path);
 
+$module_progress_summary = is_array($module_progress_summary ?? null) ? $module_progress_summary : [];
+$module_progress_pct = (int) ($module_progress_summary['progress_percent'] ?? 0);
+if ($is_completed) {
+    $module_progress_pct = 100;
+}
+
 $module_app_context = [
     'modulePage'                 => true,
     'isCompleted'                => (bool) $is_completed,
@@ -90,7 +96,7 @@ $module_app_context = [
     'preResultModal'             => $module_pre_modal,
     'postAssessmentPassed'       => (bool) $mcs_post_passed,
     'canStartPostAssessment'     => (bool) $can_start_post_assessment,
-    'moduleProgressPercent'      => 0,
+    'moduleProgressPercent'      => $module_progress_pct,
     'isYoutubeIframe'            => (bool) $youtube_video_id,
     'moduleId'                   => (int) ($module->id ?? 0),
     'courseId'                   => (int) ($module->course_id ?? 0),
@@ -99,6 +105,7 @@ $module_app_context = [
     'videoCheckpointSubmitUrl'   => (string) $video_checkpoint_submit_url,
     'youtubeVideoId'             => (string) ($youtube_video_id ?? ''),
     'slidesFileExt'              => strtolower((string) pathinfo($content_path, PATHINFO_EXTENSION)),
+    'pdfUrl'                     => in_array($eff_type, ['pdf', 'slides'], true) ? $content_url : '',
     'vcPassedIds'                => array_values(array_map('intval', (array) $video_checkpoint_passed_ids)),
     'videoOptionalPre'           => (bool) $video_optional_pre,
     'videoCompletedInitial'      => (bool) $video_completed_init,
@@ -242,12 +249,29 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
 
 
       <?php if ($eff_type === 'pdf'): ?>
-      <!-- ── PDF VIEWER ── -->
-      <iframe class="mv-pdf-frame"
-              id="mvPdfFrame"
-              src="<?= htmlspecialchars($content_url) ?>"
-              title="<?= htmlspecialchars($module->title) ?>">
-      </iframe>
+      <!-- ── PDF VIEWER (paginated — no scroll) ── -->
+      <div class="mv-pdf-viewer" id="mvPdfViewer" data-pdf-url="<?= htmlspecialchars($content_url) ?>">
+        <div class="mv-pdf-viewer-toolbar">
+          <div class="mv-pdf-toolbar-group">
+            <button type="button" class="mv-pdf-nav-btn" id="mvPdfPrev" disabled aria-label="Previous page">← Previous</button>
+            <span class="mv-pdf-page-info" id="mvPdfPageInfo">Loading…</span>
+            <button type="button" class="mv-pdf-nav-btn" id="mvPdfNext" aria-label="Next page">Next →</button>
+          </div>
+          <div class="mv-pdf-toolbar-group mv-pdf-toolbar-group--tools">
+            <button type="button" class="mv-pdf-tool-btn" data-pdf-action="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+            <span class="mv-pdf-zoom-info" data-pdf-zoom-label>100%</span>
+            <button type="button" class="mv-pdf-tool-btn" data-pdf-action="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+            <span class="mv-pdf-toolbar-sep" aria-hidden="true"></span>
+            <button type="button" class="mv-pdf-tool-btn" data-pdf-action="rotate-left" title="Rotate left" aria-label="Rotate left">↺</button>
+            <button type="button" class="mv-pdf-tool-btn" data-pdf-action="rotate-right" title="Rotate right" aria-label="Rotate right">↻</button>
+            <button type="button" class="mv-pdf-tool-btn mv-pdf-tool-btn--ghost" data-pdf-action="reset-view" title="Reset zoom and rotation">Reset</button>
+          </div>
+        </div>
+        <div class="mv-pdf-viewer-canvas-wrap" id="mvPdfCanvasWrap">
+          <canvas id="mvPdfCanvas"></canvas>
+        </div>
+        <p class="mv-pdf-viewer-hint">Use <strong>Next</strong> for each page. <strong>+/−</strong> zooms, <strong>↺/↻</strong> rotates (helpful for sideways scans). Ctrl + scroll also zooms.</p>
+      </div>
 
       <?php elseif ($eff_type === 'video'): ?>
       <!-- ── VIDEO: YouTube (IFrame API + checkpoints) OR HTML5 ── -->
@@ -271,11 +295,28 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
         $ext = strtolower(pathinfo($content_path, PATHINFO_EXTENSION));
       ?>
       <?php if ($ext === 'pdf'): ?>
-        <iframe class="mv-slides-frame"
-                id="mvSlidesFrame"
-                src="<?= htmlspecialchars($content_url) ?>"
-                title="<?= htmlspecialchars($module->title) ?>">
-        </iframe>
+        <div class="mv-pdf-viewer" id="mvSlidesPdfViewer" data-pdf-url="<?= htmlspecialchars($content_url) ?>">
+          <div class="mv-pdf-viewer-toolbar">
+            <div class="mv-pdf-toolbar-group">
+              <button type="button" class="mv-pdf-nav-btn" id="mvSlidesPdfPrev" disabled aria-label="Previous slide">← Previous</button>
+              <span class="mv-pdf-page-info" id="mvSlidesPdfPageInfo">Loading…</span>
+              <button type="button" class="mv-pdf-nav-btn" id="mvSlidesPdfNext" aria-label="Next slide">Next →</button>
+            </div>
+            <div class="mv-pdf-toolbar-group mv-pdf-toolbar-group--tools">
+              <button type="button" class="mv-pdf-tool-btn" data-pdf-action="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+              <span class="mv-pdf-zoom-info" data-pdf-zoom-label>100%</span>
+              <button type="button" class="mv-pdf-tool-btn" data-pdf-action="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+              <span class="mv-pdf-toolbar-sep" aria-hidden="true"></span>
+              <button type="button" class="mv-pdf-tool-btn" data-pdf-action="rotate-left" title="Rotate left" aria-label="Rotate left">↺</button>
+              <button type="button" class="mv-pdf-tool-btn" data-pdf-action="rotate-right" title="Rotate right" aria-label="Rotate right">↻</button>
+              <button type="button" class="mv-pdf-tool-btn mv-pdf-tool-btn--ghost" data-pdf-action="reset-view" title="Reset zoom and rotation">Reset</button>
+            </div>
+          </div>
+          <div class="mv-pdf-viewer-canvas-wrap" id="mvSlidesPdfCanvasWrap">
+            <canvas id="mvSlidesPdfCanvas"></canvas>
+          </div>
+          <p class="mv-pdf-viewer-hint">Use <strong>Next</strong> for each slide. <strong>+/−</strong> zooms, <strong>↺/↻</strong> rotates sideways uploads. Ctrl + scroll also zooms.</p>
+        </div>
       <?php else: ?>
         <!-- PPTX: can't embed directly, show download + manual complete -->
         <div class="mv-slides-fallback">
@@ -342,7 +383,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
               <?php if ( ! $mcs_post_passed && ! empty($post_assessments)): ?>
                 Pass all post-assessments (sidebar), then finish content requirements to mark complete
               <?php elseif ($eff_type === 'pdf' || $eff_type === 'slides'): ?>
-                Scroll to the end to complete
+                Review every page to complete
               <?php elseif ($eff_type === 'video' && $youtube_video_id && $video_checkpoint_gate): ?>
                 Complete required video checkpoints; pass post-assessment (sidebar) to mark complete
               <?php elseif ($eff_type === 'video' || $eff_type === 'audio'): ?>
@@ -398,10 +439,14 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
   <div>
 
     <?php $this->load->view('components/progress_bar', [
-        'progress_percent' => 0,
+        'progress_percent' => $module_progress_pct,
         'size'               => 'md',
         'label'              => 'Module Progress',
         'variant'            => 'module_sidebar',
+        'checkpoints_total'     => (int) ($module_progress_summary['checkpoints_total'] ?? 0),
+        'checkpoints_completed' => (int) ($module_progress_summary['checkpoints_completed'] ?? 0),
+        'video_completed'       => ! empty($module_progress_summary['video_completed']),
+        'post_assessment_passed'=> ! empty($module_progress_summary['post_assessment_passed']),
     ]); ?>
 
     <!-- Post-assessment (required to pass before marking module complete when configured) -->
@@ -528,11 +573,19 @@ kaApplyAppContext(<?= json_encode([
 ], $_ctx_flags) ?>);
 </script>
 <script src="<?= base_url('assets/js/lms_resume.js') ?>"></script>
+<?php
+$_mv_pdf_ext = strtolower((string) pathinfo($content_path ?? '', PATHINFO_EXTENSION));
+$_mv_use_pdfjs = ($eff_type === 'pdf') || ($eff_type === 'slides' && $_mv_pdf_ext === 'pdf');
+?>
+<?php if ($_mv_use_pdfjs): ?>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="<?= base_url('assets/js/module_pdf_viewer.js') ?>"></script>
+<?php endif; ?>
 <script src="<?= base_url('assets/js/module.js') ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   if (typeof window.LMS_RESUME === 'undefined') return;
-  var C = (window.kaAppContext && window.kaAppContext.module) ? window.kaAppContext.module : {};
+  var C = (window.APP_CONTEXT && window.APP_CONTEXT.module) ? window.APP_CONTEXT.module : {};
   if (!C.modulePage || C.isCompleted) return;
   window.LMS_RESUME.init({
     userId: C.resumeUserId || 0,
@@ -551,6 +604,9 @@ document.addEventListener('DOMContentLoaded', function() {
       return (window.mvGetYoutubeSeconds && window.mvGetYoutubeSeconds()) || 0;
     }
   });
+  if (typeof window.mvBootstrapPdfViewer === 'function') {
+    window.mvBootstrapPdfViewer();
+  }
 });
 </script>
 <?php if ( ! empty($youtube_video_id)): ?>

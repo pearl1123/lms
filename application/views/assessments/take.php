@@ -182,10 +182,9 @@ $total = count($questions);
           <button type="button" onclick="confirmSubmit()" class="take-submit-btn">
             Submit Assessment
           </button>
-          <a href="<?= base_url('index.php/assessments') ?>"
-             style="display:block;text-align:center;margin-top:.625rem;font-size:.75rem;color:var(--ka-text-muted,#64748b);text-decoration:none;">
+          <button type="button" onclick="saveTakeDraftLater()" class="take-save-later-btn">
             Save &amp; return later
-          </a>
+          </button>
         </div>
       </div>
 
@@ -193,11 +192,28 @@ $total = count($questions);
   </div>
 </form>
 
+<?php
+$take_module_id = (int) ($assessment->module_id ?? 0);
+$take_course_id = (int) ($assessment->course_id ?? 0);
+$take_user_id   = (int) ($user->id ?? 0);
+$take_return_url = base_url('index.php/assessments/take/' . (int) $assessment->id);
+$take_my_courses_url = base_url('index.php/my_courses');
+$take_module_url = $take_module_id > 0
+    ? base_url('index.php/courses/module/' . $take_module_id)
+    : ($take_course_id > 0 ? base_url('index.php/courses/view/' . $take_course_id) : $take_return_url);
+?>
 <?php $_jf = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT; ?>
 <script>
 kaApplyAppContext(<?= json_encode([
   'assessments' => [
-    'take' => ['totalQuestions' => (int) $total],
+    'take' => [
+      'totalQuestions' => (int) $total,
+      'assessmentId'   => (int) $assessment->id,
+      'userId'         => $take_user_id,
+      'takeUrl'        => $take_return_url,
+      'returnUrl'      => $take_my_courses_url,
+      'moduleUrl'      => $take_module_url,
+    ],
   ],
 ], $_jf) ?>);
 </script>

@@ -15,7 +15,14 @@ $ts = (int) ($panel['trigger_seconds'] ?? 0);
 $cp_required = ! empty($a->is_required);
 $cp_sort = (int) ($a->sort_order ?? 0);
 $choices_json = '[]';
+$cpw_choices = [];
 if ($q0 && ! empty($q0->choices)) {
+    foreach ($q0->choices as $c) {
+        $cpw_choices[] = [
+            'text'       => (string) $c->choice_text,
+            'is_correct' => (int) $c->is_correct === 1,
+        ];
+    }
     $choices_json = json_encode(array_map(static function ($c) {
         return [
             'id'         => (int) $c->id,
@@ -23,6 +30,22 @@ if ($q0 && ! empty($q0->choices)) {
             'is_correct' => (int) $c->is_correct,
         ];
     }, $q0->choices));
+}
+while (count($cpw_choices) < 2) {
+    $cpw_choices[] = [
+        'text'       => '',
+        'is_correct' => count($cpw_choices) === 0,
+    ];
+}
+$cpw_has_correct = false;
+foreach ($cpw_choices as $cpw_ch) {
+    if ( ! empty($cpw_ch['is_correct'])) {
+        $cpw_has_correct = true;
+        break;
+    }
+}
+if ( ! $cpw_has_correct && ! empty($cpw_choices)) {
+    $cpw_choices[0]['is_correct'] = true;
 }
 $block_mode = ! empty($block_mode);
 $segment_label = (string) ($panel['segment_label'] ?? 'Checkpoint');
@@ -113,7 +136,20 @@ $segment_label = (string) ($panel['segment_label'] ?? 'Checkpoint');
           </div>
           <div class="cpw-choices-wrap">
             <label class="cpw-label">Answer choices</label>
-            <div class="cpw-choices-list" data-cpw-choices="<?= $aid ?>"></div>
+            <div class="cpw-choices-list" data-cpw-choices="<?= $aid ?>">
+              <?php foreach ($cpw_choices as $cpw_ch): ?>
+              <div class="cpw-choice-row">
+                <button type="button"
+                        class="cpw-choice-mark<?= ! empty($cpw_ch['is_correct']) ? ' is-correct' : '' ?>"
+                        title="Mark correct">✓</button>
+                <input type="text"
+                       class="cpw-input"
+                       placeholder="Choice text"
+                       value="<?= htmlspecialchars($cpw_ch['text'], ENT_QUOTES) ?>">
+                <button type="button" class="cpw-choice-remove" title="Remove">×</button>
+              </div>
+              <?php endforeach; ?>
+            </div>
             <button type="button" class="cpw-btn cpw-btn--ghost cpw-add-choice-btn" data-aid="<?= $aid ?>">+ Add choice</button>
             <p class="cpw-help">Click ✓ to mark the correct answer.</p>
           </div>

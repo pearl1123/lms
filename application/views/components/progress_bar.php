@@ -19,6 +19,19 @@ $course_id = (int) ($course_id ?? 0);
 $variant = $variant ?? 'panel';
 $sync_live = ! empty($sync_live) && $course_id > 0;
 $complete = $pct >= 100;
+$checkpoints_total = (int) ($checkpoints_total ?? 0);
+$checkpoints_completed = (int) ($checkpoints_completed ?? 0);
+$video_completed = ! empty($video_completed);
+$post_assessment_passed = ! empty($post_assessment_passed);
+if ($post_assessment_passed) {
+    $progress_meta = 'Post-assessment passed. Module progress complete.';
+} elseif ($video_completed) {
+    $progress_meta = 'Video checkpoints completed. Post-assessment unlocked.';
+} elseif ($checkpoints_total > 0) {
+    $progress_meta = 'Checkpoint progress: ' . $checkpoints_completed . '/' . $checkpoints_total . ' required completed.';
+} else {
+    $progress_meta = 'Progress updates as you complete module steps.';
+}
 
 $sync_cls = $sync_live ? ' cmp-progress-sync' : '';
 $data_cid = $course_id > 0 ? ' data-course-id="' . $course_id . '"' : '';
@@ -51,12 +64,12 @@ if ($variant === 'catalog_overlay') : ?>
 <div class="mv-progress animate__animated animate__fadeInDown animate__fast<?= $sync_cls ?>"<?= $data_cid ?>>
   <div class="mv-progress-hdr">
     <span><?= htmlspecialchars($label) ?></span>
-    <span id="mvProgressPct" class="cmp-pb-pct">0%</span>
+    <span id="mvProgressPct" class="cmp-pb-pct"><?= $pct ?>%</span>
   </div>
   <div class="mv-progress-track">
-    <div class="<?= htmlspecialchars($fill_cls, ENT_QUOTES, 'UTF-8') ?>" id="mvProgressFill" style="width:0%;"></div>
+    <div class="<?= htmlspecialchars($fill_cls, ENT_QUOTES, 'UTF-8') ?>" id="mvProgressFill" style="width:<?= $pct ?>%;"></div>
   </div>
-  <div class="mv-progress-meta" id="mvProgressMeta">Tracking video checkpoints and assessments…</div>
+  <div class="mv-progress-meta" id="mvProgressMeta"><?= htmlspecialchars($progress_meta) ?></div>
 </div>
 <?php else :
     $embed = ($variant === 'embed');

@@ -59,20 +59,25 @@
 
   function saveToServer(payload) {
     if (!cfg.saveUrl) return;
-    var body = JSON.stringify(payload);
-    if (body === lastPayload) return;
-    lastPayload = body;
+    var bodyKey = JSON.stringify(payload);
+    if (bodyKey === lastPayload) return;
+    lastPayload = bodyKey;
 
-    var headers = { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+    var fd = new FormData();
+    fd.append('type', payload.type || '');
+    fd.append('position', String(payload.position != null ? payload.position : 0));
+    if (payload.meta && typeof payload.meta === 'object') {
+      fd.append('meta', JSON.stringify(payload.meta));
+    }
     if (cfg.csrfName && cfg.csrfHash) {
-      headers[cfg.csrfName] = cfg.csrfHash;
+      fd.append(cfg.csrfName, cfg.csrfHash);
     }
 
     fetch(cfg.saveUrl, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: headers,
-      body: body,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: fd,
     }).catch(function() {
       /* non-blocking */
     });
@@ -108,6 +113,10 @@
 
   function applyPdfResume(state) {
     var page = Math.max(1, parseInt(state.position, 10) || 1);
+    if (global.ModulePdfViewer && typeof global.ModulePdfViewer.goToPage === 'function') {
+      global.ModulePdfViewer.goToPage(page);
+      return;
+    }
     var frame = document.getElementById('mvPdfFrame') || document.getElementById('mvSlidesFrame');
     if (!frame || !frame.src) return;
     var base = String(frame.src).split('#')[0];
@@ -116,6 +125,10 @@
 
   function applySlidesResume(state) {
     var slide = Math.max(1, parseInt(state.position, 10) || 1);
+    if (global.ModulePdfViewer && typeof global.ModulePdfViewer.goToPage === 'function') {
+      global.ModulePdfViewer.goToPage(slide);
+      return;
+    }
     var wrap = document.getElementById('mvSlidesViewer');
     if (!wrap) return;
     var cards = wrap.querySelectorAll('.mv-slide-card');
@@ -175,8 +188,27 @@
 
     global.addEventListener('beforeunload', function() {
       var local = readLocal();
-      if (local) saveToServer(local);
+      if (local) {
+        saveToServer(local);
+        return;
+      }
+      if (global.ModulePdfViewer && typeof global.ModulePdfViewer.getCurrentPage === 'function') {
+        var page = global.ModulePdfViewer.getCurrentPage();
+        if (page > 0) {
+          var type = (cfg.contentType || 'pdf').toLowerCase();
+          if (type === 'slides' || type === 'pdf') {
+            saveToServer(payloadFromPosition(type === 'slides' ? 'slides' : 'pdf', page));
+          }
+        }
+      }
     });
+  }
+
+  function getMergedStartPage(fallback) {
+    var merged = mergeState(cfg.serverState, readLocal(), cfg.queryHints || null);
+    var page = parseInt(merged.position, 10) || 0;
+    if (page > 0) return page;
+    return Math.max(1, parseInt(fallback, 10) || 1);
   }
 
   global.LMS_RESUME = {
@@ -189,6 +221,9 @@
     },
     getMerged: function() {
       return mergeState(cfg.serverState, readLocal(), cfg.queryHints || null);
+    },
+    getMergedStartPage: function(fallback) {
+      return getMergedStartPage(fallback);
     },
   };
 })(window);

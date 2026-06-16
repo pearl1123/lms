@@ -331,10 +331,14 @@ $thumb_gradients = [
               View Students
             </a></li>
             <li><hr class="dropdown-divider"></li>
+            <?php if ( ! empty($course->can_delete)): ?>
             <li><a class="dropdown-item text-danger" href="<?= base_url('manage_courses/delete/'.$course->id) ?>" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
               Delete
             </a></li>
+            <?php else: ?>
+            <li><span class="dropdown-item text-muted" style="cursor:not-allowed;" title="Cannot delete while learners are enrolled">Delete (locked)</span></li>
+            <?php endif; ?>
           </ul>
         </div>
       </div>
@@ -361,7 +365,9 @@ $thumb_gradients = [
         <div class="ic-card-footer">
           <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="ic-card-btn ic-btn-edit">Edit</a>
           <a href="<?= base_url('index.php/manage_courses/modules/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="ic-card-btn ic-btn-manage">Modules</a>
+          <?php if ( ! empty($course->can_delete)): ?>
           <a href="<?= base_url('manage_courses/delete/'.$course->id) ?>" class="ic-card-btn ic-btn-delete" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Del</a>
+          <?php endif; ?>
         </div>
       </div>
     </div>
@@ -430,7 +436,11 @@ $thumb_gradients = [
               <div class="ic-action-row">
                 <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="ic-action-link ic-action-edit">Edit</a>
                 <a href="<?= base_url('index.php/manage_courses/modules/'.$course->id.'?'.ka_lms_return_q('my_courses')) ?>" class="ic-action-link ic-action-manage">Modules</a>
+                <?php if ( ! empty($course->can_delete)): ?>
                 <a href="<?= base_url('manage_courses/delete/'.$course->id) ?>" class="ic-action-link ic-action-delete" onclick="event.preventDefault(); KA.deleteConfirm(this.href, 'Course')">Delete</a>
+                <?php else: ?>
+                <span class="ic-action-link" style="opacity:.5;cursor:not-allowed;" title="Locked: course has enrollments">Delete</span>
+                <?php endif; ?>
               </div>
             </td>
           </tr>

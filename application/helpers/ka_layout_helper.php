@@ -69,7 +69,7 @@ if ( ! function_exists('ka_merge_layout_vars')) {
             'employee_id'      => $employee_id,
             'initials'         => ka_user_initials($full_name),
             'avatar_url'       => $avatar_url,
-            'my_courses_label' => ($role_raw === 'employee') ? 'My Learning' : 'My Courses',
+            'my_courses_label' => in_array($role_raw, ['employee', 'student'], true) ? 'My Learning' : 'My Courses',
             'streak'           => $streak,
             'perm_engine'      => $perm_engine,
             'effective_perms'=> $effective,
@@ -146,6 +146,7 @@ if ( ! function_exists('ka_collect_flash_messages')) {
                 'error',
                 'warning',
                 'info',
+                'reminder',
                 'enrollment_notification',
             ];
         }
@@ -262,6 +263,33 @@ if ( ! function_exists('ka_lms_append_return_to_url')) {
         $sep = (strpos($url, '?') !== false) ? '&' : '?';
 
         return $url . $sep . $q;
+    }
+}
+
+if ( ! function_exists('ka_assessment_create_back_href')) {
+    /**
+     * Back link from assessments/create when opened from a course module.
+     *
+     * @param object|null $user
+     * @param int         $course_id
+     * @param mixed       $return_raw return_url query value
+     * @return string     path segment (no base_url), e.g. manage_courses/edit/21?return_url=my_courses#modules
+     */
+    function ka_assessment_create_back_href($user, $course_id, $return_raw = '')
+    {
+        $course_id = (int) $course_id;
+        if ($course_id < 1) {
+            return 'assessments';
+        }
+
+        $rt  = ka_lms_resolve_return_target($user, $return_raw);
+        $q   = ka_lms_return_q($rt);
+        $path = 'manage_courses/edit/' . $course_id;
+        if ($q !== '') {
+            $path .= '?' . $q;
+        }
+
+        return $path . '#modules';
     }
 }
 

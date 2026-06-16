@@ -150,12 +150,50 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  function resolveCheckpointContext() {
+    var assessments = window.APP_CONTEXT && window.APP_CONTEXT.assessments;
+    if (!assessments) {
+      return null;
+    }
+    var ws = assessments.checkpointWorkspace;
+    if (ws && typeof ws === 'object') {
+      return ws;
+    }
+    var edit = assessments.edit;
+    if (edit && edit.useWorkspace) {
+      return {
+        activeId: edit.assessmentId,
+        moduleId: 0,
+        courseId: 0,
+        suggestedVideoDurationSeconds: 0,
+        maxTriggerSeconds: 0,
+        csrfFieldName: edit.csrfFieldName || '',
+        csrfHash: edit.csrfHash || '',
+        saveQuestionUrl: edit.saveQuestionUrl || '',
+        deleteQuestionUrl: edit.deleteQuestionUrl || '',
+        saveMetaUrl: '',
+        autoGenerateUrl: '',
+        generated: false,
+      };
+    }
+    return null;
+  }
+
   function initCheckpointWorkspace() {
-    if (!document.getElementById('asxEditorRoot') || !window.APP_CONTEXT || !window.APP_CONTEXT.assessments || !window.APP_CONTEXT.assessments.checkpointWorkspace) {
+    var root = document.getElementById('asxEditorRoot');
+    var workspace = document.getElementById('cpwWorkspace') || document.getElementById('cpwEmptyState');
+    if (!root || !workspace) {
+      return;
+    }
+    if (root.getAttribute('data-cpw-init') === '1') {
       return;
     }
 
-    var C = (window.APP_CONTEXT && window.APP_CONTEXT.assessments && window.APP_CONTEXT.assessments.checkpointWorkspace) || {};
+    var C = resolveCheckpointContext();
+    if (!C || !C.saveQuestionUrl) {
+      return;
+    }
+
     var CSRF_NAME = C.csrfFieldName || '';
     var CSRF_HASH = C.csrfHash || '';
     var SAVE_Q_URL = C.saveQuestionUrl || '';
@@ -265,11 +303,15 @@
       document.querySelectorAll('.cpw-seg-tab, .cpw-block').forEach(function(el) {
         el.classList.add('cpw-glow-in');
       });
-      var firstTab = document.querySelector('[data-cpw-tab]');
-      if (firstTab) {
-        switchTab(firstTab.getAttribute('data-cpw-tab'));
+      var focusTabId = tabParam;
+      if (!focusTabId) {
+        var firstTab = document.querySelector('[data-cpw-tab]');
+        focusTabId = firstTab ? firstTab.getAttribute('data-cpw-tab') : '';
+      }
+      if (focusTabId) {
+        switchTab(focusTabId);
         setTimeout(function() {
-          var panel = document.getElementById('cpw-panel-' + firstTab.getAttribute('data-cpw-tab'));
+          var panel = document.getElementById('cpw-panel-' + focusTabId);
           if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 200);
       }
@@ -323,6 +365,9 @@
       var list = document.querySelector('[data-cpw-choices="' + aid + '"]');
       var dataEl = document.getElementById('cpw-choices-data-' + aid);
       if (!list) return;
+      if (list.querySelector('.cpw-choice-row')) {
+        return;
+      }
       list.innerHTML = '';
       var choices = [];
       if (dataEl && dataEl.textContent) {
@@ -347,16 +392,34 @@
       initChoicesForPanel(aid);
     });
 
-    document.querySelectorAll('.cpw-add-choice-btn').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var aid = btn.getAttribute('data-aid');
-        var list = document.querySelector('[data-cpw-choices="' + aid + '"]');
-        if (list) {
-          list.appendChild(buildChoiceRow(aid, '', false));
-          markUnsaved(true);
-        }
+    function addChoiceForAssessment(aid) {
+      if (typeof window.cpwAddChoice === 'function') {
+        window.cpwAddChoice(aid);
+        markUnsaved(true);
+        return;
+      }
+      aid = String(aid || '').trim();
+      if (!aid) return;
+      var list = document.querySelector('[data-cpw-choices="' + aid + '"]');
+      if (!list) return;
+      list.appendChild(buildChoiceRow(aid, '', false));
+      markUnsaved(true);
+      var input = list.lastElementChild && list.lastElementChild.querySelector('input');
+      if (input) input.focus();
+    }
+
+    window._cpwAddChoiceHandler = addChoiceForAssessment;
+
+    var choiceHost = document.getElementById('cpwBlocks') || workspace;
+    if (choiceHost && choiceHost.getAttribute('data-cpw-choice-delegation') !== '1' && !window._cpwChoiceUiBound) {
+      choiceHost.setAttribute('data-cpw-choice-delegation', '1');
+      choiceHost.addEventListener('click', function(ev) {
+        var btn = ev.target && ev.target.closest('.cpw-add-choice-btn');
+        if (!btn) return;
+        ev.preventDefault();
+        addChoiceForAssessment(btn.getAttribute('data-aid'));
       });
-    });
+    }
 
     function collectChoices(aid) {
       var list = document.querySelector('[data-cpw-choices="' + aid + '"]');
@@ -662,6 +725,8 @@
       el.addEventListener('input', function() { markUnsaved(true); });
       el.addEventListener('change', function() { markUnsaved(true); });
     });
+
+    root.setAttribute('data-cpw-init', '1');
   }
 
   window.cpwConfirmDeleteCheckpoint = function(link) {
@@ -688,9 +753,15 @@
     return false;
   };
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initCheckpointWorkspace);
-  } else {
+  window.cpwInitWorkspace = initCheckpointWorkspace;
+
+  function bootCheckpointWorkspace() {
     initCheckpointWorkspace();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootCheckpointWorkspace);
+  } else {
+    bootCheckpointWorkspace();
   }
 })();

@@ -64,6 +64,8 @@ $route['learning_notes/api_update/(:num)'] = 'learning_notes/api_update/$1';
 $route['learning_notes/api_delete/(:num)'] = 'learning_notes/api_delete/$1';
 $route['learning_notes/api_toggle_pin/(:num)'] = 'learning_notes/api_toggle_pin/$1';
 $route['learning_notes/api_toggle_favorite/(:num)'] = 'learning_notes/api_toggle_favorite/$1';
+$route['learning_notes/export/(:num)'] = 'learning_notes/export/$1';
+$route['learning_notes/export'] = 'learning_notes/export';
 $route['settings/profile'] = 'Profile/index';
 
 // Auth routes

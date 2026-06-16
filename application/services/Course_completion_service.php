@@ -117,6 +117,18 @@ class Course_completion_service
             $resume_state = is_array($resume_state) ? $resume_state : [];
             $rpos = (float) ($resume_state['position'] ?? 0);
             $rtype = (string) ($resume_state['type'] ?? '');
+            if ($rtype === '' && $rpos > 0) {
+                $mod_type = strtolower(trim((string) ($module->content_type ?? '')));
+                if ($mod_type === 'pdf') {
+                    $rtype = 'pdf';
+                } elseif ($mod_type === 'slides') {
+                    $rtype = 'slides';
+                } elseif ($mod_type === 'video') {
+                    $rtype = 'video';
+                } elseif ($mod_type === 'audio') {
+                    $rtype = 'audio';
+                }
+            }
             if ($rpos > 0 && ($module_status !== 'completed')) {
                 $score = ($module_status === 'in_progress' ? 100000 : 50000) + $rpos;
                 if ($score > $resume_score) {
@@ -231,6 +243,8 @@ class Course_completion_service
     }
 
     /**
+     * True only when the learner has opened or progressed in course content — not merely enrolled.
+     *
      * @param array<string,mixed> $state
      */
     private function _course_has_learning_activity(array $state)
@@ -243,12 +257,22 @@ class Course_completion_service
             return true;
         }
 
-        if ((int) ($state['resume']['module_id'] ?? 0) > 0) {
+        $resume = is_array($state['resume'] ?? null) ? $state['resume'] : [];
+        if ((int) ($resume['timestamp_seconds'] ?? 0) > 0) {
+            return true;
+        }
+        if ((int) ($resume['page_number'] ?? 0) > 0) {
+            return true;
+        }
+        if ((int) ($resume['slide_index'] ?? 0) > 0) {
             return true;
         }
 
         foreach ((array) ($state['module_states'] ?? []) as $ms) {
             if (($ms['status'] ?? '') === 'in_progress') {
+                return true;
+            }
+            if (($ms['status'] ?? '') === 'completed') {
                 return true;
             }
         }

@@ -13,6 +13,18 @@ if ($type_selected === 'checkpoint' && ! $checkpoint_schema_ready && empty($_POS
     $type_selected = 'pre';
 }
 $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST['checkpoint_auto_generate'] === '1');
+$preselect_mod_is_video  = true;
+if ($preselect_mod > 0) {
+    foreach ($modules as $m) {
+        if ((int) ($m->id ?? 0) === $preselect_mod) {
+            $preselect_mod_is_video = (($m->content_type_effective ?? '') === 'video');
+            break;
+        }
+    }
+}
+$checkpoint_type_selectable = $checkpoint_schema_ready && ($preselect_mod < 1 || $preselect_mod_is_video);
+$create_back_href = (string) ($create_back_href ?? 'assessments');
+$create_return_target = (string) ($create_return_target ?? '');
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
 
@@ -24,13 +36,16 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
     <h2 class="ka-page-title">Create Assessment</h2>
     <p class="ka-page-lead">Set up a pre, post, or video checkpoint assessment for a course module.</p>
   </div>
-  <a href="<?= base_url('index.php/assessments') ?>" class="ka-btn ka-btn--ghost">← Back</a>
+  <a href="<?= base_url('index.php/' . ltrim($create_back_href, '/')) ?>" class="ka-btn ka-btn--ghost">← Back</a>
 </div>
 
 <form method="post" action="<?= base_url('index.php/assessments/create') ?>" id="createForm">
   <input type="hidden" name="<?= html_escape($csrf_field_name) ?>" value="<?= html_escape($csrf_hash) ?>">
   <?php if ($preselect_course_id > 0): ?>
   <input type="hidden" name="course_id" value="<?= (int) set_value('course_id', (string) $preselect_course_id) ?>">
+  <?php endif; ?>
+  <?php if ($create_return_target !== ''): ?>
+  <input type="hidden" name="return_url" value="<?= htmlspecialchars($create_return_target, ENT_QUOTES, 'UTF-8') ?>">
   <?php endif; ?>
 
   <div class="crt-layout ka-form-flow animate__animated animate__fadeInUp animate__fast">
@@ -125,12 +140,14 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
             </label>
             <?php
               $sel_cp = ($type_selected === 'checkpoint')
-                && ($checkpoint_schema_ready || ! empty($_POST));
+                && ($checkpoint_type_selectable || ! empty($_POST));
             ?>
-            <label class="crt-type-card <?= $sel_cp ? 'selected' : '' ?> <?= $checkpoint_schema_ready ? '' : 'disabled' ?>" id="card-checkpoint">
+            <label class="crt-type-card <?= $sel_cp ? 'selected' : '' ?> <?= $checkpoint_type_selectable ? '' : 'disabled' ?>" id="card-checkpoint"
+                   title="<?= $checkpoint_type_selectable ? '' : 'Video checkpoints are only available for video modules' ?>">
               <input type="radio" name="type" value="checkpoint"
+                     data-schema-ready="<?= $checkpoint_schema_ready ? '1' : '0' ?>"
                      <?= $sel_cp ? 'checked' : '' ?>
-                     <?= $checkpoint_schema_ready ? 'onchange="selectType(\'checkpoint\')"' : 'disabled' ?>>
+                     <?= $checkpoint_type_selectable ? 'onchange="selectType(\'checkpoint\')"' : 'disabled' ?>>
               <div class="crt-type-icon">▶️</div>
               <div class="crt-type-label">Video Checkpoint</div>
               <div class="crt-type-sub">Shown during module video at an optional timestamp</div>
@@ -140,12 +157,18 @@ $checkpoint_auto_checked = (isset($_POST['checkpoint_auto_generate']) && $_POST[
             <p class="crt-help" style="margin-top:.75rem;color:#b45309;">
               Video checkpoints need the unified <code>lib_assessments</code> checkpoint columns (e.g. <code>context</code>) on this server. Pre and post assessments are still available.
             </p>
+          <?php elseif ($preselect_mod > 0 && ! $preselect_mod_is_video): ?>
+            <p class="crt-help" id="checkpointModuleHint" style="margin-top:.75rem;color:#b45309;">
+              Video checkpoints are only available for <strong>video</strong> modules. The selected module is not a video module — use Pre- or Post-Assessment instead.
+            </p>
+          <?php else: ?>
+            <p class="crt-help" id="checkpointModuleHint" style="margin-top:.75rem;color:#b45309;display:none;"></p>
           <?php endif; ?>
           <?php if (form_error('type')): ?>
             <div class="crt-error" style="margin-top:.5rem;"><?= form_error('type') ?></div>
           <?php endif; ?>
 
-          <div class="crt-checkpoint-panel" id="checkpointFields">
+          <div class="crt-checkpoint-panel<?= $type_selected === 'checkpoint' ? ' visible' : '' ?>" id="checkpointFields">
             <input type="hidden" name="trigger_percent" id="trigger_percent" value="<?= htmlspecialchars(set_value('trigger_percent', '0')) ?>">
             <div class="crt-form-group">
               <label class="crt-toggle">

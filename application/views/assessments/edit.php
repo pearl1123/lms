@@ -219,7 +219,106 @@ kaApplyAppContext(<?= json_encode([
   ],
 ], $_jf) ?>);
 </script>
+<?php if ($use_workspace): ?>
+<script>
+(function() {
+  'use strict';
+  function cpwBuildChoiceRow(text, isCorrect) {
+    var row = document.createElement('div');
+    row.className = 'cpw-choice-row';
+    var mark = document.createElement('button');
+    mark.type = 'button';
+    mark.className = 'cpw-choice-mark' + (isCorrect ? ' is-correct' : '');
+    mark.title = 'Mark correct';
+    mark.textContent = '\u2713';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'cpw-input';
+    input.placeholder = 'Choice text';
+    input.value = text || '';
+    var remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'cpw-choice-remove';
+    remove.title = 'Remove';
+    remove.textContent = '\u00d7';
+    row.appendChild(mark);
+    row.appendChild(input);
+    row.appendChild(remove);
+    return row;
+  }
+  function cpwAddChoiceRow(aid) {
+    aid = String(aid || '').trim();
+    if (!aid) return;
+    var list = document.querySelector('[data-cpw-choices="' + aid + '"]');
+    if (!list) return;
+    var row = cpwBuildChoiceRow('', false);
+    list.appendChild(row);
+    var input = row.querySelector('input');
+    if (input) input.focus();
+    if (typeof window.asxEditorSetAutosave === 'function') {
+      window.asxEditorSetAutosave('pending');
+    }
+  }
+  window.cpwAddChoice = cpwAddChoiceRow;
+  if (!window._cpwChoiceUiBound) {
+    window._cpwChoiceUiBound = true;
+    document.addEventListener('click', function(ev) {
+      var target = ev.target;
+      if (!target || !target.closest) return;
+      var addBtn = target.closest('.cpw-add-choice-btn');
+      if (addBtn) {
+        ev.preventDefault();
+        cpwAddChoiceRow(addBtn.getAttribute('data-aid'));
+        return;
+      }
+      var markBtn = target.closest('.cpw-choice-mark');
+      if (markBtn) {
+        ev.preventDefault();
+        var markRow = markBtn.closest('.cpw-choice-row');
+        var markList = markRow && markRow.parentElement;
+        if (markList) {
+          markList.querySelectorAll('.cpw-choice-mark').forEach(function(btn) {
+            btn.classList.remove('is-correct');
+          });
+          markBtn.classList.add('is-correct');
+        }
+        if (typeof window.asxEditorSetAutosave === 'function') {
+          window.asxEditorSetAutosave('pending');
+        }
+        return;
+      }
+      var removeBtn = target.closest('.cpw-choice-remove');
+      if (removeBtn) {
+        ev.preventDefault();
+        var removeRow = removeBtn.closest('.cpw-choice-row');
+        var removeList = removeRow && removeRow.parentElement;
+        if (removeList && removeList.querySelectorAll('.cpw-choice-row').length > 2) {
+          removeRow.remove();
+          if (typeof window.asxEditorSetAutosave === 'function') {
+            window.asxEditorSetAutosave('pending');
+          }
+        }
+      }
+    });
+  }
+})();
+</script>
+<?php endif; ?>
 <script src="<?= base_url('assets/js/assessments.js') ?>"></script>
 <?php if ($use_workspace): ?>
 <script src="<?= base_url('assets/js/assessment_workspace.js') ?>"></script>
+<script>
+(function() {
+  function bootCpw() {
+    if (typeof window.cpwInitWorkspace === 'function') {
+      window.cpwInitWorkspace();
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootCpw);
+  } else {
+    bootCpw();
+  }
+})();
+</script>
 <?php endif; ?>

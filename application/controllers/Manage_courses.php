@@ -79,9 +79,7 @@ class Manage_courses extends KA_Controller {
                 ->set_rules('title',       'Course Title', 'required|max_length[255]')
                 ->set_rules('category_id', 'Category',     'callback_quick_create_category')
                 ->set_rules('modality_id', 'Modality',     'required|integer')
-                ->set_rules('certificate_prefix', 'Certificate Prefix', 'trim|alpha_numeric|max_length[12]')
-                ->set_rules('signatory_name', 'Signatory Name', 'trim|max_length[120]')
-                ->set_rules('signatory_title', 'Signatory Title', 'trim|max_length[120]');
+                ->set_rules('certificate_prefix', 'Certificate Prefix', 'trim|alpha_numeric|max_length[12]');
 
             if ($this->form_validation->run()) {
 
@@ -104,8 +102,6 @@ class Manage_courses extends KA_Controller {
                     'access_type'    => $this->input->post('access_type'),
                     'expiry_days'    => $this->input->post('expiry_days'),
                     'certificate_prefix' => $prefix,
-                    'signatory_name'     => $this->input->post('signatory_name'),
-                    'signatory_title'    => $this->input->post('signatory_title'),
                     'created_by'     => $created_by,
                 ], $user->id);
 
@@ -158,6 +154,15 @@ class Manage_courses extends KA_Controller {
             return $q !== '' ? '?' . $q : '';
         };
 
+        $edit_redirect = function () use ($id, $edit_rt_suffix) {
+            $tab = trim((string) $this->input->post('edit_return_tab'));
+            $url = 'manage_courses/edit/' . $id . $edit_rt_suffix();
+            if ($tab !== '' && preg_match('/^[a-z0-9_-]+$/i', $tab)) {
+                $url .= '#' . $tab;
+            }
+            redirect($url);
+        };
+
         if ($this->input->method() === 'post') {
             if ($this->input->post('invite_submit')) {
                 $this->_handle_course_invitations($id);
@@ -168,15 +173,13 @@ class Manage_courses extends KA_Controller {
                 ->set_rules('title',       'Course Title', 'required|max_length[255]')
                 ->set_rules('category_id', 'Category',     'required|integer')
                 ->set_rules('modality_id', 'Modality',     'required|integer')
-                ->set_rules('certificate_prefix', 'Certificate Prefix', 'required|alpha_numeric|max_length[12]')
-                ->set_rules('signatory_name', 'Signatory Name', 'trim|max_length[120]')
-                ->set_rules('signatory_title', 'Signatory Title', 'trim|max_length[120]');
+                ->set_rules('certificate_prefix', 'Certificate Prefix', 'required|alpha_numeric|max_length[12]');
 
             if ($this->form_validation->run()) {
                 $total_weight = round((float) $this->course_model->sum_module_weights($id), 2);
                 if (abs($total_weight - 100.0) > 0.01) {
                     $this->session->set_flashdata('error', 'Module weights must total exactly 100% before saving course details. Current total: ' . number_format($total_weight, 2) . '%.');
-                    redirect('manage_courses/edit/' . $id . $edit_rt_suffix());
+                    $edit_redirect();
                 }
 
                 $update = [
@@ -187,8 +190,6 @@ class Manage_courses extends KA_Controller {
                     'access_type'    => $this->input->post('access_type'),
                     'expiry_days'    => $this->input->post('expiry_days'),
                     'certificate_prefix' => $this->input->post('certificate_prefix'),
-                    'signatory_name'     => $this->input->post('signatory_name'),
-                    'signatory_title'    => $this->input->post('signatory_title'),
                     'schedule_date'      => $this->input->post('schedule_date') ?: null,
                     'schedule_time'      => $this->input->post('schedule_time') ?: null,
                     'venue'              => trim((string) $this->input->post('venue')) ?: null,
@@ -212,10 +213,14 @@ class Manage_courses extends KA_Controller {
 
                 $this->course_phase2->save_course_meta_from_post($id, $_POST, (int) $this->auth_user->id);
                 $this->_sync_phase3_course_meta($id, (int) $this->auth_user->id);
-                $this->_sync_signatory_image_uploads($id);
+                $sig_msg = $this->_sync_signatory_image_uploads($id);
 
-                $this->session->set_flashdata('success', 'Course details updated.');
-                redirect('manage_courses/edit/' . $id . $edit_rt_suffix());
+                $success = 'Course details updated.';
+                if ($sig_msg !== '') {
+                    $success .= ' ' . $sig_msg;
+                }
+                $this->session->set_flashdata('success', $success);
+                $edit_redirect();
             }
         }
 
@@ -268,9 +273,20 @@ class Manage_courses extends KA_Controller {
         if ( ! $course) show_404();
         $this->_check_ownership($course);
 
-        $this->course_model->delete_course($id, $this->auth_user->id);
+        $guard = $this->course_model->get_course_enrollment_guard($id);
+        if ($guard['blocks_delete']) {
+            $this->session->set_flashdata('error', $guard['delete_message']);
+            redirect($this->_course_manage_return_path());
+        }
+
+        $ok = $this->course_model->delete_course($id, $this->auth_user->id);
+        if ( ! $ok) {
+            $this->session->set_flashdata('error', 'Unable to archive this course.');
+            redirect($this->_course_manage_return_path());
+        }
+
         $this->session->set_flashdata('success', '"' . $course->title . '" has been archived.');
-        redirect('manage_courses');
+        redirect($this->_course_manage_return_path());
     }
 
     public function publish($id = null)
@@ -300,6 +316,12 @@ class Manage_courses extends KA_Controller {
             return;
         }
         $this->_check_ownership($course, true);
+
+        $guard = $this->course_model->get_course_enrollment_guard($course_id);
+        if ($guard['blocks_structure'] && $module_id < 1) {
+            echo json_encode(['success' => false, 'message' => $guard['structure_message']]);
+            return;
+        }
 
         $title        = trim($this->input->post('title'));
         $content_type = $this->input->post('content_type');
@@ -390,6 +412,12 @@ class Manage_courses extends KA_Controller {
         $course = $this->course_model->get_course_any($module->course_id);
         $this->_check_ownership($course, true);
 
+        $guard = $this->course_model->get_course_enrollment_guard((int) $module->course_id);
+        if ($guard['blocks_structure']) {
+            echo json_encode(['success' => false, 'message' => $guard['structure_message']]);
+            return;
+        }
+
         $ok = $this->course_model->delete_module($module_id, $this->auth_user->id);
 
         echo json_encode([
@@ -409,6 +437,19 @@ class Manage_courses extends KA_Controller {
         if ( ! is_array($ids) || empty($ids)) {
             echo json_encode(['success' => false, 'message' => 'No IDs provided.']);
             return;
+        }
+
+        $first_module = $this->course_model->get_module((int) $ids[0]);
+        if ($first_module) {
+            $course = $this->course_model->get_course_any((int) $first_module->course_id);
+            if ($course) {
+                $this->_check_ownership($course, true);
+                $guard = $this->course_model->get_course_enrollment_guard((int) $first_module->course_id);
+                if ($guard['blocks_structure']) {
+                    echo json_encode(['success' => false, 'message' => $guard['structure_message']]);
+                    return;
+                }
+            }
         }
 
         $this->course_model->reorder_modules(array_map('intval', $ids));
@@ -475,12 +516,14 @@ class Manage_courses extends KA_Controller {
 
         $phase3_sign = $this->certificate_model->signatories_table_ready();
         $phase3_batches = $this->course_model->batches_table_ready();
+        $enrollment_guard = $this->course_model->get_course_enrollment_guard($id);
 
         $data = array_merge([
             'user'         => $this->auth_user,
             'page_title'   => $overrides['page_title'] ?? $crumb_label,
             'course'       => $course,
             'modules'      => $modules,
+            'enrollment_guard' => $enrollment_guard,
             'phase3_ready' => $phase3_sign,
             'phase3_batches_ready' => $phase3_batches,
             'certificate_signatories' => $phase3_sign
@@ -612,34 +655,63 @@ class Manage_courses extends KA_Controller {
      * Process signatory_image[] uploads after signatory rows are synced.
      *
      * @param int $course_id
+     * @return string Optional success fragment for flash message
      */
     private function _sync_signatory_image_uploads($course_id)
     {
         $cid = (int) $course_id;
         if ($cid < 1 || ! $this->certificate_model->signatories_table_ready()) {
-            return;
+            return '';
         }
 
         if (empty($_FILES['signatory_image']) || ! is_array($_FILES['signatory_image']['name'])) {
-            return;
+            return '';
         }
 
-        $signatories = $this->certificate_model->get_signatories_for_course($cid);
-        if ($signatories === []) {
-            return;
+        if ( ! $this->db->field_exists('signature_image_path', 'certificate_signatories')) {
+            $this->session->set_flashdata(
+                'warning',
+                'E-signatures could not be saved. Run the database migration to add certificate_signatories.signature_image_path (see application/sql/migration_phase4_etd.sql).'
+            );
+
+            return '';
+        }
+
+        $posted_ids   = $this->input->post('signatory_id');
+        $posted_names = $this->input->post('signatory_name_row');
+        $by_id        = [];
+        foreach ($this->certificate_model->get_signatories_for_course($cid) as $sig) {
+            $by_id[(int) ($sig->id ?? 0)] = $sig;
+        }
+        if ($by_id === []) {
+            $this->session->set_flashdata(
+                'warning',
+                'Enter a signatory name and save before uploading an e-signature.'
+            );
+
+            return '';
         }
 
         $this->load->library('signatory_upload_service');
+
+        $saved  = 0;
+        $errors = [];
 
         foreach ($_FILES['signatory_image']['name'] as $i => $name) {
             if (trim((string) $name) === '') {
                 continue;
             }
-            if ( ! isset($signatories[$i])) {
+
+            $sid = is_array($posted_ids) ? (int) ($posted_ids[$i] ?? 0) : 0;
+            $sig = ($sid > 0 && isset($by_id[$sid])) ? $by_id[$sid] : null;
+            if ( ! $sig) {
+                $sig = $this->_resolve_synced_signatory_for_post_row($cid, (int) $i, $posted_names);
+            }
+            if ( ! $sig) {
+                $errors[] = 'Enter the signatory name, save once, then upload the e-signature.';
                 continue;
             }
 
-            $sig = $signatories[$i];
             $sid = (int) ($sig->id ?? 0);
             if ($sid < 1) {
                 continue;
@@ -655,6 +727,8 @@ class Manage_courses extends KA_Controller {
 
             $res = $this->signatory_upload_service->store($file, $cid, $sid);
             if (empty($res['ok']) || empty($res['path'])) {
+                $errors[] = $res['message'] ?? 'Signature upload failed.';
+                log_message('error', 'Signatory upload failed course_id=' . $cid . ' signatory_id=' . $sid . ': ' . ($res['message'] ?? 'unknown'));
                 continue;
             }
 
@@ -662,8 +736,53 @@ class Manage_courses extends KA_Controller {
                 $this->signatory_upload_service->delete_if_exists((string) $sig->signature_image_path);
             }
 
-            $this->certificate_model->update_signatory_image_path($sid, $cid, (string) $res['path'], (int) $this->auth_user->id);
+            if ($this->certificate_model->update_signatory_image_path($sid, $cid, (string) $res['path'], (int) $this->auth_user->id)) {
+                $saved++;
+            } else {
+                $errors[] = 'Could not save the signature image path.';
+            }
         }
+
+        if ( ! empty($errors)) {
+            $this->session->set_flashdata('warning', implode(' ', array_unique($errors)));
+        }
+
+        if ($saved < 1) {
+            return '';
+        }
+
+        return $saved === 1 ? 'E-signature saved.' : ($saved . ' e-signatures saved.');
+    }
+
+    /**
+     * Match an uploaded signatory_image[] row to the synced DB row (same order as non-empty names in POST).
+     *
+     * @param int        $course_id
+     * @param int        $post_index
+     * @param array|null $posted_names
+     * @return object|null
+     */
+    private function _resolve_synced_signatory_for_post_row($course_id, $post_index, $posted_names)
+    {
+        if ( ! is_array($posted_names)) {
+            return null;
+        }
+
+        $active_indexes = [];
+        foreach ($posted_names as $j => $name) {
+            if (trim((string) $name) !== '') {
+                $active_indexes[] = (int) $j;
+            }
+        }
+
+        $pos = array_search($post_index, $active_indexes, true);
+        if ($pos === false) {
+            return null;
+        }
+
+        $ordered = $this->certificate_model->get_signatories_for_course((int) $course_id);
+
+        return $ordered[$pos] ?? null;
     }
 
     /**
@@ -892,5 +1011,18 @@ class Manage_courses extends KA_Controller {
         }
         $this->session->set_flashdata('error', 'You are not assigned to manage this course.');
         redirect('manage_courses');
+    }
+
+    /**
+     * Redirect target after archive/delete — honors return_url when safe.
+     */
+    private function _course_manage_return_path()
+    {
+        $target = ka_lms_resolve_return_target($this->auth_user, $this->input->get('return_url'));
+        if (in_array($target, ['my_courses', 'manage_courses'], true)) {
+            return $target;
+        }
+
+        return 'manage_courses';
     }
 }

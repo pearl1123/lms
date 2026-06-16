@@ -5,7 +5,11 @@ $logs      = $logs      ?? [];
 $user_role = strtolower($user->role ?? 'employee');
 if ( ! $cert) return;
 
-$this->load->helper('certificate_pdf');
+$this->load->helper(['certificate_pdf', 'registration']);
+$cert_recipient_name = function_exists('certificate_recipient_display_name_for_cert')
+    ? certificate_recipient_display_name_for_cert($cert)
+    : (string) ($cert->student_name ?? '');
+
 $pdf_template_label = ka_cert_allowed_templates()[ka_cert_resolve_template(null, $cert)] ?? '';
 $preview_cache_bust = '';
 $pdf_cache_bust = '';
@@ -156,7 +160,7 @@ if ($preview_cache_bust === '') {
       <div class="certv-panel-body" style="padding-top:.25rem;padding-bottom:.25rem;">
         <div class="certv-info-row">
           <span class="certv-info-label">Recipient</span>
-          <span class="certv-info-value"><?= htmlspecialchars($cert->student_name) ?></span>
+          <span class="certv-info-value"><?= htmlspecialchars($cert_recipient_name) ?></span>
         </div>
         <div class="certv-info-row">
           <span class="certv-info-label">Course</span>

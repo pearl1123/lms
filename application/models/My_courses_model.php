@@ -36,9 +36,9 @@ class My_courses_model extends CI_Model {
 
         $courses = [];
         foreach ($result->result() as $course) {
-            $course->module_count   = $this->count_modules((int) $course->id);
-            $course->enrolled_count = $this->count_approved_enrollments((int) $course->id);
-            $course->avg_progress   = $this->course_model->get_avg_progress((int) $course->id);
+            $course->module_count = $this->count_modules((int) $course->id);
+            $course->avg_progress = $this->course_model->get_avg_progress((int) $course->id);
+            $this->course_model->attach_enrollment_guard($course);
             $courses[] = $course;
         }
 
@@ -68,9 +68,9 @@ class My_courses_model extends CI_Model {
 
         $courses = [];
         foreach ($result->result() as $course) {
-            $course->module_count   = $this->count_modules((int) $course->id);
-            $course->enrolled_count = $this->count_approved_enrollments((int) $course->id);
-            $course->avg_progress   = $this->course_model->get_avg_progress((int) $course->id);
+            $course->module_count = $this->count_modules((int) $course->id);
+            $course->avg_progress = $this->course_model->get_avg_progress((int) $course->id);
+            $this->course_model->attach_enrollment_guard($course);
             $courses[] = $course;
         }
 

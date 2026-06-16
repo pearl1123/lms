@@ -193,11 +193,13 @@ foreach ($courses as $c) {
         <a href="<?= base_url('courses/view/'.$course->id.'?'.ka_lms_return_q('manage_courses')) ?>" class="mc-action-btn" title="Preview" target="_blank">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </a>
-        <?php if ( ! $course->archived): ?>
+        <?php if ( ! $course->archived && ! empty($course->can_delete)): ?>
         <button type="button" onclick="KA.deleteConfirm('<?= base_url('manage_courses/delete/'.$course->id) ?>', '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')"
                 class="mc-action-btn danger" title="Archive">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
         </button>
+        <?php elseif ( ! $course->archived): ?>
+        <span class="mc-action-btn" title="Cannot archive: course has enrollments" style="opacity:.45;cursor:not-allowed;">🔒</span>
         <?php endif; ?>
       </div>
     </div>
@@ -275,11 +277,13 @@ foreach ($courses as $c) {
                class="mc-action-btn" title="Preview" target="_blank">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </a>
-            <?php if ( ! $course->archived): ?>
+            <?php if ( ! $course->archived && ! empty($course->can_delete)): ?>
             <button onclick="KA.deleteConfirm('<?= base_url('manage_courses/delete/'.$course->id) ?>', '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')"
                     class="mc-action-btn danger" title="Archive">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             </button>
+            <?php elseif ( ! $course->archived): ?>
+            <span class="mc-action-btn" title="Cannot archive: course has enrollments" style="opacity:.45;cursor:not-allowed;">🔒</span>
             <?php endif; ?>
           </div>
         </td>

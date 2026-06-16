@@ -521,6 +521,91 @@ class Course_model extends CI_Model {
     }
 
     /**
+     * Count pending enrollment requests for a course.
+     *
+     * @param  int $course_id
+     * @return int
+     */
+    public function count_pending_enrollments($course_id)
+    {
+        return (int) $this->db
+            ->where('course_id', (int) $course_id)
+            ->where('status', 'pending')
+            ->count_all_results('enrollments');
+    }
+
+    /**
+     * Rules for delete / structure edits when learners are tied to a course.
+     *
+     * @param  int $course_id
+     * @return array{
+     *   approved:bool,
+     *   pending:int,
+     *   approved_count:int,
+     *   blocks_delete:bool,
+     *   blocks_structure:bool,
+     *   delete_message:string,
+     *   structure_message:string
+     * }
+     */
+    public function get_course_enrollment_guard($course_id)
+    {
+        $course_id = (int) $course_id;
+        $approved  = $this->count_enrollments($course_id);
+        $pending   = $this->count_pending_enrollments($course_id);
+
+        $delete_parts = [];
+        if ($approved > 0) {
+            $delete_parts[] = $approved . ' enrolled learner' . ($approved === 1 ? '' : 's');
+        }
+        if ($pending > 0) {
+            $delete_parts[] = $pending . ' pending enrollment request' . ($pending === 1 ? '' : 's');
+        }
+
+        $delete_message = $delete_parts !== []
+            ? 'This course cannot be deleted or archived because it has ' . implode(' and ', $delete_parts) . '.'
+            : '';
+
+        $structure_message = $approved > 0
+            ? 'This course has ' . $approved . ' enrolled learner' . ($approved === 1 ? '' : 's')
+                . '. Adding, deleting, or reordering modules is locked to protect learner progress.'
+                . ' You can still update course details and edit existing module content.'
+            : '';
+
+        return [
+            'approved'           => $approved,
+            'pending'            => $pending,
+            'approved_count'     => $approved,
+            'blocks_delete'      => ($approved + $pending) > 0,
+            'blocks_structure'   => $approved > 0,
+            'delete_message'     => $delete_message,
+            'structure_message'  => $structure_message,
+        ];
+    }
+
+    /**
+     * Attach enrollment guard flags to a course row for list UIs.
+     *
+     * @param object $course
+     * @return object
+     */
+    public function attach_enrollment_guard($course)
+    {
+        if ( ! is_object($course) || empty($course->id)) {
+            return $course;
+        }
+
+        $guard = $this->get_course_enrollment_guard((int) $course->id);
+        $course->enrolled_count   = $guard['approved'];
+        $course->pending_count    = $guard['pending'];
+        $course->can_delete       = ! $guard['blocks_delete'];
+        $course->structure_locked = $guard['blocks_structure'];
+        $course->enrollment_guard = $guard;
+
+        return $course;
+    }
+
+    /**
      * Get enrolled students for a course with their progress %.
      *
      * @param  int $course_id
@@ -947,6 +1032,14 @@ class Course_model extends CI_Model {
             ->where('module_id', $mid)
             ->update('module_progress', ['resume_state' => $json]);
 
+        if ( ! $ok) {
+            $this->start_module($uid, $mid);
+            $ok = (bool) $this->db
+                ->where('user_id', $uid)
+                ->where('module_id', $mid)
+                ->update('module_progress', ['resume_state' => $json]);
+        }
+
         if ($ok) {
             log_message(
                 'debug',
@@ -1194,8 +1287,8 @@ class Course_model extends CI_Model {
         $this->_hydrate_access_type_names($courses);
         foreach ($courses as $course) {
             $course->module_count   = $this->count_modules($course->id);
-            $course->enrolled_count = $this->count_enrollments($course->id);
             $course->avg_progress   = $this->get_avg_progress($course->id);
+            $this->attach_enrollment_guard($course);
         }
 
         return $courses;
@@ -1243,8 +1336,8 @@ class Course_model extends CI_Model {
         $this->_hydrate_access_type_names($courses);
         foreach ($courses as $course) {
             $course->module_count   = $this->count_modules($course->id);
-            $course->enrolled_count = $this->count_enrollments($course->id);
             $course->avg_progress   = $this->get_avg_progress($course->id);
+            $this->attach_enrollment_guard($course);
         }
 
         return $courses;
@@ -1480,18 +1573,20 @@ class Course_model extends CI_Model {
     {
         $ok = (bool) $this->db
             ->where('id', (int) $course_id)
-            ->update('courses', [
+            ->update('courses', array_merge([
                 'title'              => trim($data['title']),
                 'description'        => isset($data['description']) ? trim($data['description']) : null,
                 'category_id'        => ! empty($data['category_id'])    ? (int) $data['category_id']    : null,
                 'modality_id'        => ! empty($data['modality_id'])    ? (int) $data['modality_id']    : null,
                 'expiry_days'        => ! empty($data['expiry_days'])    ? (int) $data['expiry_days']    : null,
                 'certificate_prefix' => isset($data['certificate_prefix']) ? strtoupper(trim((string) $data['certificate_prefix'])) : null,
-                'signatory_name'     => isset($data['signatory_name']) ? trim((string) $data['signatory_name']) : null,
-                'signatory_title'    => isset($data['signatory_title']) ? trim((string) $data['signatory_title']) : null,
                 'date_last_modified' => date('Y-m-d H:i:s'),
                 'modified_by'        => (int) $user_id,
-            ]);
+            ], array_key_exists('signatory_name', $data) ? [
+                'signatory_name' => trim((string) $data['signatory_name']),
+            ] : [], array_key_exists('signatory_title', $data) ? [
+                'signatory_title' => trim((string) $data['signatory_title']),
+            ] : []));
 
         if ($ok && $this->db->field_exists('access_type', 'courses')) {
             if (array_key_exists('access_type', $data)) {
@@ -1543,6 +1638,11 @@ class Course_model extends CI_Model {
      */
     public function delete_course($course_id, $user_id)
     {
+        $guard = $this->get_course_enrollment_guard((int) $course_id);
+        if ($guard['blocks_delete']) {
+            return false;
+        }
+
         // Archive all modules first
         $this->db
             ->where('course_id', (int) $course_id)

@@ -24,14 +24,47 @@ if (empty($edit_category_ids) && ! empty($course->category_id)) {
     $edit_category_ids = [(int) $course->category_id];
 }
 $edit_publish_status = $phase2 ? (string) $phase2->publish_status : (string) ($course->publish_status ?? 'published');
+$enrollment_guard = is_array($enrollment_guard ?? null) ? $enrollment_guard : [];
+$course_structure_locked = ! empty($enrollment_guard['blocks_structure']);
+$course_delete_blocked   = ! empty($enrollment_guard['blocks_delete']);
 
 $content_types = [
     'pdf'           => ['label' => 'PDF Document',  'icon' => '📄', 'color' => '#ef4444'],
     'slides'        => ['label' => 'Slides',        'icon' => '📊', 'color' => '#3b82f6'],
-    'video'         => ['label' => 'Video',         'icon' => '🎬', 'color' => '#8b5cf6'],
+    'video'         => ['label' => 'Video (YouTube link)', 'icon' => '🎬', 'color' => '#8b5cf6'],
     'audio'         => ['label' => 'Audio',         'icon' => '🎧', 'color' => '#f59f00'],
     'meeting_link'  => ['label' => 'Meeting Link',  'icon' => '🎥', 'color' => '#06b6d4'],
 ];
+/** Modal combined content-type cards (UI only; radio values unchanged) */
+$content_type_ui_combos = [
+    [
+        'id'          => 'ct-combo-docs',
+        'label'       => 'PDF / Slides Document',
+        'icons'       => ['📄', '📊'],
+        'keys'        => ['pdf', 'slides'],
+        'default_key' => 'pdf',
+    ],
+    [
+        'id'          => 'ct-combo-av',
+        'label'       => 'Audio / Video',
+        'icons'       => ['🎧', '🎬'],
+        'keys'        => ['audio', 'video'],
+        'default_key' => 'video',
+    ],
+];
+$content_type_combo_keys = [];
+foreach ($content_type_ui_combos as $_combo) {
+    foreach ($_combo['keys'] as $_ck) {
+        $content_type_combo_keys[$_ck] = true;
+    }
+}
+unset($_combo, $_ck);
+$content_type_standalone_keys = array_values(array_filter(
+    array_keys($content_types),
+    static function ($k) use ($content_type_combo_keys) {
+        return empty($content_type_combo_keys[$k]);
+    }
+));
 /** Content types shown but not selectable until feature ships */
 $coming_soon_types = [];
 ?>
@@ -95,21 +128,30 @@ $coming_soon_types = [];
 /* Module modal */
 .mod-modal-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:1rem; }
 .mod-modal-overlay.open { display:flex; }
-.mod-modal { background:#fff;border-radius:16px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.18);animation:modIn .25s ease; }
+.mod-modal { background:#fff;border-radius:16px;width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.18);animation:modIn .25s ease; }
 @keyframes modIn { from{opacity:0;transform:translateY(-14px)} to{opacity:1;transform:translateY(0)} }
-.mod-modal-hdr { padding:1.125rem 1.375rem;border-bottom:1px solid var(--ka-border,#e2e8f0);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;border-radius:16px 16px 0 0; }
+.mod-modal-hdr { padding:1.125rem 1.375rem;border-bottom:1px solid var(--ka-border,#e2e8f0);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#fff;z-index:1;border-radius:16px 16px 0 0; }
 .mod-modal-title { font-size:1rem;font-weight:800;color:var(--ka-text,#1e293b);margin:0; }
 .mod-modal-close { width:30px;height:30px;border-radius:8px;border:1.5px solid var(--ka-border,#e2e8f0);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ka-text-muted,#64748b);transition:all .15s; }
 .mod-modal-close:hover { background:#fef2f2;color:#dc2626;border-color:#dc2626; }
 .mod-modal-close svg { width:14px;height:14px; }
-.mod-modal-body   { padding:1.375rem; }
-.mod-modal-footer { padding:1rem 1.375rem;border-top:1px solid var(--ka-border,#e2e8f0);display:flex;justify-content:flex-end;gap:.625rem;position:sticky;bottom:0;background:#fff;border-radius:0 0 16px 16px; }
+.mod-modal-body   { padding:1.375rem;flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch; }
+.mod-modal-footer { padding:1rem 1.375rem;border-top:1px solid var(--ka-border,#e2e8f0);display:flex;justify-content:flex-end;gap:.625rem;flex-shrink:0;background:#fff;border-radius:0 0 16px 16px; }
 .mod-cancel { padding:.5rem 1rem;border-radius:8px;border:1.5px solid var(--ka-border,#e2e8f0);background:#fff;cursor:pointer;font-size:.8125rem;font-weight:600;color:var(--ka-text-muted,#64748b);transition:all .15s; }
 .mod-cancel:hover { border-color:var(--ka-text-muted,#64748b); }
 .mod-save { padding:.5rem 1.25rem;border-radius:8px;background:var(--ka-navy,#1a3a5c);color:#fff;border:none;cursor:pointer;font-size:.8125rem;font-weight:700;transition:all .15s; }
 .mod-save:hover { background:#254d75; }
 
 /* Content type picker */
+.ct-combo-grid { display:grid;grid-template-columns:1fr 1fr;gap:.625rem;margin-bottom:1.125rem; }
+@media(max-width:479.98px){ .ct-combo-grid{grid-template-columns:1fr;} }
+.ct-combo-card { position:relative;border:2px solid var(--ka-border,#e2e8f0);border-radius:12px;padding:.875rem .75rem;text-align:center;cursor:pointer;transition:all .15s;background:#fff; }
+.ct-combo-card input[type="radio"] { position:absolute;opacity:0;pointer-events:none;width:0;height:0; }
+.ct-combo-card.selected { border-color:var(--ka-navy,#1a3a5c);background:var(--ka-accent,#e8f4fd);box-shadow:0 0 0 3px rgba(109,171,207,.12); }
+.ct-combo-icons { font-size:1.5rem;line-height:1;margin-bottom:.35rem;letter-spacing:.15rem; }
+.ct-combo-label { font-size:.6875rem;font-weight:700;color:var(--ka-text-muted,#64748b);line-height:1.35; }
+.ct-combo-card.selected .ct-combo-label { color:var(--ka-navy,#1a3a5c); }
+.ct-combo-card.is-disabled { opacity:.58;cursor:not-allowed;pointer-events:none;filter:grayscale(.35); }
 .ct-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:.5rem;margin-bottom:1.125rem; }
 .ct-card { border:2px solid var(--ka-border,#e2e8f0);border-radius:10px;padding:.625rem .375rem;text-align:center;cursor:pointer;transition:all .15s; }
 .ct-card input { display:none; }
@@ -133,8 +175,16 @@ $coming_soon_types = [];
 .mod-pdf-upload.is-visible { display:block; }
 .mod-pdf-dropzone { position:relative;border:2px dashed var(--ka-border,#e2e8f0);border-radius:10px;background:var(--ka-bg,#f8fafc);transition:border-color .18s,background .18s,box-shadow .18s;margin-bottom:.5rem; }
 .mod-pdf-dropzone.is-dragover { border-color:var(--ka-primary,#6dabcf);background:var(--ka-accent,#e8f4fd);box-shadow:0 0 0 3px rgba(109,171,207,.12); }
+.mc-enroll-guard-alert {
+  background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:.875rem 1rem;
+  margin-bottom:1rem;font-size:.8125rem;color:#92400e;line-height:1.5;
+}
+.mc-enroll-guard-alert p { margin:0; }
+.add-mod-btn.is-disabled, .mod-action-btn.is-disabled {
+  opacity:.55;cursor:not-allowed;pointer-events:none;
+}
 .mod-pdf-file-input { position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2; }
-.mod-pdf-dropzone-inner { display:flex;flex-direction:column;align-items:center;gap:.25rem;padding:.875rem 1rem;text-align:center;pointer-events:none; }
+.mod-pdf-dropzone-inner { display:flex;flex-direction:column;align-items:center;gap:.25rem;padding:.65rem .875rem;text-align:center;pointer-events:none; }
 .mod-pdf-dropzone-icon { width:28px;height:28px;color:var(--ka-primary,#6dabcf);opacity:.9; }
 .mod-pdf-dropzone-title { font-size:.75rem;font-weight:600;color:var(--ka-text-muted,#64748b); }
 .mod-pdf-filename { font-size:.6875rem;font-weight:700;color:var(--ka-navy,#1a3a5c);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:1em; }
@@ -197,6 +247,8 @@ $coming_soon_types = [];
     </a>
   </div>
 </div>
+
+<?php $this->load->view('manage_courses/enrollment_guard_alert', get_defined_vars()); ?>
 
 <div class="edit-crs-layout ka-form-flow animate__animated animate__fadeInUp animate__fast">
 
@@ -294,10 +346,18 @@ $coming_soon_types = [];
       <div class="edit-crs-hdr"><h3 class="edit-crs-title" style="color:#dc2626;">Danger Zone</h3></div>
       <div class="edit-crs-body">
         <p style="font-size:.75rem;color:var(--ka-text-muted,#64748b);margin:0 0 .875rem;">Archiving the course will hide it from the catalog and prevent new enrollments.</p>
+        <?php if ($course_delete_blocked): ?>
+        <p style="font-size:.75rem;color:#92400e;margin:0 0 .875rem;"><?= htmlspecialchars($enrollment_guard['delete_message'] ?? 'This course cannot be archived while learners are enrolled.', ENT_QUOTES) ?></p>
+        <button type="button" disabled
+                style="width:100%;padding:.5rem;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#94a3b8;cursor:not-allowed;font-size:.8125rem;font-weight:700;">
+          Archive Course
+        </button>
+        <?php else: ?>
         <button onclick="KA.deleteConfirm('<?= base_url('manage_courses/delete/'.$course->id) ?>', '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')"
                 style="width:100%;padding:.5rem;border-radius:8px;border:1.5px solid #fecaca;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:.8125rem;font-weight:700;transition:all .15s;">
           Archive Course
         </button>
+        <?php endif; ?>
       </div>
     </div>
 
@@ -324,29 +384,58 @@ $coming_soon_types = [];
       <!-- Content type picker (duplicate types allowed; weight is the only limit) -->
       <div style="margin-bottom:1.125rem;">
         <label style="display:block;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);margin-bottom:.625rem;">Content Type <span style="color:#dc2626;">*</span></label>
-        <div class="ct-grid" id="modContentTypeGrid">
-          <?php foreach ($content_types as $key => $ct):
-            $is_coming_soon = in_array($key, $coming_soon_types, true);
+        <div class="ct-combo-grid" id="modContentTypeGrid">
+          <?php foreach ($content_type_ui_combos as $combo):
+            $combo_keys = $combo['keys'];
+            $default_key = $combo['default_key'];
+            $is_default_selected = ($default_key === 'pdf');
           ?>
-          <label class="ct-card <?= ($key === 'pdf' && ! $is_coming_soon) ? 'selected' : '' ?><?= $is_coming_soon ? ' is-disabled is-coming-soon' : '' ?>"
-                 id="ct-<?= $key ?>"
-                 data-content-type="<?= htmlspecialchars($key, ENT_QUOTES) ?>"
-                 data-coming-soon="<?= $is_coming_soon ? '1' : '0' ?>"
-                 aria-disabled="<?= $is_coming_soon ? 'true' : 'false' ?>"
-                 title="<?= $is_coming_soon ? 'Feature currently in development' : '' ?>">
+          <div class="ct-combo-card <?= $is_default_selected ? 'selected' : '' ?>"
+               id="<?= htmlspecialchars($combo['id'], ENT_QUOTES) ?>"
+               data-keys="<?= htmlspecialchars(implode(',', $combo_keys), ENT_QUOTES) ?>"
+               data-default-key="<?= htmlspecialchars($default_key, ENT_QUOTES) ?>"
+               role="button"
+               tabindex="0"
+               onclick="selectContentTypeCombo('<?= htmlspecialchars($default_key, ENT_QUOTES) ?>')"
+               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectContentTypeCombo('<?= htmlspecialchars($default_key, ENT_QUOTES) ?>');}">
+            <?php foreach ($combo_keys as $key):
+              if ( ! isset($content_types[$key])) continue;
+              $is_coming_soon = in_array($key, $coming_soon_types, true);
+            ?>
             <input type="radio" name="mod_content_type" value="<?= $key ?>"
-                   <?= ($key === 'pdf' && ! $is_coming_soon) ? 'checked' : '' ?>
+                   id="ct-radio-<?= $key ?>"
+                   data-content-type="<?= htmlspecialchars($key, ENT_QUOTES) ?>"
+                   data-coming-soon="<?= $is_coming_soon ? '1' : '0' ?>"
+                   <?= ($key === $default_key && $is_default_selected && ! $is_coming_soon) ? 'checked' : '' ?>
                    <?= $is_coming_soon ? 'disabled' : '' ?>
                    onchange="selectContentType('<?= $key ?>')">
-            <?php if ($is_coming_soon): ?>
-            <span class="ct-soon-badge" title="Coming soon — feature in development">Coming soon</span>
-            <?php endif; ?>
-            <div class="ct-card-body">
-              <div class="ct-icon"><?= $ct['icon'] ?></div>
-              <div class="ct-label"><?= $ct['label'] ?></div>
-            </div>
-          </label>
+            <?php endforeach; ?>
+            <div class="ct-combo-icons"><?= implode(' ', $combo['icons']) ?></div>
+            <div class="ct-combo-label"><?= htmlspecialchars($combo['label'], ENT_QUOTES) ?></div>
+          </div>
           <?php endforeach; ?>
+          <?php if ($content_type_standalone_keys !== []): ?>
+          <div class="ct-grid" style="grid-column:1/-1;margin-bottom:0;">
+            <?php foreach ($content_type_standalone_keys as $key):
+              $ct = $content_types[$key];
+              $is_coming_soon = in_array($key, $coming_soon_types, true);
+            ?>
+            <label class="ct-card<?= $is_coming_soon ? ' is-disabled is-coming-soon' : '' ?>"
+                   id="ct-<?= $key ?>"
+                   data-content-type="<?= htmlspecialchars($key, ENT_QUOTES) ?>"
+                   data-coming-soon="<?= $is_coming_soon ? '1' : '0' ?>"
+                   aria-disabled="<?= $is_coming_soon ? 'true' : 'false' ?>">
+              <input type="radio" name="mod_content_type" value="<?= $key ?>"
+                     <?= $is_coming_soon ? 'disabled' : '' ?>
+                     onchange="selectContentType('<?= $key ?>')">
+              <div class="ct-card-body">
+                <div class="ct-icon"><?= $ct['icon'] ?></div>
+                <div class="ct-label"><?= htmlspecialchars($ct['label'], ENT_QUOTES) ?></div>
+              </div>
+            </label>
+            <?php endforeach; ?>
+          </div>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -362,32 +451,32 @@ $coming_soon_types = [];
         <textarea id="modDesc" class="ef-textarea" rows="2" placeholder="Brief description of this module…"></textarea>
       </div>
 
-      <!-- Content path + weight -->
-      <div class="ef-row">
-        <div>
-          <label style="display:block;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);margin-bottom:.425rem;">Content URL / Path</label>
-          <input type="text" id="modPath" class="ef-input" placeholder="https://… or /uploads/file.pdf">
-          <div id="modPdfUpload" class="mod-pdf-upload" aria-live="polite">
-            <div class="mod-pdf-dropzone" id="modPdfDropzone">
-              <input type="file" id="modPdfFile" class="mod-pdf-file-input" accept="application/pdf,.pdf" aria-label="Choose PDF file">
-              <div class="mod-pdf-dropzone-inner">
-                <svg class="mod-pdf-dropzone-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
-                <span class="mod-pdf-dropzone-title">Drop PDF here or browse</span>
-                <span id="modPdfFileName" class="mod-pdf-filename"></span>
-              </div>
+      <!-- Content path -->
+      <div style="margin-bottom:1rem;">
+        <label style="display:block;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);margin-bottom:.425rem;">Content URL / Path</label>
+        <input type="text" id="modPath" class="ef-input" placeholder="https://… or /uploads/file.pdf">
+        <div id="modPdfUpload" class="mod-pdf-upload" aria-live="polite">
+          <div class="mod-pdf-dropzone" id="modPdfDropzone">
+            <input type="file" id="modPdfFile" class="mod-pdf-file-input" accept="application/pdf,.pdf" aria-label="Choose PDF file">
+            <div class="mod-pdf-dropzone-inner">
+              <svg class="mod-pdf-dropzone-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+              <span class="mod-pdf-dropzone-title">Drop PDF here or browse</span>
+              <span id="modPdfFileName" class="mod-pdf-filename"></span>
             </div>
-            <button type="button" class="mod-upload-btn" id="modPdfUploadBtn">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span class="mod-upload-btn-text">Upload learning material</span>
-            </button>
-            <span id="modPdfUploadMsg" class="mod-pdf-msg" role="status"></span>
           </div>
+          <button type="button" class="mod-upload-btn" id="modPdfUploadBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span class="mod-upload-btn-text">Upload learning material</span>
+          </button>
+          <span id="modPdfUploadMsg" class="mod-pdf-msg" role="status"></span>
         </div>
-        <div>
-          <label style="display:block;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);margin-bottom:.425rem;">Weight (%)</label>
-          <input type="number" id="modWeight" class="ef-input" min="0" max="100" step="0.01" placeholder="0">
-          <div id="modWeightHint" style="font-size:.6875rem;color:var(--ka-text-muted,#64748b);margin-top:3px;">You can add any module type. Total weight cannot exceed 100%.</div>
-        </div>
+      </div>
+
+      <!-- Weight (full width — stays in scroll area below PDF upload) -->
+      <div style="margin-bottom:.25rem;">
+        <label style="display:block;font-size:.8125rem;font-weight:600;color:var(--ka-text,#1e293b);margin-bottom:.425rem;">Weight (%)</label>
+        <input type="number" id="modWeight" class="ef-input" min="0" max="100" step="0.01" placeholder="0" style="max-width:160px;">
+        <div id="modWeightHint" style="font-size:.6875rem;color:var(--ka-text-muted,#64748b);margin-top:3px;">You can add any module type. Total weight cannot exceed 100%.</div>
       </div>
     </div>
     <div class="mod-modal-footer">
@@ -402,10 +491,13 @@ $coming_soon_types = [];
 <script>
 var COURSE_ID  = <?= $course->id ?>;
 var BASE_URL   = '<?= base_url('index.php/') ?>';
+var COURSE_STRUCTURE_LOCKED = <?= $course_structure_locked ? 'true' : 'false' ?>;
+var COURSE_STRUCTURE_LOCK_MSG = <?= json_encode($enrollment_guard['structure_message'] ?? 'Module structure is locked while learners are enrolled.') ?>;
 var CSRF_NAME  = '<?= $csrf_field_name ?>';
 var CSRF_HASH  = '<?= $csrf_hash ?>';
 var CT_DATA    = <?= json_encode($content_types) ?>;
 var CHECKPOINT_SCHEMA_READY = <?= $checkpoint_schema_ready ? 'true' : 'false' ?>;
+var ASMT_RETURN_Q = <?= json_encode(! empty($lms_return_q) ? '&' . $lms_return_q : '') ?>;
 /** Shown in picker but not selectable for new modules */
 var COMING_SOON_TYPES = ['slides', 'audio'];
 
@@ -458,8 +550,8 @@ function updateModuleWeightSummary() {
     statusEl.textContent = 'Exceeds 100% by ' + (total - 100).toFixed(2).replace(/\.00$/, '') + '%.';
     statusEl.style.color = '#dc2626';
   } else {
-    statusEl.textContent = (100 - total).toFixed(2).replace(/\.00$/, '') + '% remaining.';
-    statusEl.style.color = '#b45309';
+    statusEl.textContent = '';
+    statusEl.style.color = '';
   }
 }
 
@@ -503,23 +595,50 @@ function refreshContentTypePicker() {
     var row = document.getElementById('moditem-' + modId);
     if (row) existingType = String(row.dataset.type || '').toLowerCase();
   }
+  document.querySelectorAll('#modContentTypeGrid input[name="mod_content_type"]').forEach(function(input) {
+    var key = String(input.value || '').toLowerCase();
+    var comingSoon = input.getAttribute('data-coming-soon') === '1' || isComingSoonType(key);
+    var allowExisting = modId > 0 && existingType === key;
+    input.disabled = comingSoon && !allowExisting;
+  });
   document.querySelectorAll('#modContentTypeGrid .ct-card').forEach(function(card) {
     card.classList.remove('is-hidden');
     card.style.display = '';
     var key = String(card.getAttribute('data-content-type') || '').toLowerCase();
     var comingSoon = card.getAttribute('data-coming-soon') === '1';
-    var input = card.querySelector('input[name="mod_content_type"]');
+    var allowExisting = modId > 0 && existingType === key;
     if (comingSoon) {
       card.classList.add('is-disabled', 'is-coming-soon');
-      var allowExisting = modId > 0 && existingType === key;
-      if (input) input.disabled = !allowExisting;
       card.setAttribute('aria-disabled', allowExisting ? 'false' : 'true');
     } else {
       card.classList.remove('is-disabled', 'is-coming-soon');
       card.setAttribute('aria-disabled', 'false');
-      if (input) input.disabled = false;
     }
   });
+  document.querySelectorAll('#modContentTypeGrid .ct-combo-card').forEach(function(combo) {
+    combo.classList.remove('is-disabled');
+    var keys = String(combo.getAttribute('data-keys') || '').split(',').map(function(k) { return k.trim(); });
+    var allBlocked = keys.length > 0 && keys.every(function(k) {
+      var input = document.querySelector('#modContentTypeGrid input[name="mod_content_type"][value="' + k + '"]');
+      return input && input.disabled;
+    });
+    if (allBlocked) combo.classList.add('is-disabled');
+  });
+}
+
+function highlightContentTypeCard(key) {
+  key = String(key || '').toLowerCase();
+  document.querySelectorAll('.ct-card, .ct-combo-card').forEach(function(c) { c.classList.remove('selected'); });
+  var solo = document.getElementById('ct-' + key);
+  if (solo) solo.classList.add('selected');
+  document.querySelectorAll('.ct-combo-card').forEach(function(combo) {
+    var keys = String(combo.getAttribute('data-keys') || '').split(',').map(function(k) { return k.trim(); });
+    if (keys.indexOf(key) >= 0) combo.classList.add('selected');
+  });
+}
+
+function selectContentTypeCombo(defaultKey) {
+  selectContentType(defaultKey, true);
 }
 
 function setModPdfMsg(text, kind) {
@@ -559,8 +678,7 @@ function selectContentType(key, force) {
     var blocked = document.querySelector('input[name="mod_content_type"][value="' + key + '"]');
     if (!blocked || blocked.disabled) return;
   }
-  document.querySelectorAll('.ct-card').forEach(function(c) { c.classList.remove('selected'); });
-  document.getElementById('ct-' + key)?.classList.add('selected');
+  highlightContentTypeCard(key);
   var radio = document.querySelector('input[name="mod_content_type"][value="' + key + '"]');
   if (radio && !radio.disabled) radio.checked = true;
   toggleModPdfUpload();
@@ -654,6 +772,10 @@ document.getElementById('modContentTypeGrid')?.addEventListener('click', functio
 
 // ── Modal ────────────────────────────────────────────────────
 function openModModal(id) {
+  if ( ! id && COURSE_STRUCTURE_LOCKED) {
+    KA.toast('error', COURSE_STRUCTURE_LOCK_MSG);
+    return;
+  }
   document.getElementById('modModalOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
   document.getElementById('modId').value            = id || 0;
@@ -793,7 +915,7 @@ function renderModule(m, isNew) {
     if (cpN >= cpMax) {
       cpBadge = '<a href="' + BASE_URL + 'assessments?module_id=' + m.id + '&type=checkpoint" class="mod-asx-badge cp" title="Video checkpoints for this module (maximum reached)">▶ Checkpoint (' + cpN + ')</a>';
     } else if (CHECKPOINT_SCHEMA_READY) {
-      cpBadge = '<a href="' + BASE_URL + 'assessments/create?course_id=' + COURSE_ID + '&module_id=' + m.id + '&type=checkpoint" class="mod-asx-badge add" title="Add video progress checkpoint for this module">+ Video Checkpoint</a>';
+      cpBadge = '<a href="' + BASE_URL + 'assessments/create?course_id=' + COURSE_ID + '&module_id=' + m.id + '&type=checkpoint' + ASMT_RETURN_Q + '" class="mod-asx-badge add" title="Add video progress checkpoint for this module">+ Video Checkpoint</a>';
     } else {
       cpBadge = '<span class="mod-asx-badge add" title="Video checkpoints require a database migration (lib_assessments context column)." style="opacity:.65;cursor:not-allowed;">+ Video Checkpoint</span>';
     }
@@ -814,14 +936,14 @@ function renderModule(m, isNew) {
     + '<div class="mod-title">' + escHtml(m.title) + '</div>'
     + '<div class="mod-meta">' + ct.label + (m.weight_percentage > 0 ? ' · ' + m.weight_percentage + '% weight' : '') + '</div>'
     + '<div class="mod-asx-badges">'
-    + '<a href="' + BASE_URL + 'assessments/create?course_id=' + COURSE_ID + '&module_id=' + m.id + '&type=pre" class="mod-asx-badge add">+ Pre-assessment</a>'
-    + '<a href="' + BASE_URL + 'assessments/create?course_id=' + COURSE_ID + '&module_id=' + m.id + '&type=post" class="mod-asx-badge add">+ Post-assessment</a>'
+    + '<a href="' + BASE_URL + 'assessments/create?course_id=' + COURSE_ID + '&module_id=' + m.id + '&type=pre' + ASMT_RETURN_Q + '" class="mod-asx-badge add">+ Pre-assessment</a>'
+    + '<a href="' + BASE_URL + 'assessments/create?course_id=' + COURSE_ID + '&module_id=' + m.id + '&type=post' + ASMT_RETURN_Q + '" class="mod-asx-badge add">+ Post-assessment</a>'
     + cpBadge
     + '</div>'
     + '</div>'
     + '<div class="mod-actions">'
     + '<button type="button" class="mod-action-btn" onclick="editModule(' + m.id + ')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>'
-    + '<button type="button" class="mod-action-btn danger" onclick="deleteModule(' + m.id + ')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>'
+    + (COURSE_STRUCTURE_LOCKED ? '' : '<button type="button" class="mod-action-btn danger" onclick="deleteModule(' + m.id + ')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>')
     + '</div></div>';
 
   var existing = document.getElementById('moditem-' + m.id);
@@ -837,6 +959,10 @@ function renderModule(m, isNew) {
 
 // ── Delete module ────────────────────────────────────────────
 function deleteModule(id) {
+  if (COURSE_STRUCTURE_LOCKED) {
+    KA.toast('error', COURSE_STRUCTURE_LOCK_MSG);
+    return;
+  }
   KA.confirm({
     title: 'Delete this module?',
     text:  'All student progress for this module will also be removed.',
@@ -898,6 +1024,10 @@ function renumberModules() {
 var dragSrc = null;
 
 function initDrag(el) {
+  if (COURSE_STRUCTURE_LOCKED) {
+    el.removeAttribute('draggable');
+    return;
+  }
   el.addEventListener('dragstart', function(e) {
     dragSrc = el;
     el.classList.add('dragging');
@@ -935,6 +1065,7 @@ updateModuleWeightSummary();
 document.getElementById('modWeight')?.addEventListener('input', updateDraftWeightHint);
 
 function saveOrder() {
+  if (COURSE_STRUCTURE_LOCKED) return;
   var ids = Array.from(document.querySelectorAll('.mod-item')).map(function(el) { return el.dataset.id; });
   var body = ids.map(function(id, i) { return 'ids[' + i + ']=' + id; }).join('&');
   if (CSRF_NAME) {

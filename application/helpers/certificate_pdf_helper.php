@@ -336,6 +336,13 @@ if ( ! function_exists('ka_cert_build_view_data')) {
         }
 
         $student_name = (string) ($cert->student_name ?? '');
+        if (function_exists('get_instance')) {
+            $CI =& get_instance();
+            $CI->load->helper('registration');
+            if (function_exists('certificate_recipient_display_name_for_cert')) {
+                $student_name = certificate_recipient_display_name_for_cert($cert);
+            }
+        }
 
         $data = [
             'pdf_template'       => $template,

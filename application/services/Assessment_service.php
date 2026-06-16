@@ -446,9 +446,28 @@ class Assessment_service {
      */
     public function get_module_progress_summary($user_id, $module_id)
     {
-        $flow = $this->get_module_flow_state((int) $user_id, (int) $module_id);
+        $uid = (int) $user_id;
+        $mid = (int) $module_id;
+        $flow = $this->get_module_flow_state($uid, $mid);
+        $summary = $this->module_progress_summary_from_flow($flow);
 
-        return $this->module_progress_summary_from_flow($flow);
+        $row = $this->CI->course_model->get_module_progress($uid, $mid);
+        if ($row) {
+            $status = strtolower(trim((string) ($row->status ?? '')));
+            if ($status === 'completed') {
+                $summary['progress_percent'] = 100;
+                $summary['post_assessment_passed'] = true;
+            } elseif ($status === 'in_progress') {
+                $summary['progress_percent'] = max(
+                    (int) ($summary['progress_percent'] ?? 0),
+                    50
+                );
+            }
+        }
+
+        $summary['progress_percent'] = max(0, min(100, (int) ($summary['progress_percent'] ?? 0)));
+
+        return $summary;
     }
 
     /**
@@ -476,32 +495,56 @@ class Assessment_service {
             return self::$course_progress_agg_cache[$cache_key];
         }
 
-        $state = $this->_course_completion_service()->evaluate_user_course_state($uid, $cid);
+        if ($modules === null) {
+            $modules = $this->CI->course_model->get_modules($cid, $uid);
+        }
+        if ( ! is_array($modules)) {
+            $modules = [];
+        }
+
         $summaries = [];
         $completed = 0;
-        foreach ((array) ($state['module_states'] ?? []) as $ms) {
-            $mid = (int) ($ms['module_id'] ?? 0);
+        $sum_pct = 0;
+        $weighted_pct = 0.0;
+        $weight_total = 0.0;
+
+        foreach ($modules as $module) {
+            $mid = (int) ($module->id ?? 0);
             if ($mid < 1) {
                 continue;
             }
-            $pct = (int) ($ms['progress_percent'] ?? 0);
-            $done = ! empty($ms['completed']);
-            if ($done) {
+
+            $summary = $this->get_module_progress_summary($uid, $mid);
+            $summaries[$mid] = $summary;
+
+            $pct = (int) ($summary['progress_percent'] ?? 0);
+            $db_status = strtolower(trim((string) ($module->status ?? '')));
+            if ($db_status === 'completed' || $pct >= 100) {
                 $completed++;
+                $pct = 100;
             }
-            $summaries[$mid] = [
-                'checkpoints_total'      => 0,
-                'checkpoints_completed'  => 0,
-                'video_completed'        => $pct >= 80,
-                'post_assessment_passed' => $pct >= 100,
-                'progress_percent'       => $pct,
-            ];
+
+            $sum_pct += $pct;
+            $w = max(0.0, (float) ($module->weight_percentage ?? 0));
+            $weighted_pct += ($pct * $w);
+            $weight_total += $w;
+        }
+
+        $n = count($modules);
+        if ($n > 0) {
+            if (abs($weight_total - 100.0) <= 0.01) {
+                $course_progress = (int) round($weighted_pct / 100);
+            } else {
+                $course_progress = (int) round($sum_pct / $n);
+            }
+        } else {
+            $course_progress = 0;
         }
 
         $out = [
-            'course_progress_percent' => (int) ($state['progress_percent'] ?? 0),
+            'course_progress_percent' => max(0, min(100, $course_progress)),
             'completed_modules'       => $completed,
-            'total_modules'           => count((array) ($state['module_states'] ?? [])),
+            'total_modules'           => $n,
             'module_summaries'        => $summaries,
         ];
 

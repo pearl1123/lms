@@ -3,7 +3,7 @@
 <div class="ef-section" style="margin-top:1rem;">
   <div class="ef-section-hdr">
     <h4 class="ef-section-title">Certificate signatories</h4>
-    <p class="ef-section-kicker">Add one or more signatories (shown on the PDF). If none are listed, the single signatory fields above are used.</p>
+    <p class="ef-section-kicker">Add one or more signatories (shown on the PDF). Name is required — fill it in before uploading an e-signature.</p>
   </div>
   <div id="p3SignatoryRows">
     <?php if (empty($certificate_signatories)): ?>
@@ -48,13 +48,21 @@
       <div class="ef-group" style="flex:1.5;">
         <label class="ef-label">E-signature (PNG/JPEG)</label>
         <input type="file" name="signatory_image[]" class="ef-input" accept="image/png,image/jpeg">
-        <?php if ( ! empty($sig->signature_image_path) && function_exists('ka_cert_sig_image_src')):
-          $sig_preview = ka_cert_sig_image_src($sig->signature_image_path);
-          if ($sig_preview !== ''): ?>
+        <?php
+        $sig_preview = '';
+        if ( ! empty($sig->signature_image_path)) {
+            $sig_rel = ltrim(str_replace(['../', '..\\'], '', (string) $sig->signature_image_path), '/\\');
+            if ($sig_rel !== '' && is_file(FCPATH . $sig_rel)) {
+                $sig_preview = base_url($sig_rel);
+            } elseif (function_exists('ka_cert_sig_image_src')) {
+                $sig_preview = ka_cert_sig_image_src($sig->signature_image_path);
+            }
+        }
+        if ($sig_preview !== ''): ?>
         <div style="margin-top:.35rem;">
           <img src="<?= htmlspecialchars($sig_preview, ENT_QUOTES, 'UTF-8') ?>" alt="Signature preview" style="max-height:48px;max-width:160px;background:transparent;">
         </div>
-        <?php endif; endif; ?>
+        <?php endif; ?>
       </div>
     </div>
     <?php endforeach; ?>

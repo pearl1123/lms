@@ -405,10 +405,14 @@ $config['encryption_key'] = '';
 |
 */
 $config['sess_driver'] = 'files';
-$config['sess_cookie_name'] = 'ci_session';
+$config['sess_cookie_name'] = 'lms_ci_session';
 $config['sess_samesite'] = 'Lax';
 $config['sess_expiration'] = 7200;
-$config['sess_save_path'] = NULL;
+$sess_dir = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'sessions';
+if ( ! is_dir($sess_dir)) {
+    @mkdir($sess_dir, 0755, true);
+}
+$config['sess_save_path'] = $sess_dir;
 $config['sess_match_ip'] = FALSE;
 $config['sess_time_to_update'] = 300;
 $config['sess_regenerate_destroy'] = FALSE;
@@ -431,7 +435,15 @@ $config['sess_regenerate_destroy'] = FALSE;
 */
 $config['cookie_prefix']	= '';
 $config['cookie_domain']	= '';
-$config['cookie_path']		= '/';
+$ka_cookie_path = '/';
+if ( ! is_cli() && ! empty($_SERVER['SCRIPT_NAME'])) {
+    $ka_script = str_replace('\\', '/', (string) $_SERVER['SCRIPT_NAME']);
+    $ka_base   = rtrim(str_replace(basename($ka_script), '', $ka_script), '/');
+    if ($ka_base !== '') {
+        $ka_cookie_path = $ka_base . '/';
+    }
+}
+$config['cookie_path']		= $ka_cookie_path;
 $config['cookie_secure']	= FALSE;
 $config['cookie_httponly'] 	= FALSE;
 $config['cookie_samesite'] 	= 'Lax';

@@ -63,6 +63,10 @@
   }
 
   function getPdfPage() {
+    if (global.ModulePdfViewer && typeof global.ModulePdfViewer.getCurrentPage === 'function') {
+      var p = global.ModulePdfViewer.getCurrentPage();
+      if (p > 0) return p;
+    }
     var frame = document.getElementById('mvPdfFrame') || document.getElementById('mvSlidesFrame');
     if (frame && frame.src) {
       var m = String(frame.src).match(/[#&]page=(\d+)/i);
@@ -78,6 +82,10 @@
   }
 
   function getSlideNumber() {
+    if (global.ModulePdfViewer && typeof global.ModulePdfViewer.getCurrentPage === 'function') {
+      var s = global.ModulePdfViewer.getCurrentPage();
+      if (s > 0) return s;
+    }
     var wrap = document.getElementById('mvSlidesViewer');
     if (wrap) {
       var cards = wrap.querySelectorAll('.mv-slide-card');
@@ -214,6 +222,8 @@
           '<p class="ln-note-item-meta">' + meta.join(' · ') + '</p>' +
           '<div class="ln-note-item-actions">' +
             (n.return_url ? '<a href="' + escapeHtml(n.return_url) + '" class="ln-note-icon-btn">Return to content</a>' : '') +
+            '<a href="' + escapeHtml(apiUrl('export/' + n.id + '?format=txt')) + '" class="ln-note-icon-btn" title="Export as text">TXT</a>' +
+            '<a href="' + escapeHtml(apiUrl('export/' + n.id + '?format=pdf')) + '" class="ln-note-icon-btn" title="Export as PDF">PDF</a>' +
             '<button type="button" class="ln-note-icon-btn js-ln-pin' + (n.is_pinned ? ' is-on' : '') + '" data-id="' + n.id + '">Pin</button>' +
             '<button type="button" class="ln-note-icon-btn js-ln-fav' + (n.is_favorite ? ' is-on' : '') + '" data-id="' + n.id + '">★</button>' +
             '<button type="button" class="ln-note-icon-btn js-ln-edit" data-id="' + n.id + '">Edit</button>' +

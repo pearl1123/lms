@@ -31,10 +31,19 @@ class My_courses extends KA_Controller {
     // =========================================================
     public function index()
     {
-        switch ($this->auth_user->role) {
+        switch (strtolower((string) ($this->auth_user->role ?? ''))) {
             case 'admin':   $this->_admin();      break;
-            case 'teacher': $this->_instructor(); break;
-            default:        $this->_employee();   break;
+            case 'teacher':
+            case 'instructor':
+                $this->_instructor();
+                break;
+            case 'employee':
+            case 'student':
+                $this->_employee();
+                break;
+            default:
+                $this->_employee();
+                break;
         }
     }
 

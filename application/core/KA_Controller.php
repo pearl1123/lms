@@ -212,6 +212,10 @@ class KA_Controller extends CI_Controller {
             return;
         }
 
+        if (ka_learner_role_has_manifest_permission($permissions, (string) ($this->auth_user->role ?? ''))) {
+            return;
+        }
+
         if ($this->_is_ajax_request()) {
             $this->_auth_json_exit(403, 'You do not have permission to access that page.', ['auth' => true]);
         }
@@ -281,10 +285,14 @@ class KA_Controller extends CI_Controller {
         }
 
         if ($this->_user_has_no_group_membership()) {
-            return $this->auth_user->role === 'admin';
+            return in_array(strtolower((string) ($this->auth_user->role ?? '')), ['admin', 'employee', 'student'], true);
         }
 
-        return $this->permission_model->user_has((int) $this->auth_user->id, $permission_name);
+        if ($this->permission_model->user_has((int) $this->auth_user->id, $permission_name)) {
+            return true;
+        }
+
+        return ka_learner_role_has_manifest_permission($permission_name, (string) ($this->auth_user->role ?? ''));
     }
 
     private function _load_user_permissions()

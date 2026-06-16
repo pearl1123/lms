@@ -17,7 +17,7 @@ class Learning_notes extends KA_Controller {
         parent::__construct();
         $this->load->model('Learning_notes_model', 'learning_notes_model');
         $this->load->model('Course_model', 'course_model');
-        $this->load->helper(['url', 'form', 'ka_layout']);
+        $this->load->helper(['url', 'form', 'ka_layout', 'learning_notes_export_helper']);
 
         $this->require_permission('learning_notes.view');
     }
@@ -62,6 +62,71 @@ class Learning_notes extends KA_Controller {
         ];
 
         $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
+    }
+
+    /**
+     * GET — download note(s) as plain text (.txt) or PDF (.pdf).
+     * /learning_notes/export — filtered list (same query params as index)
+     * /learning_notes/export/{id} — single note
+     * Query: format=txt|pdf (default txt)
+     */
+    public function export($id = null)
+    {
+        if ( ! $this->learning_notes_model->table_ready()) {
+            show_error('Learning notes are not available.', 503);
+        }
+
+        $format     = ln_export_resolve_format($this->input->get('format'));
+        $owner_name = trim((string) ($this->auth_user->fullname ?? 'Learner'));
+
+        if ($id !== null && $id !== '') {
+            $note_id = (int) $id;
+            if ($note_id < 1) {
+                show_404();
+            }
+
+            $note = $this->learning_notes_model->get_note($note_id, (int) $this->auth_user->id);
+            if ( ! $note) {
+                show_404();
+            }
+
+            $slug = ln_export_filename_slug($note->note_title ?? '', 'note');
+            if ($format === 'pdf') {
+                ln_export_notes_pdf([$note], 'learning_note_' . $note_id . '_' . $slug . '.pdf', $owner_name);
+
+                return;
+            }
+
+            $this->load->helper('download');
+            force_download('learning_note_' . $note_id . '_' . $slug . '.txt', $this->_format_note_export_text($note));
+
+            return;
+        }
+
+        $filter    = $this->input->get('filter', true) ?: 'all';
+        $course_id = (int) $this->input->get('course_id');
+        $filters   = ['q' => trim((string) $this->input->get('q', true))];
+        if ($course_id > 0) {
+            $filters['course_id'] = $course_id;
+        }
+        if ($filter === 'favorites') {
+            $filters['favorite'] = 1;
+        }
+        if ($filter === 'recent') {
+            $filters['recent'] = 1;
+            $filters['limit']  = 500;
+        }
+
+        $notes = $this->learning_notes_model->get_notes_for_user((int) $this->auth_user->id, $filters);
+
+        if ($format === 'pdf') {
+            ln_export_notes_pdf($notes, 'learning_notes_' . date('Y-m-d') . '.pdf', $owner_name);
+
+            return;
+        }
+
+        $this->load->helper('download');
+        force_download('learning_notes_' . date('Y-m-d') . '.txt', $this->_format_notes_export_text($notes));
     }
 
     /**
@@ -339,5 +404,65 @@ class Learning_notes extends KA_Controller {
             ->set_output(json_encode($data, JSON_UNESCAPED_UNICODE));
 
         return null;
+    }
+
+    /**
+     * @param object $note
+     */
+    private function _format_note_export_text($note)
+    {
+        $lines   = [];
+        $lines[] = 'kaBAGA Academy — Learning Note';
+        $lines[] = str_repeat('=', 40);
+        $lines[] = 'Title: ' . trim((string) ($note->note_title ?: 'Untitled note'));
+        $lines[] = 'Course: ' . trim((string) ($note->course_title ?? ''));
+        if ( ! empty($note->module_title)) {
+            $lines[] = 'Module: ' . trim((string) $note->module_title);
+        }
+        if ( ! empty($note->context_label)) {
+            $lines[] = 'Context: ' . trim((string) $note->context_label);
+        }
+        $tags = is_array($note->tags ?? null) ? $note->tags : [];
+        if ($tags !== []) {
+            $lines[] = 'Tags: ' . implode(', ', $tags);
+        }
+        $updated = (string) ($note->updated_at ?? $note->created_at ?? '');
+        if ($updated !== '') {
+            $lines[] = 'Updated: ' . date('F j, Y g:i A', strtotime($updated));
+        }
+        if ( ! empty($note->return_url)) {
+            $lines[] = 'Return link: ' . (string) $note->return_url;
+        }
+        $lines[] = '';
+        $lines[] = trim((string) ($note->note_content ?? ''));
+
+        return implode("\r\n", $lines) . "\r\n";
+    }
+
+    /**
+     * @param object[] $notes
+     */
+    private function _format_notes_export_text(array $notes)
+    {
+        if ($notes === []) {
+            return "kaBAGA Academy — Learning Notes\r\nNo notes matched your filters.\r\n";
+        }
+
+        $blocks = [];
+        $blocks[] = 'kaBAGA Academy — Learning Notes Export';
+        $blocks[] = 'Exported: ' . date('F j, Y g:i A');
+        $blocks[] = 'Total notes: ' . count($notes);
+        $blocks[] = str_repeat('=', 40);
+
+        foreach ($notes as $i => $note) {
+            if ($i > 0) {
+                $blocks[] = '';
+                $blocks[] = str_repeat('-', 40);
+                $blocks[] = '';
+            }
+            $blocks[] = rtrim($this->_format_note_export_text($note));
+        }
+
+        return implode("\r\n", $blocks) . "\r\n";
     }
 }

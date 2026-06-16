@@ -89,6 +89,11 @@ $flash_messages = $flash_messages ?? [];
     border-color: #bae6fd;
     color: var(--ka-navy, #1a3a5c);
   }
+  .ka-alert-reminder {
+    background: var(--ka-accent, #e8f4fd);
+    border-color: #93c5fd;
+    color: var(--ka-navy, #1a3a5c);
+  }
 </style>
 
 <?php
@@ -98,6 +103,7 @@ $flash_map = [
     'error'                  => ['class' => 'ka-alert-error',   'title' => 'Error',               'icon' => '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>'],
     'warning'                => ['class' => 'ka-alert-warning', 'title' => 'Warning',             'icon' => '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'],
     'info'                   => ['class' => 'ka-alert-info',    'title' => 'Information',         'icon' => '<circle cx="12" cy="12" r="10"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/>'],
+    'reminder'               => ['class' => 'ka-alert-reminder', 'title' => 'Reminder',           'icon' => '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>'],
     'enrollment_notification'=> ['class' => 'ka-alert-error',   'title' => 'Enrollment Update',   'icon' => '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'],
 ];
 
