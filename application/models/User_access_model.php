@@ -24,7 +24,7 @@ class User_access_model extends CI_Model {
         $this->_apply_user_filters($filters);
 
         $query = $this->db
-            ->select('u.id, u.employee_id, u.fullname, u.email, u.office, u.status, u.role, u.last_login, u.created_at')
+            ->select('u.id, u.employee_id, u.fullname, u.email, u.office, u.status, u.role, u.last_login, u.created_at, u.failed_attempts, u.locked_until')
             ->order_by('u.fullname', 'ASC')
             ->limit((int) $limit, (int) $offset)
             ->get();
@@ -81,12 +81,41 @@ class User_access_model extends CI_Model {
 
     public function get_user_row($user_id)
     {
-        return $this->db
-            ->select('id, employee_id, fullname, email, office, status, role, last_login, created_at')
+        $user = $this->db
+            ->select('id, employee_id, fullname, email, office, status, role, last_login, created_at, failed_attempts, locked_until')
             ->where('id', (int) $user_id)
             ->where('DELETED', 0)
             ->get($this->users_table, 1)
             ->row();
+
+        return $this->enrich_user_lock_fields($user);
+    }
+
+    /**
+     * Attach login lockout metadata for admin UI.
+     *
+     * @param object|null $user
+     * @return object|null
+     */
+    public function enrich_user_lock_fields($user)
+    {
+        if ( ! $user) {
+            return null;
+        }
+
+        $this->load->model('User_model', 'user_model');
+
+        $failed = (int) ($user->failed_attempts ?? 0);
+        $locked_until = $user->locked_until ?? null;
+        $is_locked = $this->user_model->is_login_locked($user);
+
+        $user->failed_attempts = $failed;
+        $user->is_login_locked = $is_locked;
+        $user->locked_until_display = $is_locked && $locked_until
+            ? date('Y-m-d H:i', strtotime((string) $locked_until))
+            : '';
+
+        return $user;
     }
 
     /**

@@ -65,6 +65,7 @@ $access_base = rtrim($access_base ?? site_url('users'), '/');
             <th>Office</th>
             <th>Email</th>
             <th>Status</th>
+            <th>Login</th>
             <th>Assigned Roles</th>
             <th>Last Login</th>
             <th class="libx-th-actions">Actions</th>
@@ -72,15 +73,39 @@ $access_base = rtrim($access_base ?? site_url('users'), '/');
         </thead>
         <tbody>
           <?php if (empty($users)): ?>
-          <tr><td colspan="8" class="libx-empty">No users found.</td></tr>
+          <tr><td colspan="9" class="libx-empty">No users found.</td></tr>
           <?php else: ?>
-          <?php foreach ($users as $u): ?>
+          <?php foreach ($users as $u):
+            $is_login_locked = ! empty($u->is_login_locked);
+            $failed_attempts = (int) ($u->failed_attempts ?? 0);
+            $show_unlock = $is_login_locked || $failed_attempts > 0;
+          ?>
           <tr data-user-id="<?= (int) $u->id; ?>">
             <td><?= htmlspecialchars($u->employee_id ?? '—', ENT_QUOTES); ?></td>
             <td><?= htmlspecialchars($u->fullname ?? '—', ENT_QUOTES); ?></td>
             <td><?= htmlspecialchars($u->office ?? '—', ENT_QUOTES); ?></td>
             <td><?= htmlspecialchars($u->email ?? '—', ENT_QUOTES); ?></td>
             <td><span class="umgmt-badge umgmt-badge-<?= htmlspecialchars(strtolower($u->status ?? 'inactive'), ENT_QUOTES); ?>"><?= htmlspecialchars(ucfirst($u->status ?? '—'), ENT_QUOTES); ?></span></td>
+            <td class="umgmt-login-cell" data-user-id="<?= (int) $u->id; ?>">
+              <?php if ($is_login_locked): ?>
+                <span class="umgmt-badge umgmt-badge-locked" title="Locked until <?= htmlspecialchars($u->locked_until_display ?? '', ENT_QUOTES); ?>">Locked</span>
+                <?php if ($failed_attempts > 0): ?>
+                <span class="umgmt-login-meta"><?= $failed_attempts ?> failed</span>
+                <?php endif; ?>
+              <?php elseif ($failed_attempts > 0): ?>
+                <span class="umgmt-login-meta"><?= $failed_attempts ?> failed attempt<?= $failed_attempts === 1 ? '' : 's' ?></span>
+              <?php else: ?>
+                <span class="umgmt-login-meta umgmt-login-meta--ok">OK</span>
+              <?php endif; ?>
+              <?php if ($show_unlock): ?>
+              <button type="button"
+                      class="umgmt-btn-unlock-login"
+                      data-user-id="<?= (int) $u->id; ?>"
+                      data-user-name="<?= htmlspecialchars($u->fullname ?? '', ENT_QUOTES); ?>">
+                Reset login lock
+              </button>
+              <?php endif; ?>
+            </td>
             <td class="umgmt-groups-cell" data-user-id="<?= (int) $u->id; ?>"><?= htmlspecialchars($u->group_labels ?? '—', ENT_QUOTES); ?></td>
             <td><?= ! empty($u->last_login) ? htmlspecialchars(date('Y-m-d H:i', strtotime($u->last_login)), ENT_QUOTES) : 'Never'; ?></td>
             <td class="libx-actions">

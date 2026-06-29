@@ -88,6 +88,7 @@ $route['users/access_data/(:num)'] = 'Users/access_data/$1';
 $route['users/group_add'] = 'Users/group_add';
 $route['users/group_remove'] = 'Users/group_remove';
 $route['users/permissions_save'] = 'Users/permissions_save';
+$route['users/reset_login_lock'] = 'Users/reset_login_lock';
 
 // Permission management (group matrix)
 $route['permissions'] = 'Permissions/index';

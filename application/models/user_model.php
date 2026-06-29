@@ -219,6 +219,41 @@ class User_model extends CI_Model {
         return $user;
     }
 
+    /**
+     * Whether the account is in an active login lockout window.
+     *
+     * @param object|null $user aauth_users row
+     */
+    public function is_login_locked($user)
+    {
+        if ( ! $user || empty($user->locked_until)) {
+            return false;
+        }
+
+        return strtotime((string) $user->locked_until) > time();
+    }
+
+    /**
+     * Clear failed login counters so the user can sign in again.
+     *
+     * @param int $user_id
+     */
+    public function reset_login_lockout($user_id)
+    {
+        $uid = (int) $user_id;
+        if ($uid < 1) {
+            return false;
+        }
+
+        return (bool) $this->db
+            ->where('id', $uid)
+            ->where('DELETED', 0)
+            ->update($this->table, [
+                'failed_attempts' => 0,
+                'locked_until'    => null,
+            ]);
+    }
+
     public function get_user($id)
     {
         return $this->db->get_where($this->table, ['id' => $id])->row();

@@ -79,11 +79,66 @@
       ['LMS Role', user.role],
       ['Last Login', user.last_login || 'Never']
     ];
+    if (user.is_login_locked) {
+      fields.push(['Login lock', 'Locked until ' + (user.locked_until_display || '—')]);
+    } else if ((parseInt(user.failed_attempts, 10) || 0) > 0) {
+      fields.push(['Failed logins', String(user.failed_attempts)]);
+    } else {
+      fields.push(['Login lock', 'None']);
+    }
     el.innerHTML = fields.map(function (f) {
       return '<div class="umgmt-info-item"><label>' + escapeHtml(f[0]) + '</label><span>' + escapeHtml(String(f[1] || '—')) + '</span></div>';
     }).join('');
     document.getElementById('umgmtAccessModalLabel').textContent = 'Manage Access — ' + (user.fullname || '');
     document.getElementById('umgmtModalUserSubtitle').textContent = user.employee_id || '';
+  }
+
+  function renderLoginCell(userId, user) {
+    var cell = document.querySelector('.umgmt-login-cell[data-user-id="' + userId + '"]');
+    if (!cell || !user) return;
+
+    var failed = parseInt(user.failed_attempts, 10) || 0;
+    var locked = !!user.is_login_locked;
+    var showUnlock = locked || failed > 0;
+    var html = '';
+
+    if (locked) {
+      html += '<span class="umgmt-badge umgmt-badge-locked" title="Locked until ' + escapeHtml(user.locked_until_display || '') + '">Locked</span>';
+      if (failed > 0) {
+        html += '<span class="umgmt-login-meta">' + failed + ' failed</span>';
+      }
+    } else if (failed > 0) {
+      html += '<span class="umgmt-login-meta">' + failed + ' failed attempt' + (failed === 1 ? '' : 's') + '</span>';
+    } else {
+      html += '<span class="umgmt-login-meta umgmt-login-meta--ok">OK</span>';
+    }
+
+    if (showUnlock) {
+      html += '<button type="button" class="umgmt-btn-unlock-login" data-user-id="' + userId + '" data-user-name="' + escapeHtml(user.fullname || '') + '">Reset login lock</button>';
+    }
+
+    cell.innerHTML = html;
+  }
+
+  function resetLoginLock(userId, userName) {
+    confirmAction(
+      'Reset login lock?',
+      'Clear failed login attempts for ' + (userName || 'this user') + '? They will be able to sign in immediately.'
+    ).then(function (r) {
+      if (!r.isConfirmed) return;
+      post(cfg.baseUrl + '/reset_login_lock', { user_id: userId }).then(function (res) {
+        if (res.success) {
+          toast('success', res.message || 'Login lock reset.');
+          if (res.user) {
+            renderLoginCell(userId, res.user);
+          }
+        } else {
+          toast('error', res.message || 'Unable to reset login lock.');
+        }
+      }).catch(function () {
+        toast('error', 'Network error.');
+      });
+    });
   }
 
   function renderGroups(groups, allGroups) {
@@ -289,6 +344,15 @@
     });
 
     document.addEventListener('click', function (e) {
+      var unlockBtn = e.target.closest('.umgmt-btn-unlock-login');
+      if (unlockBtn) {
+        resetLoginLock(
+          parseInt(unlockBtn.getAttribute('data-user-id'), 10),
+          unlockBtn.getAttribute('data-user-name') || ''
+        );
+        return;
+      }
+
       var btn = e.target.closest('.umgmt-btn-remove-group');
       if (!btn || !state.userId) return;
       var gid = parseInt(btn.getAttribute('data-group-id'), 10);

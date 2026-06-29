@@ -19,6 +19,66 @@
 
 .umgmt-badge-active { background: #16a34a; }
 .umgmt-badge-inactive { background: #64748b; }
+.umgmt-badge-locked { background: #dc2626; }
+
+.umgmt-login-cell {
+  min-width: 8.5rem;
+  vertical-align: top;
+}
+
+.umgmt-login-meta {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--ka-text-muted, #64748b);
+}
+
+.umgmt-login-meta--ok {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.umgmt-btn-unlock-login {
+  display: block;
+  width: 100%;
+  margin-top: 0.45rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid #fdba74;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+  text-align: center;
+}
+
+.umgmt-btn-unlock-login:hover {
+  background: #ffedd5;
+  border-color: #fb923c;
+  color: #9a3412;
+}
+
+.umgmt-workspace .libx-th-actions,
+.umgmt-workspace td.libx-actions {
+  min-width: 12.5rem;
+}
+
+.umgmt-workspace .libx-actions {
+  white-space: normal;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.umgmt-workspace .libx-actions .libx-action {
+  margin-right: 0;
+  width: 100%;
+  text-align: center;
+  padding: 0.35rem 0.5rem;
+}
 
 .umgmt-pagination {
   display: flex;

@@ -17,6 +17,7 @@ class Users extends KA_Controller {
         parent::__construct();
         $this->require_permission(['users.view', 'users.manage'], 'dashboard');
         $this->load->model('User_access_model', 'user_access_model');
+        $this->load->model('User_model', 'user_model');
         $this->load->library('User_access_service', null, 'user_access_service');
         $this->load->library('Permission_seed_service', null, 'permission_seed_service');
         $this->_auto_sync_permissions_if_empty();
@@ -48,6 +49,9 @@ class Users extends KA_Controller {
         $offset = ($page - 1) * self::PER_PAGE;
         $users  = $this->user_access_model->get_users_list($filters, self::PER_PAGE, $offset);
         $users  = $this->user_access_model->attach_group_labels($users);
+        foreach ($users as $u) {
+            $this->user_access_model->enrich_user_lock_fields($u);
+        }
 
         $this->render('administrator/users/management', [
             'page_title'   => 'User Management',
@@ -195,6 +199,53 @@ class Users extends KA_Controller {
         $this->_audit_perm_diff($user_id, $old_denies, $new_denies, 'perm_denied', 'perm_deny_removed');
 
         $this->json_ok($this->_access_json_payload($user_id, 'Permissions saved.'));
+    }
+
+    /**
+     * POST JSON — reset failed login attempts / lockout for a user.
+     */
+    public function reset_login_lock()
+    {
+        $this->require_permission('users.manage', 'users');
+
+        $user_id = (int) $this->post_param('user_id');
+        if ($user_id < 1) {
+            $this->json_error('Invalid user.');
+
+            return;
+        }
+
+        $user = $this->user_access_model->get_user_row($user_id);
+        if ( ! $user) {
+            $this->json_error('User not found.', [], 404);
+
+            return;
+        }
+
+        if ( ! $this->user_model->reset_login_lockout($user_id)) {
+            $this->json_error('Unable to reset login lockout.');
+
+            return;
+        }
+
+        $this->user_access_model->log_audit(
+            $user_id,
+            (int) $this->auth_user->id,
+            'login_unlocked',
+            'user',
+            $user_id,
+            json_encode([
+                'failed_attempts_before' => (int) ($user->failed_attempts ?? 0),
+                'locked_until_before'    => (string) ($user->locked_until ?? ''),
+            ])
+        );
+
+        $updated = $this->user_access_model->get_user_row($user_id);
+
+        $this->json_ok([
+            'message' => 'Login attempts reset. The user can sign in again.',
+            'user'    => $updated,
+        ]);
     }
 
     /**
