@@ -583,7 +583,7 @@ class Auth extends CI_Controller {
                 'exists'     => false,
                 'registered' => false,
                 'success'    => false,
-                'message'    => 'Employee ID must be in the format LCP###### (e.g. LCP880201).',
+                'message'    => 'Employee ID must start with LCP followed by 3–7 digits (e.g. LCP10492 or LCP880201).',
             ]);
 
             return;
@@ -696,7 +696,7 @@ class Auth extends CI_Controller {
     }
 
     /**
-     * Form validation callback — LCP###### format.
+     * Form validation callback — LCP + 3–7 digits.
      *
      * @param string $str
      * @return bool
@@ -706,7 +706,7 @@ class Auth extends CI_Controller {
         if ( ! is_valid_lcp_employee_id($str)) {
             $this->form_validation->set_message(
                 'valid_lcp_employee_id',
-                'Employee ID must be in the format LCP###### (e.g. LCP880201).'
+                'Employee ID must start with LCP followed by 3–7 digits (e.g. LCP10492 or LCP880201).'
             );
 
             return false;

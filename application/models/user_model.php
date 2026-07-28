@@ -14,7 +14,7 @@ class User_model extends CI_Model {
     }
 
     /**
-     * ACTIVE employee from HRMIS tblemployee (idno must match normalized LCP######).
+     * ACTIVE employee from HRMIS tblemployee (idno must match normalized LCP + digits).
      *
      * @param string $employee_id
      * @return object|null
@@ -30,11 +30,26 @@ class User_model extends CI_Model {
             return null;
         }
 
-        return $this->hrmis_db
+        // Exact match first (normal path).
+        $row = $this->hrmis_db
             ->where('idno', $employee_id)
             ->where('status', 'ACTIVE')
             ->get('tblemployee')
             ->row();
+
+        if ($row) {
+            return $row;
+        }
+
+        // Fallback: trim / case-insensitive match (legacy HRMIS rows).
+        $row = $this->hrmis_db
+            ->where('UPPER(TRIM(idno)) = ' . $this->hrmis_db->escape($employee_id), null, false)
+            ->where('UPPER(TRIM(status)) = ' . $this->hrmis_db->escape('ACTIVE'), null, false)
+            ->limit(1)
+            ->get('tblemployee')
+            ->row();
+
+        return $row ?: null;
     }
 
     /**
@@ -50,7 +65,7 @@ class User_model extends CI_Model {
         if ( ! is_valid_lcp_employee_id($employee_id)) {
             return [
                 'ok'       => false,
-                'message'  => 'Employee ID must be in the format LCP###### (e.g. LCP880201).',
+                'message'  => 'Employee ID must start with LCP followed by 3–7 digits (e.g. LCP10492 or LCP880201).',
                 'employee' => null,
             ];
         }

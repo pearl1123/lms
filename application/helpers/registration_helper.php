@@ -6,7 +6,7 @@ define('HRMIS_REGISTRATION_BLOCK_MESSAGE', 'Employee ID not found or inactive in
 
 if ( ! function_exists('normalize_employee_id')) {
     /**
-     * Trim and uppercase employee ID (LCP######).
+     * Trim and uppercase employee ID (LCP + digits).
      */
     function normalize_employee_id($employee_id)
     {
@@ -16,13 +16,14 @@ if ( ! function_exists('normalize_employee_id')) {
 
 if ( ! function_exists('is_valid_lcp_employee_id')) {
     /**
-     * Server-side format: LCP + exactly 6 digits.
+     * Server-side format: LCP + 3 to 7 digits (matches HRMIS idno lengths in use).
+     * Examples: LCP156, LCP10492, LCP880201.
      */
     function is_valid_lcp_employee_id($employee_id)
     {
         $id = normalize_employee_id($employee_id);
 
-        return $id !== '' && (bool) preg_match('/^LCP[0-9]{6}$/', $id);
+        return $id !== '' && (bool) preg_match('/^LCP[0-9]{3,7}$/', $id);
     }
 }
 

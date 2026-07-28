@@ -38,7 +38,7 @@
             <div class="wmis-logo-hospital">LUNG CENTER OF THE PHILIPPINES</div>
           </div>
           <h2 class="h3 text-center mb-1">Create Your Account</h2>
-          <p class="text-center text-muted small mb-3">Employee ID must exist in HRMIS (format <strong>LCP######</strong>).</p>
+          <p class="text-center text-muted small mb-3">Employee ID must exist in HRMIS (format <strong>LCP</strong> + digits, e.g. LCP10492).</p>
 
           <?php
           $error   = isset($error) ? $error : '';
@@ -67,8 +67,8 @@
                      name="employee_id"
                      id="employee_id"
                      class="form-control text-uppercase"
-                     placeholder="LCP880201"
-                     pattern="LCP[0-9]{6}"
+                     placeholder="LCP10492"
+                     pattern="LCP[0-9]{3,7}"
                      title="Format: LCP followed by 6 digits"
                      autocomplete="username"
                      value="<?= html_escape($employee_id_value ?? ''); ?>"
@@ -255,8 +255,8 @@
         return;
       }
 
-      if (!/^LCP[0-9]{6}$/.test(employeeId)) {
-        $('#employee_status').text('Employee ID must be LCP###### (e.g. LCP880201).').css('color', '#dc2626');
+      if (!/^LCP[0-9]{3,7}$/.test(employeeId)) {
+        $('#employee_status').text('Employee ID must start with LCP followed by 3–7 digits (e.g. LCP10492).').css('color', '#dc2626');
         return;
       }
 
@@ -303,7 +303,7 @@
     });
 
     var restoredEmployeeId = $('#employee_id').val().trim();
-    if (restoredEmployeeId && /^LCP[0-9]{6}$/.test(restoredEmployeeId)) {
+    if (restoredEmployeeId && /^LCP[0-9]{3,7}$/.test(restoredEmployeeId)) {
       $('#checkEmployeeBtn').trigger('click');
     }
   })(jQuery);
