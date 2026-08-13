@@ -110,6 +110,7 @@ $module_app_context = [
     'youtubeVideoId'             => (string) ($youtube_video_id ?? ''),
     'slidesFileExt'              => strtolower((string) pathinfo($content_path, PATHINFO_EXTENSION)),
     'pdfUrl'                     => in_array($eff_type, ['pdf', 'slides'], true) ? $content_url : '',
+    'pdfWorkerUrl'               => base_url('assets/js/pdfjs/pdf.worker.min.js'),
     'vcPassedIds'                => array_values(array_map('intval', (array) $video_checkpoint_passed_ids)),
     'videoOptionalPre'           => (bool) $video_optional_pre,
     'videoCompletedInitial'      => (bool) $video_completed_init,
@@ -406,7 +407,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
               <?php if ( ! $mcs_post_passed && ! empty($post_assessments)): ?>
                 Pass all post-assessments (sidebar), then finish content requirements to mark complete
               <?php elseif ($eff_type === 'pdf' || $eff_type === 'slides'): ?>
-                Review every page to complete
+                Use Next to review every page — Mark as Complete unlocks on the last page
               <?php elseif ($eff_type === 'video' && $youtube_video_id && $video_checkpoint_gate): ?>
                 Complete required video checkpoints; pass post-assessment (sidebar) to mark complete
               <?php elseif ($eff_type === 'video' || $eff_type === 'audio'): ?>
@@ -601,7 +602,7 @@ $_mv_pdf_ext = strtolower((string) pathinfo($content_path ?? '', PATHINFO_EXTENS
 $_mv_use_pdfjs = ($eff_type === 'pdf') || ($eff_type === 'slides' && $_mv_pdf_ext === 'pdf');
 ?>
 <?php if ($_mv_use_pdfjs): ?>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="<?= base_url('assets/js/pdfjs/pdf.min.js') ?>"></script>
 <script src="<?= base_url('assets/js/module_pdf_viewer.js') ?>"></script>
 <?php endif; ?>
 <script src="<?= base_url('assets/js/module.js') ?>"></script>

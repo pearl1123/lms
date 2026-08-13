@@ -139,15 +139,26 @@ function showCompletionModal(res) {
   document.body.appendChild(overlay);
 }
 
+function pdfPostOk() {
+  return !HAS_POST_ASSESSMENTS || POST_ASSESSMENT_PASSED;
+}
+
 function syncMarkCompleteButton() {
   if (IS_COMPLETED) return;
   var markBtn = document.getElementById('mvMarkBtn');
   if (!markBtn) return;
-  if (CAN_MARK_COMPLETE && POST_ASSESSMENT_PASSED) {
+  var isPdfModule = CONTENT_TYPE === 'pdf'
+    || (CONTENT_TYPE === 'slides' && String(C.slidesFileExt || '').toLowerCase() === 'pdf');
+  if (isPdfModule && !window.mvPdfLastPageReached) {
+    return;
+  }
+  if (CAN_MARK_COMPLETE && pdfPostOk()) {
     markBtn.disabled = false;
     var hint = document.getElementById('mvCompleteHint');
     if (hint) {
-      hint.textContent = 'Post-assessment passed. Click Mark as Complete when ready.';
+      hint.textContent = HAS_POST_ASSESSMENTS
+        ? 'Post-assessment passed. Click Mark as Complete when ready.'
+        : 'Click Mark as Complete when ready.';
     }
   }
 }
@@ -1093,10 +1104,15 @@ window.mvBootstrapPdfViewer = function() {
   if (markBtn) markBtn.disabled = true;
 
   function enablePdfComplete(hintText) {
-    if (markBtn && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
+    window.mvPdfLastPageReached = true;
     var hint = document.getElementById('mvCompleteHint');
     if (hint && hintText) hint.textContent = hintText;
-    if (POST_ASSESSMENT_PASSED) showToast('All pages reviewed. Click Mark as Complete when ready.');
+    if (!pdfPostOk()) {
+      if (hint) hint.textContent = 'Pass the post-assessment in the sidebar, then mark complete.';
+      return;
+    }
+    if (markBtn) markBtn.disabled = false;
+    showToast('All pages reviewed. Click Mark as Complete when ready.');
   }
 
   function resolvePdfStartPage() {
@@ -1114,7 +1130,8 @@ window.mvBootstrapPdfViewer = function() {
   }
 
   if (!window.ModulePdfViewer || typeof window.ModulePdfViewer.init !== 'function') {
-    console.warn('[module] ModulePdfViewer unavailable; PDF completion gate disabled.');
+    console.warn('[module] ModulePdfViewer unavailable; unlocking complete.');
+    enablePdfComplete('Document ready. Click Mark as Complete when finished.');
     return;
   }
 
@@ -1122,23 +1139,30 @@ window.mvBootstrapPdfViewer = function() {
   var resumeType = isPdfSlides ? 'slides' : 'pdf';
   var startPage = resolvePdfStartPage();
 
-  window.ModulePdfViewer.init({
+  var viewer = window.ModulePdfViewer.init({
     rootId: rootId,
     pdfUrl: C.pdfUrl || '',
+    workerSrc: C.pdfWorkerUrl || '',
     startPage: startPage,
     onPageChange: function(page, total) {
       if (window.LMS_RESUME && typeof window.LMS_RESUME.saveNow === 'function') {
         window.LMS_RESUME.saveNow(resumeType, page);
       }
       var hint = document.getElementById('mvCompleteHint');
-      if (hint && total > 0) {
-        hint.textContent = 'Page ' + page + ' of ' + total + ' — continue to the last page';
+      if (hint && total > 0 && page < total) {
+        hint.textContent = 'Page ' + page + ' of ' + total + ' — click Next until the last page';
       }
     },
     onLastPageReached: function() {
       enablePdfComplete('All pages reviewed — ready to mark complete');
     },
+    onError: function() {
+      enablePdfComplete('Document could not be previewed. Click Mark as Complete when you have reviewed the file.');
+    },
   });
+  if (!viewer) {
+    enablePdfComplete('Document ready. Click Mark as Complete when finished.');
+  }
 
   window.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'pdf-scrolled-end') {
@@ -1164,7 +1188,7 @@ document.addEventListener('DOMContentLoaded', function() {
           showToast('Answer all video checkpoints first.');
           return;
         }
-        if (!this.disabled && !POST_ASSESSMENT_PASSED) {
+        if (!this.disabled && !pdfPostOk()) {
           showToast('Pass the post-assessment in the sidebar first.');
           return;
         }
@@ -1181,12 +1205,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (video) {
       video.addEventListener('ended', function() {
         mvOnVideoPlaybackEnded();
-        if (markBtn && POST_ASSESSMENT_PASSED) markBtn.disabled = false;
-        if (POST_ASSESSMENT_PASSED) showToast('Video finished. Click Mark as Complete when ready.');
+        if (markBtn && pdfPostOk()) markBtn.disabled = false;
+        if (pdfPostOk()) showToast('Video finished. Click Mark as Complete when ready.');
       });
       // Allow manual mark after 80% watched
       video.addEventListener('timeupdate', function() {
-        if (POST_ASSESSMENT_PASSED && video.duration > 0 && (video.currentTime / video.duration) >= 0.8) {
+        if (pdfPostOk() && video.duration > 0 && (video.currentTime / video.duration) >= 0.8) {
           if (markBtn) markBtn.disabled = false;
         }
       });
@@ -1245,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // ── Manual mark button (non–YouTube-iframe paths; YouTube registers its own handler above) ──
   if (markBtn) {
     markBtn.addEventListener('click', function() {
-      if (!this.disabled && !POST_ASSESSMENT_PASSED) {
+      if (!this.disabled && !pdfPostOk()) {
         showToast('Pass the post-assessment in the sidebar first.');
         return;
       }

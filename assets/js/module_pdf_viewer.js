@@ -272,9 +272,19 @@
       console.error('[ModulePdfViewer] PDF.js not loaded');
       return null;
     }
-    if (!lib.GlobalWorkerOptions.workerSrc) {
-      lib.GlobalWorkerOptions.workerSrc = options.workerSrc
-        || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    if (options.workerSrc) {
+      lib.GlobalWorkerOptions.workerSrc = options.workerSrc;
+    } else if (!lib.GlobalWorkerOptions.workerSrc) {
+      lib.GlobalWorkerOptions.workerSrc = (function() {
+        var scripts = document.getElementsByTagName('script');
+        for (var i = 0; i < scripts.length; i++) {
+          var src = scripts[i].src || '';
+          if (src.indexOf('pdf.min.js') !== -1) {
+            return src.replace(/pdf\.min\.js(\?.*)?$/, 'pdf.worker.min.js');
+          }
+        }
+        return '';
+      })();
     }
 
     bindControls();
@@ -300,6 +310,9 @@
       console.error('[ModulePdfViewer] load failed', err);
       if (!state.pageInfo) cacheControls();
       if (state.pageInfo) state.pageInfo.textContent = 'Could not load document';
+      if (typeof options.onError === 'function') {
+        options.onError(err);
+      }
     });
 
     return {
