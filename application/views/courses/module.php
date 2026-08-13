@@ -481,7 +481,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
         <?php if ($is_completed): ?>
         Review your post-assessment results for this module.
         <?php elseif ( ! $can_start_post_assessment && ! $mcs_post_passed): ?>
-        <strong>Locked:</strong> Finish watching the video to unlock the post-assessment.
+        <strong>Locked:</strong> <?= ($eff_type === 'video') ? 'Finish watching the video to unlock the post-assessment.' : 'Finish the lesson to unlock the post-assessment.' ?>
         <?php elseif ( ! $mcs_post_passed): ?>
         <strong>Required:</strong> pass all post-assessments below before you can mark this module complete (you can retake until you pass).
         <?php else: ?>
@@ -498,7 +498,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
           <a href="javascript:void(0)"
              class="mv-post-asx-btn is-disabled"
              aria-disabled="true"
-             title="Finish watching the video to unlock the post-assessment">Finish the video to unlock</a>
+             title="<?= ($eff_type === 'video') ? 'Finish watching the video to unlock the post-assessment' : 'Finish the lesson to unlock the post-assessment' ?>"><?= ($eff_type === 'video') ? 'Finish the video to unlock' : 'Finish the lesson to unlock' ?></a>
         <?php elseif ($passed): ?>
           <div class="mv-post-result-pass">
             ✓ Passed (<?= number_format($result['score'], 1) ?>%)

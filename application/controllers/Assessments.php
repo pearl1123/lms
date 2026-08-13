@@ -328,7 +328,7 @@ class Assessments extends CI_Controller {
             )) {
             $this->session->set_flashdata(
                 'info',
-                'Complete the video and checkpoints first to unlock the post-assessment'
+                'Complete the lesson first to unlock the post-assessment.'
             );
             redirect('courses/module/' . (int) $assessment->module_id);
         }

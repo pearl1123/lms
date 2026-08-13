@@ -163,6 +163,16 @@ function syncMarkCompleteButton() {
   }
 }
 
+function postUnlockLockMessage() {
+  if (CONTENT_TYPE === 'video') {
+    return 'Finish watching the video to unlock the post-assessment.';
+  }
+  if (CONTENT_TYPE === 'pdf' || CONTENT_TYPE === 'slides') {
+    return 'Finish reviewing the document to unlock the post-assessment.';
+  }
+  return 'Finish the lesson to unlock the post-assessment.';
+}
+
 function updatePostAssessmentSummaryText() {
   var s = document.getElementById('mvPostAssessmentSummary');
   if (!s) return;
@@ -171,7 +181,7 @@ function updatePostAssessmentSummaryText() {
   } else if (POST_ASSESSMENT_PASSED) {
     s.innerHTML = 'All post-assessments passed. Finish any remaining content steps, then use <strong>Mark as Complete</strong>.';
   } else if (!CAN_START_POST_ASSESSMENT) {
-    s.innerHTML = '<strong>Locked:</strong> Finish watching the video to unlock the post-assessment.';
+    s.innerHTML = '<strong>Locked:</strong> ' + postUnlockLockMessage();
   } else {
     s.innerHTML = '<strong>Required:</strong> pass all post-assessments below before you can mark this module complete (you can retake until you pass).';
   }
@@ -183,7 +193,7 @@ function updatePostAssessmentButtonsState() {
     if (!CAN_START_POST_ASSESSMENT) {
       a.classList.add('is-disabled');
       a.setAttribute('aria-disabled', 'true');
-      a.setAttribute('title', 'Finish watching the video to unlock the post-assessment');
+      a.setAttribute('title', postUnlockLockMessage());
       a.setAttribute('href', 'javascript:void(0)');
     } else {
       var to = a.getAttribute('data-href') || '';

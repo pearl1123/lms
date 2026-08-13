@@ -366,7 +366,7 @@ class Assessment_service {
      * Canonical gate for entering post-assessment in module flow.
      *
      * Conditions:
-     * - video segment must be completed
+     * - post-assessment must be unlocked (video modules: after playback ends; PDF/other: immediately)
      * - post-assessment must not already be passed
      *
      * @param int $user_id
@@ -377,7 +377,7 @@ class Assessment_service {
     {
         $flow = $this->get_module_flow_state((int) $user_id, (int) $module_id);
 
-        return ! empty($flow['video']['completed'])
+        return ! empty($flow['post_assessment']['unlocked'])
             && empty($flow['post_assessment']['passed']);
     }
 
