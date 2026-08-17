@@ -73,6 +73,7 @@ class Certificates extends KA_Controller {
 
         foreach ($certificates as $cert) {
             $cert->issued_at_display = ka_format_date_short($cert->issued_at ?? null);
+            $cert->duration_label = $this->_format_training_duration_label($cert->training_hours ?? null);
             if ($is_manager) {
                 $cert->student_initials = ka_user_initials($cert->student_name ?? '');
             }
@@ -514,5 +515,25 @@ class Certificates extends KA_Controller {
             $this->auth_user->id,
             'Viewed/downloaded by ' . $this->auth_user->fullname
         );
+    }
+
+    /**
+     * Human-readable duration from courses.training_hours.
+     *
+     * @param mixed $hours
+     * @return string
+     */
+    private function _format_training_duration_label($hours)
+    {
+        $raw = trim((string) $hours);
+        if ($raw === '' || ! is_numeric($raw)) {
+            return '';
+        }
+        $h = (float) $raw;
+        if ($h <= 0) {
+            return '';
+        }
+
+        return rtrim(rtrim(number_format($h, 1), '0'), '.') . ' hour' . ($h === 1.0 ? '' : 's');
     }
 }

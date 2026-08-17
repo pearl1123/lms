@@ -219,6 +219,14 @@ class certificate_model extends CI_Model {
      */
     public function get_by_id($certificate_id)
     {
+        $course_extra = '';
+        if ($this->db->field_exists('training_hours', 'courses')) {
+            $course_extra .= ', c.training_hours';
+        }
+        if ($this->db->field_exists('venue', 'courses')) {
+            $course_extra .= ', c.venue';
+        }
+
         $r = $this->db
             ->select('
                 lc.*,
@@ -228,7 +236,8 @@ class certificate_model extends CI_Model {
                 c.description  AS course_description,
                 c.certificate_prefix,
                 c.signatory_name,
-                c.signatory_title,
+                c.signatory_title
+                ' . $course_extra . ',
                 cc.name        AS category_name,
                 lm.modality_desc AS modality_name
             ', false)
@@ -252,6 +261,14 @@ class certificate_model extends CI_Model {
      */
     public function get_by_code($code)
     {
+        $course_extra = '';
+        if ($this->db->field_exists('training_hours', 'courses')) {
+            $course_extra .= ', c.training_hours';
+        }
+        if ($this->db->field_exists('venue', 'courses')) {
+            $course_extra .= ', c.venue';
+        }
+
         $r = $this->db
             ->select('
                 lc.*,
@@ -260,7 +277,8 @@ class certificate_model extends CI_Model {
                 c.title        AS course_title,
                 c.certificate_prefix,
                 c.signatory_name,
-                c.signatory_title,
+                c.signatory_title
+                ' . $course_extra . ',
                 cc.name        AS category_name
             ', false)
             ->from('lib_certificates lc')
@@ -282,11 +300,16 @@ class certificate_model extends CI_Model {
      */
     public function get_user_certificates($user_id)
     {
+        $hours_col = $this->db->field_exists('training_hours', 'courses')
+            ? ', c.training_hours'
+            : '';
+
         $r = $this->db
             ->select('
                 lc.id, lc.certificate_code, lc.issued_at, lc.file_path,
                 c.id    AS course_id,
-                c.title AS course_title,
+                c.title AS course_title
+                ' . $hours_col . ',
                 cc.name AS category_name,
                 lm.modality_desc AS modality_name
             ', false)
@@ -310,13 +333,18 @@ class certificate_model extends CI_Model {
      */
     public function get_all_certificates($filters = [])
     {
+        $hours_col = $this->db->field_exists('training_hours', 'courses')
+            ? ', c.training_hours'
+            : '';
+
         $this->db
             ->select('
                 lc.id, lc.certificate_code, lc.issued_at, lc.file_path, lc.archived,
                 u.fullname    AS student_name,
                 u.employee_id,
                 c.id          AS course_id,
-                c.title       AS course_title,
+                c.title       AS course_title
+                ' . $hours_col . ',
                 cc.name       AS category_name
             ', false)
             ->from('lib_certificates lc')
@@ -355,13 +383,18 @@ class certificate_model extends CI_Model {
             return [];
         }
 
+        $hours_col = $this->db->field_exists('training_hours', 'courses')
+            ? ', c.training_hours'
+            : '';
+
         $r = $this->db
             ->select('
                 lc.id, lc.certificate_code, lc.issued_at, lc.file_path,
                 u.fullname    AS student_name,
                 u.employee_id,
                 c.id          AS course_id,
-                c.title       AS course_title,
+                c.title       AS course_title
+                ' . $hours_col . ',
                 cc.name       AS category_name
             ', false)
             ->from('lib_certificates lc')

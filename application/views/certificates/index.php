@@ -193,6 +193,12 @@ $is_admin           = ! empty($is_admin);
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <?= htmlspecialchars($cert->issued_at_display ?? '') ?>
           </div>
+          <?php if ( ! empty($cert->duration_label)): ?>
+          <div class="cert-card-meta-item">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <?= htmlspecialchars($cert->duration_label) ?>
+          </div>
+          <?php endif; ?>
           <?php if ( ! empty($cert->modality_name)): ?>
           <div class="cert-card-meta-item">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/></svg>
@@ -234,6 +240,7 @@ $is_admin           = ! empty($is_admin);
       <tr>
         <th>Student</th>
         <th>Course</th>
+        <th>Duration</th>
         <th>Certificate Code</th>
         <th>Issued On</th>
         <th>Actions</th>
@@ -254,6 +261,9 @@ $is_admin           = ! empty($is_admin);
         <td>
           <div style="font-weight:600;"><?= htmlspecialchars($cert->course_title ?? '—') ?></div>
           <div style="font-size:.6875rem;color:var(--ka-text-muted,#64748b);"><?= htmlspecialchars($cert->category_name ?? '') ?></div>
+        </td>
+        <td style="color:var(--ka-text-muted,#64748b);white-space:nowrap;">
+          <?= htmlspecialchars($cert->duration_label !== '' ? $cert->duration_label : '—') ?>
         </td>
         <td><span style="font-family:monospace;font-size:.75rem;font-weight:700;"><?= htmlspecialchars($cert->certificate_code ?? '') ?></span></td>
         <td style="color:var(--ka-text-muted,#64748b);"><?= htmlspecialchars($cert->issued_at_display ?? '') ?></td>

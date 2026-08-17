@@ -1616,6 +1616,14 @@ class Course_model extends CI_Model {
             ]);
         }
 
+        if ($new_id > 0 && $this->db->field_exists('training_hours', 'courses')
+            && array_key_exists('training_hours', $data)) {
+            $hours = $this->_normalize_training_hours($data['training_hours']);
+            $this->db->where('id', $new_id)->update('courses', [
+                'training_hours' => $hours,
+            ]);
+        }
+
         return $new_id;
     }
 
@@ -1655,7 +1663,54 @@ class Course_model extends CI_Model {
             }
         }
 
+        if ($ok && $this->db->field_exists('training_hours', 'courses')
+            && array_key_exists('training_hours', $data)) {
+            $this->db->where('id', (int) $course_id)->update('courses', [
+                'training_hours' => $this->_normalize_training_hours($data['training_hours']),
+            ]);
+        }
+
+        // Face-to-face schedule fields (present on courses when Phase 3/4 migrations applied).
+        if ($ok) {
+            $schedule_upd = [];
+            foreach (['schedule_date', 'schedule_time', 'venue'] as $col) {
+                if (array_key_exists($col, $data) && $this->db->field_exists($col, 'courses')) {
+                    $val = $data[$col];
+                    if ($val === '' || $val === null) {
+                        $schedule_upd[$col] = null;
+                    } else {
+                        $schedule_upd[$col] = is_string($val) ? trim($val) : $val;
+                    }
+                }
+            }
+            if ( ! empty($schedule_upd)) {
+                $this->db->where('id', (int) $course_id)->update('courses', $schedule_upd);
+            }
+        }
+
         return $ok;
+    }
+
+    /**
+     * Normalize posted training hours for courses.training_hours.
+     *
+     * @param mixed $raw
+     * @return float|null
+     */
+    private function _normalize_training_hours($raw)
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+        if ( ! is_numeric($raw)) {
+            return null;
+        }
+        $hours = (float) $raw;
+        if ($hours <= 0) {
+            return null;
+        }
+
+        return round($hours, 1);
     }
 
     public function publish_course($course_id, $user_id)

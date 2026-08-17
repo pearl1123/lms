@@ -173,7 +173,8 @@ class Manage_courses extends KA_Controller {
                 ->set_rules('title',       'Course Title', 'required|max_length[255]')
                 ->set_rules('category_id', 'Category',     'required|integer')
                 ->set_rules('modality_id', 'Modality',     'required|integer')
-                ->set_rules('certificate_prefix', 'Certificate Prefix', 'required|alpha_numeric|max_length[12]');
+                ->set_rules('certificate_prefix', 'Certificate Prefix', 'required|alpha_numeric|max_length[12]')
+                ->set_rules('training_hours', 'Training duration (hours)', 'trim|numeric|greater_than[0]|less_than_equal_to[9999]');
 
             if ($this->form_validation->run()) {
                 $total_weight = round((float) $this->course_model->sum_module_weights($id), 2);
@@ -208,6 +209,10 @@ class Manage_courses extends KA_Controller {
                 if ($this->db->field_exists('enrollment_deadline', 'courses')) {
                     $dl = trim((string) $this->input->post('enrollment_deadline'));
                     $update['enrollment_deadline'] = $dl !== '' ? date('Y-m-d H:i:s', strtotime($dl)) : null;
+                }
+                if ($this->db->field_exists('training_hours', 'courses')) {
+                    $hours = trim((string) $this->input->post('training_hours'));
+                    $update['training_hours'] = $hours !== '' ? $hours : null;
                 }
                 $this->course_model->update_course($id, $update, $this->auth_user->id);
 

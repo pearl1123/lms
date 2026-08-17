@@ -131,6 +131,21 @@ $lms_return_target     = $lms_return_target ?? ka_lms_default_return_target_for_
               <p class="ef-help" style="font-size:.72rem;color:var(--ka-text-muted,#64748b);margin-top:.25rem;">Leave blank to use platform default (75%).</p>
             </div>
             <div class="ef-group">
+              <label class="ef-label" for="training_hours">Training duration (hours)</label>
+              <?php if ($this->db->field_exists('training_hours', 'courses')): ?>
+              <input type="number" id="training_hours" name="training_hours" class="ef-input" min="0.1" max="9999" step="0.1"
+                     placeholder="e.g. 8"
+                     value="<?= htmlspecialchars(set_value('training_hours', $course->training_hours ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+              <?php if (form_error('training_hours')): ?><div class="ef-error"><?= form_error('training_hours') ?></div><?php endif; ?>
+              <p class="ef-help" style="font-size:.72rem;color:var(--ka-text-muted,#64748b);margin-top:.25rem;">Shown as Duration on certificates (e.g. 8 → “8 hours”).</p>
+              <?php else: ?>
+              <p class="ef-help" style="font-size:.72rem;color:#b45309;margin-top:.35rem;">
+                Run <code>application/sql/migration_course_training_hours.sql</code> to enable this field.
+              </p>
+              <?php endif; ?>
+            </div>
+          </div>
+          <div class="ef-group" style="margin-top:.75rem;">
               <label class="ef-label">Sequential modules</label>
               <label class="ef-toggle" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem;">
                 <input type="hidden" name="enforce_sequential_modules" value="0">
@@ -139,7 +154,6 @@ $lms_return_target     = $lms_return_target ?? ka_lms_default_return_target_for_
                 <span>Learners must complete modules in order</span>
               </label>
             </div>
-          </div>
           <?php
           $modality_label = function_exists('etd_modality_display_label')
               ? etd_modality_display_label($course->modality_name ?? '') : '';
