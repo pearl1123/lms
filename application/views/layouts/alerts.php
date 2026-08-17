@@ -246,20 +246,32 @@ KA.toast = function(type, message, opts) {
     warning: '#f59f00',
     info:    '#6dabcf',
   };
+  const titles = {
+    success: 'Success',
+    error:   'Error',
+    warning: 'Warning',
+    info:    'Information',
+  };
   const t = ['success', 'error', 'warning', 'info'].indexOf(type) !== -1 ? type : 'info';
-  Swal.mixin({
+  const timer = opts.timer !== undefined ? opts.timer : 4200;
+  const mixinOpts = {
     toast:             true,
     position:          'top-end',
     showConfirmButton: false,
-    timer:             opts.timer !== undefined ? opts.timer : 4200,
-    timerProgressBar:  true,
-    didOpen: function(toast) {
+    timer:             timer,
+    // Default off — match flash Success alerts (no countdown bar).
+    timerProgressBar:  opts.timerProgressBar === true,
+  };
+  if (timer > 0 && mixinOpts.timerProgressBar) {
+    mixinOpts.didOpen = function(toast) {
       toast.addEventListener('mouseenter', Swal.stopTimer);
       toast.addEventListener('mouseleave', Swal.resumeTimer);
-    },
-  }).fire({
+    };
+  }
+  Swal.mixin(mixinOpts).fire({
     icon:              t,
-    title:             message,
+    title:             opts.title || titles[t] || 'Information',
+    text:              message,
     iconColor:         iconColors[t] || '#6dabcf',
     background:        'var(--ka-surface-0, #fff)',
     color:             'var(--ka-text, #1e293b)',

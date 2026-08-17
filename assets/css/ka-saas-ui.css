@@ -295,8 +295,14 @@
   color: var(--ka-text, #1e293b) !important;
   padding: 0 !important;
 }
+.swal2-popup.swal2-toast.ka-swal-toast .swal2-html-container {
+  font-size: var(--ka-text-xs, 0.8125rem) !important;
+  margin: 0.15rem 0 0 !important;
+  padding: 0 !important;
+  color: var(--ka-text-muted, #64748b) !important;
+}
 .swal2-popup.swal2-toast.ka-swal-toast .swal2-timer-progress-bar {
-  background: var(--ka-primary, #6dabcf) !important;
+  display: none !important;
 }
 
 .ka-req-star {

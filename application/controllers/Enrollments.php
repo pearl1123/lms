@@ -28,9 +28,38 @@ class Enrollments extends KA_Controller {
                 ->get_pending_enrollments_for_instructor((int) $user->id);
         }
 
+        $focus_request_id = (int) $this->input->get('request_id');
+        if ($focus_request_id > 0) {
+            $found = false;
+            foreach ($pending_rows as $row) {
+                if ((int) ($row->enrollment_id ?? 0) === $focus_request_id) {
+                    $found = true;
+                    break;
+                }
+            }
+            if ( ! $found) {
+                $row = $this->course_model->get_enrollment_by_id($focus_request_id);
+                if ($row) {
+                    $status = (string) ($row->status ?? '');
+                    if ($status === 'pending') {
+                        $this->flash('info', 'That enrollment request is not in your queue.');
+                    } else {
+                        $this->flash(
+                            'info',
+                            'That enrollment request was already ' . $status . '. Showing current pending requests.'
+                        );
+                    }
+                } else {
+                    $this->flash('info', 'That enrollment request could not be found. Showing current pending requests.');
+                }
+                $focus_request_id = 0;
+            }
+        }
+
         $this->render('enrollments/requests', [
-            'page_title'   => 'Enrollment requests',
-            'pending_rows' => $pending_rows,
+            'page_title'       => 'Enrollment requests',
+            'pending_rows'     => $pending_rows,
+            'focus_request_id' => $focus_request_id,
         ], [
             ['label' => 'Dashboard', 'url' => 'dashboard'],
             ['label' => 'Enrollment requests'],

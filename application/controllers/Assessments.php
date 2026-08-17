@@ -1132,6 +1132,12 @@ class Assessments extends CI_Controller {
 
         $questions = $this->assessment_model->get_questions($id);
         $modules   = $this->_get_available_modules($this->user);
+        foreach ($modules as $m) {
+            $m->content_type_effective = course_phase3_effective_module_type_for_row(
+                $m,
+                'assessments edit module_id=' . (int) ($m->id ?? 0)
+            );
+        }
 
         $checkpoint_workspace = null;
         $use_workspace        = ($assessment->type === 'checkpoint')

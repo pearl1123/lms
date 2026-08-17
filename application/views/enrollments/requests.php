@@ -1,8 +1,16 @@
 <?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
 <?php
 $pending_rows = $pending_rows ?? [];
+$focus_request_id = (int) ($focus_request_id ?? 0);
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
+
+<style>
+.enr-row-focus {
+  background: #fffbeb !important;
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+</style>
 
 <div style="max-width:960px;margin:0 auto;">
   <h2 style="font-size:1.25rem;font-weight:800;color:var(--ka-text,#1e293b);margin:0 0 .5rem;">Enrollment requests</h2>
@@ -26,8 +34,13 @@ $pending_rows = $pending_rows ?? [];
           </tr>
         </thead>
         <tbody>
-          <?php foreach ($pending_rows as $r): ?>
-          <tr style="border-top:1px solid var(--ka-border,#e2e8f0);">
+          <?php foreach ($pending_rows as $r):
+            $eid = (int) ($r->enrollment_id ?? 0);
+            $is_focus = $focus_request_id > 0 && $eid === $focus_request_id;
+          ?>
+          <tr id="enrollment-request-<?= $eid ?>"
+              class="<?= $is_focus ? 'enr-row-focus' : '' ?>"
+              style="border-top:1px solid var(--ka-border,#e2e8f0);">
             <td style="padding:.75rem 1rem;font-weight:600;"><?= htmlspecialchars($r->course_title ?? '') ?></td>
             <td style="padding:.75rem 1rem;">
               <div><?= htmlspecialchars($r->student_name ?? '') ?></div>
@@ -53,3 +66,14 @@ $pending_rows = $pending_rows ?? [];
     </div>
   <?php endif; ?>
 </div>
+
+<?php if ($focus_request_id > 0): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var row = document.getElementById('enrollment-request-<?= (int) $focus_request_id ?>');
+  if (row) {
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+});
+</script>
+<?php endif; ?>

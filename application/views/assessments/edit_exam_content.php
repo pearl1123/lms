@@ -100,13 +100,14 @@ $q_count = count($questions);
               <option value="pre"  <?= set_select('type', 'pre', $assessment->type === 'pre') ?>>Pre-Assessment</option>
               <option value="post" <?= set_select('type', 'post', $assessment->type === 'post') ?>>Post-Assessment</option>
               <?php if ($checkpoint_schema_ready || $is_checkpoint): ?>
-              <option value="checkpoint" <?= set_select('type', 'checkpoint', $is_checkpoint) ?>>Video Checkpoint</option>
+              <option value="checkpoint" id="editTypeCheckpointOpt" <?= set_select('type', 'checkpoint', $is_checkpoint) ?>>Video Checkpoint</option>
               <?php endif; ?>
             </select>
+            <p class="edit-help" id="editCheckpointModuleHint" style="display:none;margin-top:.375rem;font-size:.75rem;color:#b45309;line-height:1.4;"></p>
           </div>
           <div class="edit-form-group asx-settings-grid--full">
             <label class="edit-label">Course module <span style="color:#dc2626;">*</span></label>
-            <select name="module_id" id="editModuleId" class="edit-select" required>
+            <select name="module_id" id="editModuleId" class="edit-select" required onchange="onEditAssessmentTypeChange()">
               <option value="">— Select module —</option>
               <?php
               $cur_course = '';
@@ -116,9 +117,14 @@ $q_count = count($questions);
                   echo '<optgroup label="' . htmlspecialchars($m->course_title) . '">';
                   $cur_course = $m->course_title;
                 endif;
+                $mod_eff = (string) ($m->content_type_effective ?? '');
+                $is_video_mod = ($mod_eff === 'video');
               ?>
-              <option value="<?= (int) $m->id ?>" <?= set_select('module_id', (string) $m->id, (int) $assessment->module_id === (int) $m->id) ?>>
-                <?= htmlspecialchars($m->module_title) ?>
+              <option value="<?= (int) $m->id ?>"
+                      data-effective-type="<?= htmlspecialchars($mod_eff, ENT_QUOTES, 'UTF-8') ?>"
+                      data-video-module="<?= $is_video_mod ? '1' : '0' ?>"
+                      <?= set_select('module_id', (string) $m->id, (int) $assessment->module_id === (int) $m->id) ?>>
+                <?= htmlspecialchars($m->module_title) ?><?= $is_video_mod ? '' : ' (not a video module)' ?>
               </option>
               <?php endforeach; ?>
               <?php if ($cur_course !== '') echo '</optgroup>'; ?>
@@ -126,7 +132,7 @@ $q_count = count($questions);
           </div>
         </div>
         <input type="hidden" name="trigger_percent" id="edit_trigger_percent" value="0">
-        <div class="edit-cp-fields <?= $is_checkpoint ? 'visible' : '' ?>" id="editCheckpointFields">
+        <div class="edit-cp-fields<?= ($is_checkpoint) ? ' visible' : '' ?>" id="editCheckpointFields">
           <div class="asx-settings-grid asx-settings-grid--cp">
             <div class="edit-form-group">
               <label class="edit-label">Video timestamp (seconds)</label>

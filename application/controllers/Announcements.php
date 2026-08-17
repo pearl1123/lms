@@ -31,6 +31,7 @@ class Announcements extends KA_Controller
         $user_id = (int) $this->auth_user->id;
 
         $notifications = $this->notification_model->get_all($user_id, $limit, $offset);
+        $notifications = $this->notification_model->enrich_list_action_meta($notifications);
         $unread_count = $this->notification_model->count_unread($user_id);
 
         $data = [
@@ -62,6 +63,47 @@ class Announcements extends KA_Controller
         }
 
         redirect('announcements');
+    }
+
+    /**
+     * Mark as read, then go to the notification destination (enrollment queue, course, etc.).
+     *
+     * URI: /announcements/open/{user_notification_id}
+     */
+    public function open($user_notification_id = 0)
+    {
+        $user_notification_id = (int) $user_notification_id;
+        $user_id = (int) $this->auth_user->id;
+        $fallback = base_url('index.php/announcements');
+
+        if ($user_notification_id < 1 || $user_id < 1) {
+            redirect('announcements');
+
+            return;
+        }
+
+        $row = $this->notification_model->get_user_notification($user_notification_id, $user_id);
+        if ( ! $row) {
+            redirect('announcements');
+
+            return;
+        }
+
+        $this->notification_model->mark_read($user_notification_id, $user_id);
+        if ( ! $this->notification_model->is_action_available_for_row($row)) {
+            redirect('announcements');
+
+            return;
+        }
+
+        $url = $this->notification_model->action_url_for_row($row);
+        if ($url === '' || $url === $fallback) {
+            redirect('announcements');
+
+            return;
+        }
+
+        redirect($url);
     }
 
     /**

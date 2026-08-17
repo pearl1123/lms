@@ -97,10 +97,18 @@ if ($role === 'admin') {
 
 .ann-list { list-style:none;margin:0;padding:0; }
 .ann-item {
-  display:flex;gap:12px;padding:.7rem 0;
+  display:flex;gap:12px;padding:.7rem .35rem;
+  margin:0 -.35rem;
   border-bottom:1px solid var(--ka-border,#e2e8f0);
+  border-radius:8px;
 }
 .ann-item:last-child { border-bottom:none; }
+.ann-item:hover { background:#f8fafc; }
+.ann-item-main {
+  flex:1;min-width:0;display:flex;gap:12px;
+  text-decoration:none;color:inherit;
+}
+.ann-item-main:hover .ann-title { color:var(--ka-primary,#6dabcf); }
 .ann-icon {
   width:34px;height:34px;border-radius:9px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
@@ -247,8 +255,16 @@ if ($role === 'admin') {
               $created_at = !empty($n->date_encoded)
                   ? date('M d, Y · h:i A', strtotime($n->date_encoded))
                   : '';
+              $open_url = base_url('index.php/announcements/open/' . (int) ($n->user_notification_id ?? 0));
+              $action_label = (string) ($n->action_label ?? 'Open');
+              $action_available = ! empty($n->action_available);
             ?>
               <li class="ann-item" data-status="<?= $is_read ? 'read' : 'unread' ?>">
+                <?php if ($action_available): ?>
+                <a class="ann-item-main" href="<?= htmlspecialchars($open_url, ENT_QUOTES, 'UTF-8') ?>">
+                <?php else: ?>
+                <div class="ann-item-main">
+                <?php endif; ?>
                 <div class="ann-icon <?= $icon_class ?> <?= $is_read ? '' : 'ann-icon-unread' ?>">
                   <?php if ($type_class === 'ann-type-system'): ?>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -281,18 +297,25 @@ if ($role === 'admin') {
                     </span>
                   </div>
                 </div>
+                <?php if ($action_available): ?>
+                </a>
+                <?php else: ?>
+                </div>
+                <?php endif; ?>
                 <div class="ann-actions">
+                  <?php if ($action_available): ?>
+                  <a href="<?= htmlspecialchars($open_url, ENT_QUOTES, 'UTF-8') ?>"
+                     class="ann-btn-small"
+                     style="border-color:var(--ka-primary,#6dabcf);color:var(--ka-primary,#6dabcf);">
+                    <?= htmlspecialchars($action_label) ?>
+                  </a>
+                  <?php elseif ($action_label === 'Review request'): ?>
+                  <span class="ann-badge-status ann-badge-read">Handled</span>
+                  <?php endif; ?>
                   <?php if (!$is_read): ?>
                     <a href="<?= base_url('index.php/announcements/mark_read/' . (int)$n->user_notification_id) ?>"
                        class="ann-btn-small">
                       Mark as read
-                    </a>
-                  <?php endif; ?>
-                  <?php if (!empty($n->course_id) && $type_class === 'ann-type-course'): ?>
-                    <a href="<?= base_url('index.php/courses/view/' . (int)$n->course_id) ?>"
-                       class="ann-btn-small"
-                       style="border-color:var(--ka-primary,#6dabcf);color:var(--ka-primary,#6dabcf);">
-                      Open course
                     </a>
                   <?php endif; ?>
                 </div>

@@ -701,6 +701,9 @@
 .asx-settings-grid { display:grid;grid-template-columns:1fr 1fr;gap:1rem; }
 .asx-settings-grid--full { grid-column:1/-1; }
 .asx-settings-grid--cp { margin-top:.75rem; }
+/* Video checkpoint fields — hidden unless type=checkpoint (and module is video) */
+.edit-cp-fields { display:none; }
+.edit-cp-fields.visible { display:block; }
 @media(max-width:767.98px){ .asx-settings-grid{grid-template-columns:1fr;} }
 .asx-publish-actions { display:flex;flex-direction:column;gap:.625rem;align-items:flex-start; }
 .asx-type-row { display:flex;align-items:center;gap:.5rem;padding:.4rem 0;border-bottom:1px solid var(--ka-border,#e2e8f0);font-size:.8125rem; }

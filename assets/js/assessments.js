@@ -594,21 +594,52 @@
       return sel && sel.value === 'checkpoint';
     }
 
+    function selectedEditModuleIsVideo() {
+      var sel = document.getElementById('editModuleId');
+      if (!sel || !sel.value) return true;
+      var opt = sel.options[sel.selectedIndex];
+      return !!(opt && opt.getAttribute('data-video-module') === '1');
+    }
+
     function isChoiceCorrect(val) {
       return val === true || val === 1 || val === '1';
     }
 
     function onEditAssessmentTypeChange() {
+      var typeSel = document.getElementById('editAssessmentType');
+      var cpOpt = document.getElementById('editTypeCheckpointOpt');
+      var hint = document.getElementById('editCheckpointModuleHint');
+      var isVideoMod = selectedEditModuleIsVideo();
+      var checkpointMode = isCheckpointMode();
+
+      if (cpOpt) {
+        cpOpt.disabled = !isVideoMod;
+        cpOpt.hidden = !isVideoMod;
+        if (!isVideoMod && typeSel && typeSel.value === 'checkpoint') {
+          typeSel.value = 'pre';
+          checkpointMode = false;
+        }
+      }
+      if (hint) {
+        if (!isVideoMod) {
+          hint.style.display = 'block';
+          hint.textContent = 'Video timestamp fields and Video Checkpoint type apply only to video modules. This module is not a video — use Pre- or Post-Assessment.';
+        } else {
+          hint.style.display = 'none';
+          hint.textContent = '';
+        }
+      }
+
       var box = document.getElementById('editCheckpointFields');
-      if (box) box.classList.toggle('visible', isCheckpointMode());
+      if (box) box.classList.toggle('visible', checkpointMode && isVideoMod);
       var randWrap = document.getElementById('editRandomizeField');
       var randCb = document.getElementById('editRandomizeQuestions');
       if (randWrap) {
-        randWrap.style.display = isCheckpointMode() ? 'none' : '';
+        randWrap.style.display = checkpointMode ? 'none' : '';
       }
       if (randCb) {
-        randCb.disabled = isCheckpointMode();
-        if (isCheckpointMode()) {
+        randCb.disabled = checkpointMode;
+        if (checkpointMode) {
           randCb.checked = false;
         }
       }
@@ -890,10 +921,17 @@
     }
 
     function assessmentToast(type, message, durationMs) {
+      // Match Assessment updated Success toast — no countdown progress bar.
+      if (window.KA && typeof window.KA.toast === 'function') {
+        window.KA.toast(type === 'loading' ? 'info' : type, message, {
+          timer: durationMs !== undefined
+            ? durationMs
+            : (type === 'success' ? 2800 : (type === 'error' ? 4200 : 2800)),
+          timerProgressBar: false,
+        });
+        return;
+      }
       if (typeof Swal === 'undefined') {
-        if (window.KA && window.KA.toast) {
-          window.KA.toast(type === 'loading' ? 'info' : type, message);
-        }
         return;
       }
       if (typeof Swal.isVisible === 'function' && Swal.isVisible()) {
@@ -905,28 +943,31 @@
         warning: '#f59f00',
         info: '#6dabcf',
       };
+      var titles = {
+        success: 'Success',
+        error: 'Error',
+        warning: 'Warning',
+        info: 'Information',
+      };
       var icon = type === 'loading' ? 'info' : type;
       var timer = durationMs;
       if (timer === undefined) {
-        timer = type === 'success' ? 2800 : (type === 'error' ? 4200 : 0);
+        timer = type === 'success' ? 2800 : (type === 'error' ? 4200 : 2800);
       }
       var mixinOpts = {
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
+        timerProgressBar: false,
       };
       if (timer > 0) {
         mixinOpts.timer = timer;
-        mixinOpts.timerProgressBar = true;
-        mixinOpts.didOpen = function(t) {
-          t.addEventListener('mouseenter', Swal.stopTimer);
-          t.addEventListener('mouseleave', Swal.resumeTimer);
-        };
       }
       var toastType = type === 'loading' ? 'info' : icon;
       Swal.mixin(mixinOpts).fire({
         icon: icon,
-        title: message,
+        title: titles[icon] || 'Information',
+        text: message,
         iconColor: iconColors[icon] || '#6dabcf',
         background: 'var(--ka-surface-0, #fff)',
         color: 'var(--ka-text, #1e293b)',
@@ -1230,7 +1271,6 @@
       var isBatch = qid <= 0 && toSave.length > 1;
 
       setSaveBusy(true);
-      assessmentToast('loading', toastCopy.loading, 0);
 
       toSave.forEach(function(payload, idx) {
         var tempId = 'tmp-' + Date.now() + '-' + idx;
@@ -1272,7 +1312,7 @@
               updateSummary();
               syncCheckpointQuestionUi();
             }
-            assessmentToast('success', data.message || toastCopy.success, 1500);
+            assessmentToast('success', data.message || toastCopy.success);
           } else {
             handleSaveFailure(qid, tempIds, rollbackMap, modalStash, data.message);
           }

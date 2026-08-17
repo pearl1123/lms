@@ -707,7 +707,7 @@ class Course_model extends CI_Model {
             ->where('c.archived', 0)
             ->where('e.status', 'pending')
             ->where('u.DELETED', 0)
-            ->order_by('e.enrolled_at', 'ASC')
+            ->order_by('e.enrolled_at', 'DESC')
             ->get();
 
         return ($result && $result->num_rows() > 0) ? $result->result() : [];
@@ -738,7 +738,7 @@ class Course_model extends CI_Model {
             ->where('c.archived', 0)
             ->where('e.status', 'pending')
             ->where('u.DELETED', 0)
-            ->order_by('e.enrolled_at', 'ASC')
+            ->order_by('e.enrolled_at', 'DESC')
             ->get();
 
         return ($result && $result->num_rows() > 0) ? $result->result() : [];

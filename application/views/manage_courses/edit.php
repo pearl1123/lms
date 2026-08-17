@@ -912,12 +912,13 @@ function renderModule(m, isNew) {
   var cpBadge = '';
   if (isVideoModuleContent(effType)) {
     var cpN = parseInt(m.checkpoint_count, 10) || 0;
-    if (cpN >= cpMax) {
-      cpBadge = '<a href="' + BASE_URL + 'assessments?module_id=' + m.id + '&type=checkpoint" class="mod-asx-badge cp" title="Video checkpoints for this module (maximum reached)">▶ Checkpoint (' + cpN + ')</a>';
-    } else if (CHECKPOINT_SCHEMA_READY) {
-      cpBadge = '<a href="' + BASE_URL + 'assessments/create?course_id=' + COURSE_ID + '&module_id=' + m.id + '&type=checkpoint' + ASMT_RETURN_Q + '" class="mod-asx-badge add" title="Add video progress checkpoint for this module">+ Video Checkpoint</a>';
-    } else {
-      cpBadge = '<span class="mod-asx-badge add" title="Video checkpoints require a database migration (lib_assessments context column)." style="opacity:.65;cursor:not-allowed;">+ Video Checkpoint</span>';
+    if (cpN > 0) {
+      cpBadge += '<a href="' + BASE_URL + 'assessments?module_id=' + m.id + '&type=checkpoint" class="mod-asx-badge cp" title="Video checkpoints for this module' + (cpN >= cpMax ? ' (maximum reached)' : '') + '">▶ Checkpoint (' + cpN + ')</a>';
+    }
+    if (cpN < cpMax && CHECKPOINT_SCHEMA_READY) {
+      cpBadge += '<a href="' + BASE_URL + 'assessments/create?course_id=' + COURSE_ID + '&module_id=' + m.id + '&type=checkpoint' + ASMT_RETURN_Q + '" class="mod-asx-badge add" title="Add video progress checkpoint for this module">+ Video Checkpoint</a>';
+    } else if (cpN < cpMax) {
+      cpBadge += '<span class="mod-asx-badge add" title="Video checkpoints require a database migration (lib_assessments context column)." style="opacity:.65;cursor:not-allowed;">+ Video Checkpoint</span>';
     }
   }
 

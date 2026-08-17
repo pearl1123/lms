@@ -120,7 +120,7 @@ class Notification_service {
             $requester_name . ' has requested to enroll in the course: ' . $course_title . '.',
             $uid,
             Notification_types::REQUEST,
-            base_url('index.php/enrollments/requests'),
+            base_url('index.php/enrollments/requests?request_id=' . $rid),
             false
         );
     }

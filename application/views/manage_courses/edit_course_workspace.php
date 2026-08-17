@@ -260,17 +260,18 @@ $lms_return_target     = $lms_return_target ?? ka_lms_default_return_target_for_
                       if ($eff_type === 'video'):
                         $cp_n = (int) ($mod->checkpoint_count ?? 0);
                     ?>
-                      <?php if ($cp_n >= $cp_max): ?>
+                      <?php if ($cp_n > 0): ?>
                       <a href="<?= base_url('assessments?module_id='.(int) $mod->id.'&type=checkpoint') ?>"
-                         class="mod-asx-badge cp" title="Video checkpoints for this module (maximum reached)">
+                         class="mod-asx-badge cp" title="Video checkpoints for this module<?= $cp_n >= $cp_max ? ' (maximum reached)' : '' ?>">
                         ▶ Checkpoint (<?= $cp_n ?>)
                       </a>
-                      <?php elseif ($checkpoint_schema_ready): ?>
+                      <?php endif; ?>
+                      <?php if ($cp_n < $cp_max && $checkpoint_schema_ready): ?>
                       <a href="<?= htmlspecialchars(ka_lms_append_return_to_url(base_url('assessments/create?course_id='.(int) $course->id.'&module_id='.$mod->id.'&type=checkpoint'), $lms_return_target), ENT_QUOTES) ?>"
                          class="mod-asx-badge add" title="Add video progress checkpoint for this module">
                         + Video Checkpoint
                       </a>
-                      <?php else: ?>
+                      <?php elseif ($cp_n < $cp_max): ?>
                       <span class="mod-asx-badge add" title="Video checkpoints require a database migration (lib_assessments context column). Contact your administrator."
                             style="opacity:.65;cursor:not-allowed;">
                         + Video Checkpoint

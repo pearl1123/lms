@@ -386,7 +386,7 @@ $notif_count = (int) ($notif_count ?? 0);
                 $preview = strlen($preview) > 140 ? substr($preview, 0, 140) . '…' : $preview;
             }
             $created = ! empty($n->date_encoded) ? date('M j, g:i A', strtotime($n->date_encoded)) : '';
-            $link    = base_url('index.php/announcements/mark_read/' . (int) ($n->user_notification_id ?? 0));
+            $link = base_url('index.php/announcements/open/' . (int) ($n->user_notification_id ?? 0));
           ?>
           <a href="<?= $link ?>" class="ka-notif-item">
             <div class="ka-notif-icon <?= $notif_icon === 'course' ? 'course' : ($notif_icon === 'alert' ? 'alert' : 'info') ?>">

@@ -1,5 +1,6 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
+require_once APPPATH . 'constants/Notification_types.php';
 /**
  * notification_model
  *
@@ -342,6 +343,238 @@ class notification_model extends CI_Model {
     public function get_latest_for_user($user_id, $limit = 10)
     {
         return $this->get_all((int) $user_id, (int) $limit, 0);
+    }
+
+    /**
+     * One notification row owned by this user (same columns as get_all).
+     *
+     * @param int $user_notification_id
+     * @param int $user_id
+     * @return object|null
+     */
+    public function get_user_notification($user_notification_id, $user_id)
+    {
+        $r = $this->db
+            ->select('
+                un.user_notification_id,
+                un.is_read,
+                un.date_read,
+                un.date_encoded,
+                n.notification_id,
+                n.notification_title   AS title,
+                n.notification_message AS message,
+                n.reference_id,
+                n.notification_type_id AS type_id,
+                nt.notification_type_desc AS type_name,
+                c.id AS course_id
+            ', false)
+            ->from('lib_user_notification un')
+            ->join('lib_notification n',
+                   'n.notification_id = un.notification_id', 'left')
+            ->join('lib_notification_type nt',
+                   'nt.notification_type_id = n.notification_type_id', 'left')
+            ->join('courses c', 'c.id = n.reference_id AND c.archived = 0', 'left')
+            ->where('un.user_notification_id', (int) $user_notification_id)
+            ->where('un.user_id', (int) $user_id)
+            ->where('un.archived', 0)
+            ->where('n.archived', 0)
+            ->limit(1)
+            ->get();
+
+        return ($r && $r->num_rows() > 0) ? $r->row() : null;
+    }
+
+    /**
+     * UI type key: certificate|approval|rejection|request|system
+     *
+     * @param object $n
+     * @return string
+     */
+    public function type_key_for_row($n)
+    {
+        $title = strtolower((string) ($n->title ?? ''));
+        $type_id = (int) ($n->type_id ?? 0);
+        if (strpos($title, 'request') !== false || strpos($title, 'invitation') !== false) {
+            return Notification_types::REQUEST;
+        }
+        if (strpos($title, 'approved') !== false) {
+            return Notification_types::APPROVAL;
+        }
+        if (strpos($title, 'declined') !== false || strpos($title, 'rejected') !== false) {
+            return Notification_types::REJECTION;
+        }
+        if ($type_id === (int) self::TYPE_ENROLLMENT) {
+            return Notification_types::APPROVAL;
+        }
+        if ($type_id === (int) self::TYPE_REMOVAL
+            && (strpos($title, 'declined') !== false || strpos($title, 'rejected') !== false)) {
+            return Notification_types::REJECTION;
+        }
+        if (strpos($title, 'certificate') !== false) {
+            return Notification_types::CERTIFICATE;
+        }
+
+        return Notification_types::SYSTEM;
+    }
+
+    /**
+     * Destination URL when the user opens a notification.
+     *
+     * @param object $n
+     * @return string
+     */
+    public function action_url_for_row($n)
+    {
+        $type_key = $this->type_key_for_row($n);
+        $ref = (int) ($n->reference_id ?? 0);
+        $course_id = (int) ($n->course_id ?? 0);
+
+        if ($type_key === Notification_types::CERTIFICATE && $ref > 0) {
+            return base_url('index.php/certificates/view/' . $ref);
+        }
+        if ($type_key === Notification_types::REQUEST) {
+            $title = strtolower((string) ($n->title ?? ''));
+            if (strpos($title, 'invitation') !== false) {
+                if ($ref > 0) {
+                    return base_url('index.php/courses/accept_invitation/' . $ref);
+                }
+                if ($course_id > 0) {
+                    return base_url('index.php/courses/view/' . $course_id);
+                }
+            }
+
+            if ($ref > 0) {
+                return base_url('index.php/enrollments/requests?request_id=' . $ref);
+            }
+
+            return base_url('index.php/enrollments/requests');
+        }
+        if ($type_key === Notification_types::APPROVAL || $type_key === Notification_types::REJECTION) {
+            return base_url('index.php/my_courses');
+        }
+        if ($course_id > 0) {
+            return base_url('index.php/courses/view/' . $course_id);
+        }
+        if ($ref > 0) {
+            return base_url('index.php/courses/view/' . $ref);
+        }
+
+        return base_url('index.php/announcements');
+    }
+
+    /**
+     * Short CTA label for the announcements list.
+     *
+     * @param object $n
+     * @return string
+     */
+    public function action_label_for_row($n)
+    {
+        $type_key = $this->type_key_for_row($n);
+        if ($type_key === Notification_types::REQUEST) {
+            $title = strtolower((string) ($n->title ?? ''));
+            if (strpos($title, 'invitation') !== false) {
+                return 'View invitation';
+            }
+
+            return 'Review request';
+        }
+        if ($type_key === Notification_types::CERTIFICATE) {
+            return 'View certificate';
+        }
+        if ($type_key === Notification_types::APPROVAL || $type_key === Notification_types::REJECTION) {
+            return 'Open My Courses';
+        }
+        if ((int) ($n->course_id ?? 0) > 0) {
+            return 'Open course';
+        }
+
+        return 'Open';
+    }
+
+    /**
+     * Whether the primary action button / deep link still applies.
+     *
+     * @param object     $n
+     * @param array|null $enrollment_statuses  enrollment_id => status (optional batch cache)
+     * @return bool
+     */
+    public function is_action_available_for_row($n, array $enrollment_statuses = null)
+    {
+        $type_key = $this->type_key_for_row($n);
+        if ($type_key !== Notification_types::REQUEST) {
+            return true;
+        }
+
+        $title = strtolower((string) ($n->title ?? ''));
+        if (strpos($title, 'invitation') !== false) {
+            return true;
+        }
+
+        $ref = (int) ($n->reference_id ?? 0);
+        if ($ref < 1) {
+            return true;
+        }
+
+        if (is_array($enrollment_statuses) && array_key_exists($ref, $enrollment_statuses)) {
+            return $enrollment_statuses[$ref] === 'pending';
+        }
+
+        $row = $this->db
+            ->select('status')
+            ->where('id', $ref)
+            ->get('enrollments', 1)
+            ->row();
+
+        if ( ! $row) {
+            return false;
+        }
+
+        return (string) ($row->status ?? '') === 'pending';
+    }
+
+    /**
+     * Attach action_label and action_available to notification rows for list UIs.
+     *
+     * @param object[] $notifications
+     * @return object[]
+     */
+    public function enrich_list_action_meta(array $notifications)
+    {
+        $enrollment_ids = [];
+        foreach ($notifications as $n) {
+            if ($this->type_key_for_row($n) !== Notification_types::REQUEST) {
+                continue;
+            }
+            $title = strtolower((string) ($n->title ?? ''));
+            if (strpos($title, 'invitation') !== false) {
+                continue;
+            }
+            $ref = (int) ($n->reference_id ?? 0);
+            if ($ref > 0) {
+                $enrollment_ids[$ref] = true;
+            }
+        }
+
+        $statuses = [];
+        if ( ! empty($enrollment_ids)) {
+            $r = $this->db
+                ->select('id, status')
+                ->where_in('id', array_keys($enrollment_ids))
+                ->get('enrollments');
+            if ($r) {
+                foreach ($r->result() as $row) {
+                    $statuses[(int) $row->id] = (string) ($row->status ?? '');
+                }
+            }
+        }
+
+        foreach ($notifications as $n) {
+            $n->action_label = $this->action_label_for_row($n);
+            $n->action_available = $this->is_action_available_for_row($n, $statuses);
+        }
+
+        return $notifications;
     }
 
     // =========================================================
