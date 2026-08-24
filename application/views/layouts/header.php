@@ -10,6 +10,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
   <?php
   $ka_branding = $ka_branding ?? ka_branding_settings();
   $ka_page_lms = htmlspecialchars((string) ($ka_branding['lms_name'] ?? 'kaBAGA Academy'), ENT_QUOTES, 'UTF-8');
+  $nc_header = $nav_context ?? [];
+  $ka_acting_as_learner = ! empty($nc_header['acting_as_learner']);
   ?>
   <title><?= isset($page_title) ? htmlspecialchars($page_title, ENT_QUOTES) . ' — ' . $ka_page_lms : $ka_page_lms . ' | Lung Center of the Philippines' ?></title>
   <?php if ( ! empty($ka_branding['favicon_url'])): ?>
@@ -348,9 +350,26 @@ defined('BASEPATH') OR exit('No direct script access allowed');
       .stat-value { font-size: 1.375rem; }
       .page-title-ka { font-size: 1.0625rem; }
     }
+
+    /* ── Learning mode (staff acting as employee) — soft muted teal ── */
+    body.ka-learner-mode-active {
+      --ka-primary:       #5f8f8a;
+      --ka-primary-dark:  #4a7570;
+      --ka-primary-deep:  #3d625e;
+      --ka-accent:        #eef4f3;
+      --ka-bg:            #f5f8f7;
+      --ka-sidebar-bg:    #2a3f42;
+      --ka-sidebar-hover: #354a4e;
+      --ka-sidebar-active:#7aa8a2;
+      --tblr-primary:     #5f8f8a;
+      --tblr-primary-rgb: 95, 143, 138;
+    }
+    body.ka-learner-mode-active .ka-main-wrap {
+      box-shadow: inset 3px 0 0 #7aa8a2;
+    }
   </style>
   <script src="<?= base_url('assets/js/app_context.js'); ?>"></script>
   <script src="<?= base_url('assets/js/lms_state.js'); ?>"></script>
 </head>
-<body>
+<body<?= $ka_acting_as_learner ? ' class="ka-learner-mode-active"' : '' ?>>
   <div class="page">

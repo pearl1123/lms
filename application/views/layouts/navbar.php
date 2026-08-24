@@ -3,6 +3,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 // Prepared by ka_merge_layout_vars()
 $nc             = $nav_context ?? [];
+$acting_as_learner = ! empty($nc['acting_as_learner']);
 $full_name      = $nc['full_name'] ?? 'User';
 $user_role_label = $nc['user_role_label'] ?? 'Employee';
 $initials       = $nc['initials'] ?? '';
@@ -278,6 +279,34 @@ $notif_count = (int) ($notif_count ?? 0);
   }
   .ka-notif-footer a { font-size: 0.8125rem; font-weight: 600; color: var(--ka-primary); text-decoration: none; }
   .ka-notif-footer a:hover { color: var(--ka-primary-dark); }
+
+  /* Learning mode indicator — soft muted teal */
+  .ka-learner-mode-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #3d625e;
+    background: #eef4f3;
+    border: 1px solid #c5d9d5;
+    box-shadow: none;
+  }
+  .ka-learner-mode-pill svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: #5f8f8a;
+  }
+  body.ka-learner-mode-active .ka-navbar {
+    border-bottom-color: #d5e4e1;
+    box-shadow: 0 1px 0 rgba(95, 143, 138, 0.08);
+  }
 </style>
 
 <!-- ══ TOP NAVBAR ════════════════════════════════════════════ -->
@@ -324,6 +353,13 @@ $notif_count = (int) ($notif_count ?? 0);
 
   <!-- Actions -->
   <div class="ka-nav-actions">
+
+    <?php if ($acting_as_learner): ?>
+    <div class="ka-learner-mode-pill" title="You are viewing the LMS as an employee">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      Learning mode
+    </div>
+    <?php endif; ?>
 
     <!-- Streak chip -->
     <?php if ($streak !== null && $streak !== ''): ?>

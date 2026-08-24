@@ -8,6 +8,9 @@ $segment   = isset($nc['segment_1']) ? trim((string) $nc['segment_1']) : '';
 $seg2      = isset($nc['segment_2']) ? trim((string) $nc['segment_2']) : '';
 $announcements_active = in_array($segment, ['announcements', 'notifications'], true);
 $user_role        = $nc['user_role'] ?? 'employee';
+$account_role     = $nc['account_role'] ?? $user_role;
+$acting_as_learner = ! empty($nc['acting_as_learner']);
+$can_switch_learner = ! empty($nc['can_switch_learner_mode']);
 $perm_engine      = ! empty($nc['perm_engine']);
 $user_role_label  = $nc['user_role_label'] ?? 'Employee';
 $full_name        = $nc['full_name'] ?? 'User';
@@ -147,6 +150,88 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
     text-transform:capitalize; line-height:1.3;
   }
   .ka-sidebar-user-dots { width:16px; height:16px; color:rgba(255,255,255,0.35); flex-shrink:0; }
+  .ka-learner-mode-bar {
+    border-top:1px solid rgba(255,255,255,0.08);
+    padding:0.75rem 1rem;
+    flex-shrink:0;
+  }
+  .ka-learner-mode-form { margin:0; }
+  .ka-learner-mode-switch {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    cursor:pointer; margin:0; user-select:none;
+  }
+  .ka-learner-mode-label { flex:1; min-width:0; }
+  .ka-learner-mode-title {
+    display:block; font-size:0.8125rem; font-weight:600; color:#fff; line-height:1.3;
+  }
+  .ka-learner-mode-hint {
+    display:block; font-size:0.6875rem; color:rgba(255,255,255,0.45); line-height:1.35;
+    margin-top:1px;
+  }
+  .ka-learner-mode-toggle {
+    position:relative; width:42px; height:24px; flex-shrink:0;
+  }
+  .ka-learner-mode-toggle input {
+    opacity:0; width:0; height:0; position:absolute;
+  }
+  .ka-learner-mode-slider {
+    position:absolute; inset:0; border-radius:999px;
+    background:rgba(255,255,255,0.18);
+    transition:background 0.2s ease;
+  }
+  .ka-learner-mode-slider::before {
+    content:''; position:absolute; left:3px; top:3px;
+    width:18px; height:18px; border-radius:50%;
+    background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.25);
+    transition:transform 0.2s ease;
+  }
+  .ka-learner-mode-toggle input:checked + .ka-learner-mode-slider {
+    background:var(--ka-primary,#6dabcf);
+  }
+  .ka-learner-mode-toggle input:checked + .ka-learner-mode-slider::before {
+    transform:translateX(18px);
+  }
+  .ka-learner-mode-toggle input:focus-visible + .ka-learner-mode-slider {
+    outline:2px solid rgba(109,171,207,0.65); outline-offset:2px;
+  }
+  /* Learning mode — soft muted teal (easier on the eyes) */
+  .ka-sidebar--learner-mode {
+    background: linear-gradient(180deg, #2a3f42 0%, #31484c 100%);
+    box-shadow: 4px 0 20px rgba(42,63,66,0.18);
+  }
+  .ka-sidebar--learner-mode .ka-nav-link.active {
+    background: rgba(122,168,162,0.18);
+    color: #b8d4cf;
+  }
+  .ka-sidebar--learner-mode .ka-nav-link.active::before {
+    background: #7aa8a2;
+  }
+  .ka-sidebar--learner-mode .ka-nav-badge {
+    background: #7aa8a2;
+    color: #1e3033;
+  }
+  .ka-sidebar--learner-mode .ka-sidebar-user-avatar {
+    background: linear-gradient(135deg, #7aa8a2, #5f8f8a);
+  }
+  .ka-sidebar-brand-badge {
+    display: inline-flex; align-items: center;
+    margin-top: 4px; padding: 2px 8px;
+    font-size: 0.5625rem; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    border-radius: 999px;
+    background: rgba(122,168,162,0.18);
+    color: #b8d4cf;
+    border: 1px solid rgba(122,168,162,0.3);
+  }
+  .ka-learner-mode-bar--active {
+    background: rgba(122,168,162,0.1);
+    border-top-color: rgba(122,168,162,0.2);
+  }
+  .ka-learner-mode-bar--active .ka-learner-mode-title { color: #e2eeec; }
+  .ka-learner-mode-bar--active .ka-learner-mode-hint { color: rgba(226,238,236,0.65); }
+  .ka-learner-mode-bar--active .ka-learner-mode-toggle input:checked + .ka-learner-mode-slider {
+    background: #7aa8a2;
+  }
   .ka-sidebar-overlay {
     display:none; position:fixed; inset:0;
     background:rgba(0,0,0,0.4); z-index:1039; backdrop-filter:blur(2px);
@@ -166,7 +251,7 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
 
 <div class="ka-sidebar-overlay" id="kaSidebarOverlay" onclick="kaToggleSidebar()"></div>
 
-<aside class="ka-sidebar" id="kaSidebar">
+<aside class="ka-sidebar<?= $acting_as_learner ? ' ka-sidebar--learner-mode' : '' ?>" id="kaSidebar">
 
   <!-- Brand -->
   <a href="<?= base_url('index.php/dashboard') ?>" class="ka-sidebar-brand">
@@ -175,6 +260,9 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
     </div>
     <div class="ka-sidebar-brand-text">
       <span class="ka-sidebar-brand-name"><?= htmlspecialchars($brand_lms_name, ENT_QUOTES, 'UTF-8') ?></span>
+      <?php if ($acting_as_learner): ?>
+      <span class="ka-sidebar-brand-badge">Learning mode</span>
+      <?php endif; ?>
       <?php if ($brand_org_name !== ''): ?>
       <span class="ka-sidebar-brand-sub"><?= htmlspecialchars($brand_org_name, ENT_QUOTES, 'UTF-8') ?></span>
       <?php endif; ?>
@@ -346,20 +434,22 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
 
     <!-- ── MANAGEMENT — admin & teacher (permission-aware when engine active) ── -->
     <?php
-    $show_mgmt = in_array($user_role, ['admin', 'teacher'], true)
+    $mgmt_roles = ['admin', 'teacher', 'instructor'];
+    $show_mgmt = ! $acting_as_learner
+        && in_array($account_role, $mgmt_roles, true)
         && (
             ! $perm_engine
-            || ka_nav_can('manage_courses', $user_role)
-            || ka_nav_can('users', $user_role)
-            || ka_nav_can('reports', $user_role)
-            || ka_nav_can('settings', $user_role)
+            || ka_nav_can('manage_courses', $account_role)
+            || ka_nav_can('users', $account_role)
+            || ka_nav_can('reports', $account_role)
+            || ka_nav_can('settings', $account_role)
         );
     ?>
     <?php if ($show_mgmt): ?>
     <p class="ka-nav-section">Management</p>
     <ul class="ka-nav-list">
 
-      <?php if ($user_role === 'admin' && ka_nav_can('manage_courses', $user_role)): ?>
+      <?php if ($account_role === 'admin' && ka_nav_can('manage_courses', $account_role)): ?>
       <li class="ka-nav-item">
         <a href="#manageCoursesMenu"
            class="ka-nav-link <?= in_array($segment, ['manage_courses', 'categories']) ? 'active' : '' ?>"
@@ -398,7 +488,7 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
       </li>
       <?php endif; ?>
 
-      <?php if (ka_nav_can('users', $user_role)): ?>
+      <?php if (ka_nav_can('users', $account_role)): ?>
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/users') ?>"
            class="ka-nav-link <?= $segment === 'users' ? 'active' : '' ?>">
@@ -411,7 +501,7 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
           User Management
         </a>
       </li>
-      <?php if (ka_nav_can('permissions', $user_role)): ?>
+      <?php if (ka_nav_can('permissions', $account_role)): ?>
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/permissions/groups') ?>"
            class="ka-nav-link <?= $segment === 'permissions' ? 'active' : '' ?>">
@@ -425,7 +515,7 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
       <?php endif; ?>
       <?php endif; ?>
 
-      <?php if (ka_nav_can('reports', $user_role)): ?>
+      <?php if (ka_nav_can('reports', $account_role)): ?>
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/reports') ?>"
            class="ka-nav-link <?= $segment === 'reports' ? 'active' : '' ?>">
@@ -440,7 +530,7 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
       </li>
       <?php endif; ?>
 
-      <?php if (ka_nav_can('settings', $user_role)): ?>
+      <?php if (ka_nav_can('settings', $account_role)): ?>
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/settings') ?>"
            class="ka-nav-link <?= $segment === 'settings' ? 'active' : '' ?>">
@@ -453,7 +543,7 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
       </li>
       <?php endif; ?>
 
-      <?php if ($user_role === 'teacher'): ?>
+      <?php if (in_array($account_role, ['teacher', 'instructor'], true)): ?>
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/my_classes') ?>"
            class="ka-nav-link <?= $segment === 'my_classes' ? 'active' : '' ?>">
@@ -468,7 +558,7 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
       </li>
       <?php endif; ?>
 
-      <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
+      <?php if (in_array($account_role, ['admin', 'teacher', 'instructor'], true)): ?>
       <li class="ka-nav-item">
         <a href="<?= base_url('index.php/enrollments/requests') ?>"
            class="ka-nav-link <?= ($segment === 'enrollments' && $seg2 === 'requests') ? 'active' : '' ?>">
@@ -504,6 +594,38 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
 
   </nav>
 
+  <?php if ($can_switch_learner):
+    $learner_return = trim((string) ($this->uri->uri_string() ?: 'dashboard'));
+  ?>
+  <div class="ka-learner-mode-bar<?= $acting_as_learner ? ' ka-learner-mode-bar--active' : '' ?>">
+    <form method="post"
+          action="<?= base_url('index.php/profile/switch_learner_mode') ?>"
+          class="ka-learner-mode-form"
+          id="kaLearnerModeForm">
+      <input type="hidden" name="<?= htmlspecialchars($csrf_field_name ?? '', ENT_QUOTES, 'UTF-8') ?>"
+             value="<?= htmlspecialchars($csrf_hash ?? '', ENT_QUOTES, 'UTF-8') ?>">
+      <input type="hidden" name="return_url" value="<?= htmlspecialchars($learner_return, ENT_QUOTES, 'UTF-8') ?>">
+      <input type="hidden" name="mode" id="kaLearnerModeInput" value="<?= $acting_as_learner ? 'learner' : 'instructor' ?>">
+      <label class="ka-learner-mode-switch">
+        <span class="ka-learner-mode-label">
+          <span class="ka-learner-mode-title">Learning mode</span>
+          <span class="ka-learner-mode-hint">
+            <?= $acting_as_learner ? 'Enroll &amp; earn certificates' : 'Try the employee experience' ?>
+          </span>
+        </span>
+        <span class="ka-learner-mode-toggle">
+          <input type="checkbox"
+                 role="switch"
+                 aria-label="Learning mode"
+                 <?= $acting_as_learner ? 'checked' : '' ?>
+                 onchange="var f=document.getElementById('kaLearnerModeForm');document.getElementById('kaLearnerModeInput').value=this.checked?'learner':'instructor';f.submit();">
+          <span class="ka-learner-mode-slider" aria-hidden="true"></span>
+        </span>
+      </label>
+    </form>
+  </div>
+  <?php endif; ?>
+
   <!-- User Footer -->
   <div class="dropdown" style="flex-shrink:0;">
     <a href="#" class="ka-sidebar-user" data-bs-toggle="dropdown" aria-expanded="false">
@@ -528,7 +650,7 @@ $brand_org_name = trim((string) ($ka_branding['org_name'] ?? 'Lung Center of the
         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2 text-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         My Profile
       </a></li>
-      <?php if ($user_role === 'admin'): ?>
+      <?php if ($account_role === 'admin'): ?>
       <li><a class="dropdown-item" href="<?= base_url('index.php/settings') ?>">
         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm me-2 text-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Administration

@@ -11,6 +11,7 @@ $total_enrolled    = $total_enrolled    ?? 0;
 $modules           = is_array($modules) || is_object($modules) ? $modules : [];
 $user              = $user              ?? null;
 $user_role          = strtolower($user->role ?? 'employee');
+$is_learner_role    = ka_viewer_is_learner_experience($user);
 $enrollment_status  = $enrollment_status ?? null;
 $access_type        = $access_type ?? 'approval_required';
 $pending_invitation = $pending_invitation ?? null;
@@ -157,7 +158,7 @@ $content_colors = [
           <?= htmlspecialchars($lms_enrolled_back_label, ENT_QUOTES, 'UTF-8') ?>
         </a>
 
-      <?php elseif (in_array($user_role, ['employee', 'student'], true) && $pending_invitation_id > 0):
+      <?php elseif ($is_learner_role && $pending_invitation_id > 0):
           $invite_accept_url = base_url('index.php/courses/accept_invitation/' . $pending_invitation_id);
           $invite_reject_url = base_url('index.php/courses/reject_invitation/' . $pending_invitation_id);
         ?>
@@ -174,7 +175,7 @@ $content_colors = [
           Decline Invitation
         </a>
 
-      <?php elseif (in_array($user_role, ['employee', 'student'], true) && $enrollment_status === 'pending'): ?>
+      <?php elseif ($is_learner_role && $enrollment_status === 'pending'): ?>
         <p class="cd-enroll-title">Waiting for approval</p>
         <p class="cd-enroll-muted">
           Your enrollment request is pending. You will be able to start modules after an instructor approves it.
@@ -183,7 +184,7 @@ $content_colors = [
           ← Back to Catalog
         </a>
 
-      <?php elseif (in_array($user_role, ['employee', 'student'], true) && $enrollment_status === 'rejected'): ?>
+      <?php elseif ($is_learner_role && $enrollment_status === 'rejected'): ?>
         <p class="cd-enroll-title">Request rejected</p>
         <p class="cd-enroll-muted">
           Your enrollment request was not approved. You may submit a new request if you still wish to join this course.
@@ -196,7 +197,7 @@ $content_colors = [
           ← Back to Catalog
         </a>
 
-      <?php elseif (in_array($user_role, ['employee', 'student'], true) && $access_type === 'invitation_only'): ?>
+      <?php elseif ($is_learner_role && $access_type === 'invitation_only'): ?>
         <p class="cd-enroll-title">Invitation only</p>
         <p class="cd-enroll-muted">
           This course does not allow self enrollment. Please wait for an instructor or administrator invitation.
@@ -205,7 +206,7 @@ $content_colors = [
           ← Back to Catalog
         </a>
 
-      <?php elseif (in_array($user_role, ['employee', 'student'], true)): ?>
+      <?php elseif ($is_learner_role): ?>
         <p class="cd-enroll-title">Ready to get started?</p>
         <div class="cd-enroll-stats">
           <div class="cd-enroll-stat">

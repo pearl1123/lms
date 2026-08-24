@@ -1566,7 +1566,7 @@ class Course_model extends CI_Model {
      */
     public function user_can_access_module_player($user, $module)
     {
-        if (($user->role ?? '') === 'employee') {
+        if (ka_viewer_is_learner_experience($user)) {
             return $this->has_approved_enrollment((int) $user->id, (int) $module->course_id);
         }
 

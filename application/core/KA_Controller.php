@@ -177,11 +177,27 @@ class KA_Controller extends CI_Controller {
     }
 
     /**
-     * Alias: only admin and instructor/teacher managers allowed.
+     * Alias: only admin and instructor/teacher managers allowed (not while in learning mode).
      */
     protected function require_manager()
     {
+        if (ka_user_acting_as_learner($this->auth_user->role ?? '')) {
+            if ($this->_is_ajax_request()) {
+                $this->_auth_json_exit(403, 'Switch to ' . ka_staff_mode_label_for_role($this->auth_user->role ?? '') . ' mode to access management tools.');
+            }
+            $this->flash('info', 'You are in learning mode. Switch back to ' . ka_staff_mode_label_for_role($this->auth_user->role ?? '') . ' mode to access management tools.');
+            redirect('dashboard');
+        }
+
         $this->require_role(['admin', 'teacher', 'instructor'], 'my_courses');
+    }
+
+    /**
+     * True for employees/students or instructors in sidebar learning mode.
+     */
+    protected function is_learner_experience()
+    {
+        return ka_user_is_learner_experience($this->auth_user->role ?? '');
     }
 
     /**

@@ -54,6 +54,41 @@ class Profile extends KA_Controller {
         $this->load->view('layouts/main', ka_merge_layout_vars($this, $data));
     }
 
+    /**
+     * POST — toggle instructor learning mode (sidebar switch).
+     * URI: index.php/profile/switch_learner_mode
+     */
+    public function switch_learner_mode()
+    {
+        if (strtolower($this->input->method(true)) !== 'post') {
+            redirect('dashboard');
+        }
+
+        if ( ! ka_user_can_switch_learner_mode($this->auth_user->role ?? '')) {
+            $this->session->set_flashdata('error', 'Learning mode is not available for your account.');
+            redirect('dashboard');
+        }
+
+        $mode = strtolower(trim((string) $this->input->post('mode')));
+        $on   = ($mode === 'learner' || $mode === 'on' || $mode === '1');
+
+        $this->session->set_userdata('lms_act_as_learner', $on ? 1 : 0);
+
+        $this->session->set_flashdata(
+            'success',
+            $on
+                ? 'Learning mode is on. You can enroll in courses and earn certificates like an employee.'
+                : ka_staff_mode_label_for_role($this->auth_user->role ?? '') . ' mode restored. Management tools are available again.'
+        );
+
+        $return = trim((string) $this->input->post('return_url'));
+        if ($return !== '' && strpos($return, '://') === false) {
+            redirect($return);
+        }
+
+        redirect('dashboard');
+    }
+
     private function _handle_profile_update()
     {
         $this->require_permission('profile.edit', 'profile');

@@ -25,7 +25,7 @@ class Dashboard extends KA_Controller {
     public function index()
     // =========================================================
     {
-        switch ($this->auth_user->role) {
+        switch (ka_user_effective_experience_role($this->auth_user->role ?? '')) {
             case 'admin':    $this->_admin_dashboard();    break;
             case 'teacher':  $this->_teacher_dashboard();  break;
             case 'instructor': $this->_teacher_dashboard(); break;

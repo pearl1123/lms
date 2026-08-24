@@ -44,7 +44,7 @@ class Certificates extends KA_Controller {
     {
         $user = $this->auth_user;
 
-        switch ($user->role) {
+        switch (ka_user_effective_experience_role($this->auth_user->role ?? '')) {
             case 'admin':
                 $certificates = $this->certificate_model->get_all_certificates([
                     'keyword'   => trim($this->input->get('q')      ?? ''),
@@ -54,12 +54,13 @@ class Certificates extends KA_Controller {
                 break;
 
             case 'teacher':
+            case 'instructor':
                 $certificates = $this->certificate_model
                     ->get_certificates_by_instructor($user->id);
                 $courses = $this->course_model->get_courses_by_instructor($user->id);
                 break;
 
-            default: // employee
+            default:
                 $certificates = $this->certificate_model
                     ->get_user_certificates($user->id);
                 $courses = [];
@@ -156,14 +157,14 @@ class Certificates extends KA_Controller {
         if ( ! $cert) show_404();
 
         // Employees can only view their own certificates
-        if ($this->auth_user->role === 'employee'
+        if ($this->is_learner_experience()
             && (int) $cert->user_id !== (int) $this->auth_user->id) {
             show_404();
         }
 
         // Log "printed" action once per session
         $viewed_key = 'cert_viewed_' . $id;
-        if ($this->auth_user->role === 'employee'
+        if ($this->is_learner_experience()
             && ! $this->session->userdata($viewed_key)) {
             $this->_log_print($id);
             $this->session->set_userdata($viewed_key, true);
@@ -197,7 +198,7 @@ class Certificates extends KA_Controller {
             show_404();
         }
 
-        if ($this->auth_user->role === 'employee'
+        if ($this->is_learner_experience()
             && (int) $cert->user_id !== (int) $this->auth_user->id) {
             show_404();
         }
@@ -240,7 +241,7 @@ class Certificates extends KA_Controller {
             show_404();
         }
 
-        if ($this->auth_user->role === 'employee'
+        if ($this->is_learner_experience()
             && (int) $cert->user_id !== (int) $this->auth_user->id) {
             show_404();
         }
@@ -280,7 +281,7 @@ class Certificates extends KA_Controller {
         $cert = $this->certificate_model->get_by_id($id);
         if ( ! $cert) show_404();
 
-        if ($this->auth_user->role === 'employee'
+        if ($this->is_learner_experience()
             && (int) $cert->user_id !== (int) $this->auth_user->id) {
             show_404();
         }
@@ -394,7 +395,7 @@ class Certificates extends KA_Controller {
     // =========================================================
     public function check($course_id = null)
     {
-        if ( ! $course_id || $this->auth_user->role !== 'employee') {
+        if ( ! $course_id || ! $this->is_learner_experience()) {
             redirect('certificates');
         }
 

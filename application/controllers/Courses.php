@@ -129,7 +129,7 @@ class Courses extends KA_Controller {
         if ( ! $course) show_404();
 
         $this->load->model('Course_phase2_model', 'course_phase2');
-        $is_learner = in_array((string) $user->role, ['employee', 'student'], true);
+        $is_learner = ka_viewer_is_learner_experience($user);
         $pending_invitation = null;
         if ($is_learner) {
             $vis = $this->course_phase2->employee_may_view_course($id, $user, true);
@@ -228,7 +228,7 @@ class Courses extends KA_Controller {
         $id   = (int) $id;
 
         // Only learner roles can self-enroll
-        if ( ! in_array((string) $user->role, ['employee', 'student'], true)) {
+        if ( ! ka_viewer_is_learner_experience($user)) {
             redirect('courses/view/' . $id);
         }
 
@@ -343,7 +343,7 @@ class Courses extends KA_Controller {
             redirect('courses');
         }
 
-        if ( ! in_array((string) $user->role, ['employee', 'student'], true)) {
+        if ( ! ka_viewer_is_learner_experience($user)) {
             redirect('courses');
         }
 
@@ -363,7 +363,7 @@ class Courses extends KA_Controller {
     {
         $user = $this->auth_user;
         $iid  = (int) $invitation_id;
-        if ($iid < 1 || ! in_array((string) $user->role, ['employee', 'student'], true)) {
+        if ($iid < 1 || ! ka_viewer_is_learner_experience($user)) {
             redirect('courses');
         }
 
@@ -386,7 +386,7 @@ class Courses extends KA_Controller {
             redirect('courses');
         }
 
-        if ( ! in_array((string) $user->role, ['employee', 'student'], true)) {
+        if ( ! ka_viewer_is_learner_experience($user)) {
             redirect('courses/view/' . $cid);
         }
 
@@ -445,7 +445,7 @@ class Courses extends KA_Controller {
             show_404();
         }
 
-        if (in_array((string) $user->role, ['employee', 'student'], true)) {
+        if (ka_viewer_is_learner_experience($user)) {
             $this->load->model('Course_phase2_model', 'course_phase2');
             $vis = $this->course_phase2->employee_may_view_course((int) $module->course_id, $user, true);
             if ( ! $vis['allowed']) {
@@ -540,7 +540,7 @@ class Courses extends KA_Controller {
 
         $player = $this->assessment_service->course_module_play_context(
             (int) $user->id,
-            (string) ($user->role ?? ''),
+            (string) ka_user_effective_experience_role($user->role ?? ''),
             $mid,
             $module
         );
@@ -626,7 +626,7 @@ class Courses extends KA_Controller {
             ]);
         }
 
-        if ($user->role === 'employee') {
+        if (ka_viewer_is_learner_experience($user)) {
             if ( ! $this->course_model->has_approved_enrollment($user->id, $cid)) {
                 return $this->_complete_module_json([
                     'ok'      => false,
@@ -676,7 +676,7 @@ class Courses extends KA_Controller {
             ]);
         }
 
-        if ($user->role === 'employee') {
+        if (ka_viewer_is_learner_experience($user)) {
             if ( ! $this->course_model->has_approved_enrollment($user->id, (int) $module->course_id)) {
                 return $this->_complete_module_json([
                     'ok'      => false,
@@ -723,7 +723,7 @@ class Courses extends KA_Controller {
             return $this->_complete_module_json(['ok' => false, 'message' => 'Module not found.']);
         }
 
-        if (in_array((string) ($user->role ?? ''), ['employee', 'student'], true)) {
+        if (ka_viewer_is_learner_experience($user)) {
             if ( ! $this->course_model->has_approved_enrollment((int) $user->id, (int) $module->course_id)) {
                 return $this->_complete_module_json(['ok' => false, 'message' => 'Not enrolled.']);
             }
@@ -770,7 +770,7 @@ class Courses extends KA_Controller {
             return $this->_complete_module_json(['ok' => false, 'message' => 'Module not found.']);
         }
 
-        if (in_array((string) ($user->role ?? ''), ['employee', 'student'], true)) {
+        if (ka_viewer_is_learner_experience($user)) {
             if ( ! $this->course_model->has_approved_enrollment((int) $user->id, (int) $module->course_id)) {
                 return $this->_complete_module_json(['ok' => false, 'message' => 'Not enrolled.']);
             }
@@ -813,7 +813,7 @@ class Courses extends KA_Controller {
             return $this->_complete_module_json(['success' => false, 'message' => 'Module not found.']);
         }
 
-        if ($user->role === 'employee') {
+        if (ka_viewer_is_learner_experience($user)) {
             if ( ! $this->course_model->has_approved_enrollment($user->id, (int) $module->course_id)) {
                 return $this->_complete_module_json(['success' => false, 'message' => 'Not approved for this course.']);
             }

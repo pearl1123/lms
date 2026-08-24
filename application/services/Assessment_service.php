@@ -159,7 +159,7 @@ class Assessment_service {
             : '';
         $is_video = ($module && $eff_type === 'video');
         $pre_required = ! $is_video || ! empty($pre_assessment->is_required);
-        if ($pre_assessment && in_array($role, ['employee', 'student'], true) && $pre_required) {
+        if ($pre_assessment && ka_user_is_learner_experience($role) && $pre_required) {
             $pre_attempted = $this->CI->assessment_model->has_answered($uid, (int) $pre_assessment->id);
             if ($pre_attempted) {
                 $pre_result = $this->CI->assessment_model->get_result($uid, (int) $pre_assessment->id);

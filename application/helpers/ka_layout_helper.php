@@ -60,16 +60,31 @@ if ( ! function_exists('ka_merge_layout_vars')) {
             $effective = ka_user_effective_permissions((int) $user->id);
         }
 
+        $account_role = $role_raw;
+        $effective_role = function_exists('ka_user_effective_experience_role')
+            ? ka_user_effective_experience_role($account_role)
+            : $account_role;
+        $acting_as_learner = function_exists('ka_user_acting_as_learner')
+            && ka_user_acting_as_learner($account_role);
+        $can_switch_learner = function_exists('ka_user_can_switch_learner_mode')
+            && ka_user_can_switch_learner_mode($account_role);
+        $role_label = function_exists('ka_user_experience_role_label')
+            ? ka_user_experience_role_label($account_role)
+            : ucfirst($account_role);
+
         $data['nav_context'] = [
             'segment_1'        => (string) ($URI->segment(1) ?: ''),
             'segment_2'        => (string) ($URI->segment(2) ?: ''),
-            'user_role'        => $role_raw,
-            'user_role_label'  => ucfirst($role_raw),
+            'account_role'     => $account_role,
+            'user_role'        => $effective_role,
+            'user_role_label'  => $role_label,
+            'acting_as_learner'=> $acting_as_learner,
+            'can_switch_learner_mode' => $can_switch_learner,
             'full_name'        => $full_name,
             'employee_id'      => $employee_id,
             'initials'         => ka_user_initials($full_name),
             'avatar_url'       => $avatar_url,
-            'my_courses_label' => in_array($role_raw, ['employee', 'student'], true) ? 'My Learning' : 'My Courses',
+            'my_courses_label' => ka_user_is_learner_experience($account_role) ? 'My Learning' : 'My Courses',
             'streak'           => $streak,
             'perm_engine'      => $perm_engine,
             'effective_perms'=> $effective,

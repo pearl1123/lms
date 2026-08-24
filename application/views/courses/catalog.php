@@ -8,7 +8,7 @@ $total_available= $total_available?? 0;
 $keyword        = $keyword        ?? '';
 $filter_cat     = $filter_cat     ?? '';
 $user_role      = strtolower($user->role ?? 'employee');
-$is_learner_role = in_array($user_role, ['employee', 'student'], true);
+$is_learner_role = ka_viewer_is_learner_experience($user);
 
 $thumb_gradients = [
     'linear-gradient(135deg,#3b82f6,#1d4ed8)',

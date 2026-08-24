@@ -663,7 +663,7 @@ class Course_phase2_model extends CI_Model {
      */
     public function apply_catalog_filters_for_viewer($viewer = null)
     {
-        if ( ! $viewer || ! in_array(strtolower($viewer->role ?? ''), ['employee', 'student'], true)) {
+        if ( ! $viewer || ! ka_viewer_is_learner_experience($viewer)) {
             return;
         }
 
@@ -720,7 +720,7 @@ class Course_phase2_model extends CI_Model {
             return ['allowed' => false, 'message' => 'Course not found.'];
         }
 
-        if ( ! $viewer || ! in_array(strtolower($viewer->role ?? ''), ['employee', 'student'], true)) {
+        if ( ! $viewer || ! ka_viewer_is_learner_experience($viewer)) {
             return ['allowed' => true, 'message' => ''];
         }
 
@@ -1138,7 +1138,7 @@ class Course_phase2_model extends CI_Model {
 
     public function user_is_invitation_eligible($course_id, $user)
     {
-        if ( ! $user || ! in_array(strtolower((string) ($user->role ?? '')), ['employee', 'student'], true)) {
+        if ( ! $user || ! ka_viewer_is_learner_experience($user)) {
             return false;
         }
         if ((int) ($user->DELETED ?? 0) === 1 || (string) ($user->status ?? '') !== 'active') {

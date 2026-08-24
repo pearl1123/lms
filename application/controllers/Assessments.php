@@ -301,7 +301,7 @@ class Assessments extends CI_Controller {
         $user = $this->user;
         $id   = (int) $id;
 
-        if ($user->role !== 'employee') redirect('assessments');
+        if ( ! $this->is_learner_experience()) redirect('assessments');
 
         $assessment = $this->assessment_model->get_assessment($id);
         if ( ! $assessment) show_404();
@@ -396,7 +396,7 @@ class Assessments extends CI_Controller {
      */
     public function retake($id = null)
     {
-        if ( ! $id || $this->user->role !== 'employee') {
+        if ( ! $id || ! $this->is_learner_experience()) {
             redirect('assessments');
         }
 
@@ -450,7 +450,7 @@ class Assessments extends CI_Controller {
     // =========================================================
     public function submit($id = null)
     {
-        if ( ! $id || $this->user->role !== 'employee') redirect('assessments');
+        if ( ! $id || ! $this->is_learner_experience()) redirect('assessments');
         $id = (int) $id;
 
         $assessment = $this->assessment_model->get_assessment($id);
@@ -631,7 +631,7 @@ class Assessments extends CI_Controller {
         $user = $this->user;
         $id   = (int) $id;
 
-        if ($user->role !== 'employee') redirect('assessments');
+        if ( ! $this->is_learner_experience()) redirect('assessments');
 
         $assessment = $this->assessment_model->get_assessment($id);
         if ( ! $assessment) show_404();
