@@ -138,3 +138,25 @@ if ( ! function_exists('ka_staff_mode_label_for_role')) {
         return $account_role === 'admin' ? 'Administrator' : 'Instructor';
     }
 }
+
+if ( ! function_exists('ka_user_permission_manifest_role')) {
+    /**
+     * Role used for Employee manifest permission fallback (require_permission, nav).
+     * Staff in learning mode inherit employee learner permissions.
+     *
+     * @param string|null $account_role
+     */
+    function ka_user_permission_manifest_role($account_role = null)
+    {
+        if ($account_role === null) {
+            $CI = &get_instance();
+            $account_role = strtolower((string) ($CI->session->userdata('user')['role'] ?? ''));
+        }
+
+        if (ka_user_acting_as_learner($account_role)) {
+            return 'employee';
+        }
+
+        return strtolower(trim((string) $account_role));
+    }
+}

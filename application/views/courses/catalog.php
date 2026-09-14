@@ -9,6 +9,8 @@ $keyword        = $keyword        ?? '';
 $filter_cat     = $filter_cat     ?? '';
 $user_role      = strtolower($user->role ?? 'employee');
 $is_learner_role = ka_viewer_is_learner_experience($user);
+$can_manage_courses = ! $is_learner_role
+    && in_array($user_role, ['admin', 'teacher', 'instructor'], true);
 
 $thumb_gradients = [
     'linear-gradient(135deg,#3b82f6,#1d4ed8)',
@@ -523,7 +525,7 @@ $thumb_gradients = [
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </a>
 
-          <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
+          <?php if ($can_manage_courses): ?>
           <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('manage_courses')) ?>"
              class="cat-cta cat-cta-manage" style="flex:none;padding:6px 10px;font-size:.6875rem;">
             Edit
@@ -631,7 +633,7 @@ $thumb_gradients = [
             View
           </a>
         <?php endif; ?>
-        <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
+        <?php if ($can_manage_courses): ?>
         <a href="<?= base_url('manage_courses/edit/'.$course->id.'?'.ka_lms_return_q('manage_courses')) ?>"
            class="cat-list-btn"
            style="background:#fffbeb;color:#b45309;">

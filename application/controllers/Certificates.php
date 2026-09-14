@@ -67,8 +67,10 @@ class Certificates extends KA_Controller {
                 break;
         }
 
-        $is_manager = in_array($user->role, ['admin', 'teacher'], true);
-        $is_admin   = ($user->role === 'admin');
+        $is_manager = ! ka_viewer_is_learner_experience($user)
+            && in_array(strtolower((string) ($user->role ?? '')), ['admin', 'teacher', 'instructor'], true);
+        $is_admin   = ! ka_viewer_is_learner_experience($user)
+            && strtolower((string) ($user->role ?? '')) === 'admin';
 
         $certificate_stats = $this->_build_certificate_stats($certificates, $is_manager);
 
@@ -331,17 +333,15 @@ class Certificates extends KA_Controller {
         }
         $id = (int) $id;
 
-        $role = strtolower($this->auth_user->role ?? '');
-        if ( ! in_array($role, ['admin', 'teacher'], true)) {
-            show_404();
-        }
+        $this->require_manager();
 
         $cert = $this->certificate_model->get_by_id($id);
         if ( ! $cert) {
             show_404();
         }
 
-        if ($role === 'teacher') {
+        $role = strtolower($this->auth_user->role ?? '');
+        if (in_array($role, ['teacher', 'instructor'], true)) {
             $owned = $this->certificate_model->get_certificates_by_instructor($this->auth_user->id);
             $allowed = false;
             foreach ($owned as $row) {

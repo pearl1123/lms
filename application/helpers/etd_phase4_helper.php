@@ -73,6 +73,18 @@ if ( ! function_exists('etd_modality_display_label')) {
     }
 }
 
+if ( ! function_exists('etd_modality_is_available_for_course_create')) {
+    /**
+     * Only Asynchronous is enabled for new course creation (others shown as Coming Soon).
+     *
+     * @param string|null $modality_desc
+     */
+    function etd_modality_is_available_for_course_create($modality_desc)
+    {
+        return strcasecmp(trim((string) $modality_desc), 'Asynchronous') === 0;
+    }
+}
+
 if ( ! function_exists('etd_f2f_notice_html')) {
     /**
      * Admin-configured Face-to-Face advisory HTML.

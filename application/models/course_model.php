@@ -1688,6 +1688,33 @@ class Course_model extends CI_Model {
             }
         }
 
+        if ($ok) {
+            $meta_upd = [];
+            if ($this->db->field_exists('pass_threshold_pct', 'courses')
+                && array_key_exists('pass_threshold_pct', $data)) {
+                $pt = $data['pass_threshold_pct'];
+                $meta_upd['pass_threshold_pct'] = ($pt !== '' && $pt !== null)
+                    ? round((float) $pt, 2) : null;
+            }
+            if ($this->db->field_exists('enforce_sequential_modules', 'courses')
+                && array_key_exists('enforce_sequential_modules', $data)) {
+                $meta_upd['enforce_sequential_modules'] = ! empty($data['enforce_sequential_modules']) ? 1 : 0;
+            }
+            if ($this->db->field_exists('max_capacity', 'courses')
+                && array_key_exists('max_capacity', $data)) {
+                $cap = (int) $data['max_capacity'];
+                $meta_upd['max_capacity'] = $cap > 0 ? $cap : null;
+            }
+            if ($this->db->field_exists('enrollment_deadline', 'courses')
+                && array_key_exists('enrollment_deadline', $data)) {
+                $dl = $data['enrollment_deadline'];
+                $meta_upd['enrollment_deadline'] = ($dl !== '' && $dl !== null) ? $dl : null;
+            }
+            if ( ! empty($meta_upd)) {
+                $this->db->where('id', (int) $course_id)->update('courses', $meta_upd);
+            }
+        }
+
         return $ok;
     }
 

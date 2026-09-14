@@ -34,10 +34,13 @@ if ($is_admin && $posted_owner > 0) {
     <h2 class="crs-page-title">Create draft course</h2>
     <p class="crs-page-subtitle">Add a title, modality, and categories. Everything else—access, certificates, modules—is configured after the draft is created.</p>
   </div>
-  <a href="<?= base_url('manage_courses') ?>" class="crs-back-link">&larr; Back</a>
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
+    <button type="submit" form="course-create-form" class="crs-header-save-btn">Create draft course</button>
+    <a href="<?= base_url('manage_courses') ?>" class="crs-back-link">&larr; Back</a>
+  </div>
 </div>
 
-<form method="post" action="<?= base_url('manage_courses/create') ?>" class="ka-form-flow animate__animated animate__fadeInUp animate__fast">
+<form id="course-create-form" method="post" action="<?= base_url('manage_courses/create') ?>" class="ka-form-flow animate__animated animate__fadeInUp animate__fast">
   <input type="hidden" name="<?= html_escape($csrf_field_name ?? '') ?>" value="<?= html_escape($csrf_hash ?? '') ?>">
 
   <?php if ($phase2_ready): ?>
@@ -70,14 +73,28 @@ if ($is_admin && $posted_owner > 0) {
 
           <div class="crs-form-group">
             <label class="crs-label" for="modality_id">Modality <span>*</span></label>
-            <select id="modality_id" name="modality_id" class="crs-select" required>
+            <select id="modality_id" name="modality_id" class="crs-select crs-select-modality" required>
               <option value="">-- Select --</option>
-              <?php foreach ($modalities as $m): ?>
-              <option value="<?= (int) $m->modality_id ?>" <?= set_select('modality_id', $m->modality_id) ?>>
-                <?= htmlspecialchars(etd_modality_display_label($m->modality_desc ?? ''), ENT_QUOTES, 'UTF-8') ?>
+              <?php
+              $default_modality_id = 0;
+              foreach ($modalities as $m) {
+                  if (etd_modality_is_available_for_course_create($m->modality_desc ?? '')) {
+                      $default_modality_id = (int) $m->modality_id;
+                      break;
+                  }
+              }
+              foreach ($modalities as $m):
+                  $mod_label = etd_modality_display_label($m->modality_desc ?? '');
+                  $mod_available = etd_modality_is_available_for_course_create($m->modality_desc ?? '');
+              ?>
+              <option value="<?= (int) $m->modality_id ?>"
+                      <?= set_select('modality_id', $m->modality_id, $mod_available && (int) $m->modality_id === $default_modality_id) ?>
+                      <?= $mod_available ? '' : ' disabled class="crs-option-soon"' ?>>
+                <?= htmlspecialchars($mod_label, ENT_QUOTES, 'UTF-8') ?><?= $mod_available ? '' : ' — Coming Soon' ?>
               </option>
               <?php endforeach; ?>
             </select>
+            <p class="crs-help crs-modality-soon-note">Face-to-Face, Online Live, and HyFlex are coming soon. Only <strong>Asynchronous</strong> is available for new courses.</p>
             <?php if (form_error('modality_id')): ?><div class="crs-error"><?= form_error('modality_id') ?></div><?php endif; ?>
           </div>
 
@@ -139,7 +156,14 @@ if ($is_admin && $posted_owner > 0) {
       </div>
     </div>
   </div>
+
+  <div class="crs-floating-save-spacer" aria-hidden="true"></div>
 </form>
+
+<div class="crs-floating-save" role="region" aria-label="Create course">
+  <p class="crs-floating-save-hint">Creates a draft you can finish in the course workspace (modules, access, certificates).</p>
+  <button type="submit" form="course-create-form" class="crs-submit-btn" style="width:auto;min-width:11rem;padding:.625rem 1.35rem;">Create draft course</button>
+</div>
 
 <?php if ($phase2_ready && $is_admin && ! empty($teachers)): ?>
 <script>

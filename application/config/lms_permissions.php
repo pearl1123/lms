@@ -54,6 +54,7 @@ return [
                 'my_courses.view', 'assessments.view', 'assessments.add', 'assessments.edit',
                 'assessments.grade', 'certificates.view',
                 'announcements.view',
+                'profile.view', 'profile.edit',
             ],
         ],
         'Department Head' => [

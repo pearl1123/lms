@@ -125,9 +125,10 @@ class Assessment_service {
         $vc   = $this->_course_module_video_checkpoint_context((int) $user_id, $mid, $module);
 
         $flow = $this->get_module_flow_state((int) $user_id, $mid);
+        $course_id = (int) ($module->course_id ?? 0);
 
         return array_merge($exam, $vc, [
-            'assessment_pass_threshold'   => $this->pass_threshold(),
+            'assessment_pass_threshold'   => $this->pass_threshold($course_id > 0 ? $course_id : null),
             'module_completion_state'    => $this->get_module_completion_state((int) $user_id, $mid, $flow),
             'module_flow_state'           => $flow,
             'video_module_progress_state' => $this->get_video_module_progress_state((int) $user_id, $mid, $module, $flow),

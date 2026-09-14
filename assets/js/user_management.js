@@ -76,7 +76,7 @@
       ['Email', user.email],
       ['Office', user.office || '—'],
       ['Status', user.status],
-      ['LMS Role', user.role],
+      ['LMS Role', formatRoleLabel(user.role)],
       ['Last Login', user.last_login || 'Never']
     ];
     if (user.is_login_locked) {
@@ -277,10 +277,16 @@
     if (window._umgmtLastTree) renderTree(window._umgmtLastTree);
     if (window._umgmtLastMatrix) renderMatrix(window._umgmtLastMatrix);
     if (data.effective) renderEffective(data.effective);
+    if (data.user) {
+      renderUserInfo(data.user);
+      updateRowRole(state.userId, data.user.role);
+      renderLoginCell(state.userId, data.user);
+    }
   }
 
-  function openAccess(userId) {
+  function openAccess(userId, viewOnly) {
     state.userId = userId;
+    state.viewOnly = !!viewOnly;
     setLoading(true);
     if (!state.modal && window.bootstrap) {
       state.modal = new bootstrap.Modal(document.getElementById('umgmtAccessModal'));
@@ -295,6 +301,7 @@
       }
       renderUserInfo(res.user);
       applyPayload(res);
+      updateRowRole(userId, res.user.role);
       if (state.viewOnly && window.bootstrap) {
         var tab = document.querySelector('[data-bs-target="#umgmtTabEffective"]');
         if (tab) bootstrap.Tab.getOrCreateInstance(tab).show();
@@ -310,6 +317,19 @@
   function updateRowGroupLabels(userId, labels) {
     var cell = document.querySelector('.umgmt-groups-cell[data-user-id="' + userId + '"]');
     if (cell) cell.textContent = labels || '—';
+  }
+
+  function updateRowRole(userId, role) {
+    var cell = document.querySelector('.umgmt-role-cell[data-user-id="' + userId + '"]');
+    if (!cell) return;
+    cell.innerHTML = '<span class="umgmt-badge umgmt-badge-role">' + escapeHtml(formatRoleLabel(role)) + '</span>';
+  }
+
+  function formatRoleLabel(role) {
+    var r = String(role || 'employee').toLowerCase();
+    if (r === 'teacher' || r === 'instructor') return 'Teacher / Instructor';
+    if (r === 'admin') return 'Admin';
+    return r.charAt(0).toUpperCase() + r.slice(1);
   }
 
   function escapeHtml(s) {
@@ -338,6 +358,7 @@
             toast('success', res.message);
             applyPayload(res);
             updateRowGroupLabels(state.userId, res.group_labels);
+            if (res.user) updateRowRole(state.userId, res.user.role);
           } else toast('error', res.message || 'Failed.');
         });
       });
@@ -363,6 +384,7 @@
             toast('success', res.message);
             applyPayload(res);
             updateRowGroupLabels(state.userId, res.group_labels);
+            if (res.user) updateRowRole(state.userId, res.user.role);
           } else toast('error', res.message || 'Failed.');
         });
       });

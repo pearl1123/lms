@@ -88,11 +88,7 @@ if ( ! function_exists('ka_learner_role_has_manifest_permission')) {
      */
     function ka_learner_role_has_manifest_permission($permissions, $role = null)
     {
-        $role = strtolower((string) ($role ?? ''));
-        if ($role === '' && function_exists('get_instance')) {
-            $CI = &get_instance();
-            $role = strtolower((string) ($CI->session->userdata('role') ?? ''));
-        }
+        $role = ka_user_permission_manifest_role($role);
         if ( ! in_array($role, ['employee', 'student'], true)) {
             return false;
         }

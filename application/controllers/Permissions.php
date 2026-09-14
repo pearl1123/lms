@@ -13,6 +13,7 @@ class Permissions extends KA_Controller {
     {
         parent::__construct();
         $this->require_permission(['groups.view', 'users.view'], 'dashboard');
+        $this->require_staff_mode('dashboard');
         $this->load->model('User_access_model', 'user_access_model');
         $this->load->library('Permission_seed_service', null, 'permission_seed_service');
         $this->_auto_sync_if_empty();

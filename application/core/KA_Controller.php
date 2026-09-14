@@ -161,8 +161,13 @@ class KA_Controller extends CI_Controller {
      */
     protected function require_role($roles, $redirect_to = 'dashboard')
     {
-        $roles = (array) $roles;
-        if ( ! in_array($this->auth_user->role, $roles)) {
+        $roles = array_values(array_map('strtolower', (array) $roles));
+        $staff_roles = array_intersect($roles, ['admin', 'teacher', 'instructor']);
+        if ($staff_roles !== [] && ka_user_acting_as_learner($this->auth_user->role ?? '')) {
+            $this->require_staff_mode($redirect_to);
+        }
+
+        if ( ! in_array(strtolower((string) ($this->auth_user->role ?? '')), $roles, true)) {
             $this->flash('error', 'You do not have permission to access that page.');
             redirect($redirect_to);
         }
@@ -181,15 +186,28 @@ class KA_Controller extends CI_Controller {
      */
     protected function require_manager()
     {
-        if (ka_user_acting_as_learner($this->auth_user->role ?? '')) {
-            if ($this->_is_ajax_request()) {
-                $this->_auth_json_exit(403, 'Switch to ' . ka_staff_mode_label_for_role($this->auth_user->role ?? '') . ' mode to access management tools.');
-            }
-            $this->flash('info', 'You are in learning mode. Switch back to ' . ka_staff_mode_label_for_role($this->auth_user->role ?? '') . ' mode to access management tools.');
-            redirect('dashboard');
+        $this->require_staff_mode('dashboard');
+        $this->require_role(['admin', 'teacher', 'instructor'], 'my_courses');
+    }
+
+    /**
+     * Block management tools while staff are in sidebar learning mode.
+     * Does not change account-role checks — pair with require_permission / require_role as needed.
+     *
+     * @param string $redirect_to
+     */
+    protected function require_staff_mode($redirect_to = 'dashboard')
+    {
+        if ( ! ka_user_acting_as_learner($this->auth_user->role ?? '')) {
+            return;
         }
 
-        $this->require_role(['admin', 'teacher', 'instructor'], 'my_courses');
+        $label = ka_staff_mode_label_for_role($this->auth_user->role ?? '');
+        if ($this->_is_ajax_request()) {
+            $this->_auth_json_exit(403, 'Switch to ' . $label . ' mode to access management tools.');
+        }
+        $this->flash('info', 'You are in learning mode. Switch back to ' . $label . ' mode to access management tools.');
+        redirect($redirect_to);
     }
 
     /**
@@ -228,7 +246,7 @@ class KA_Controller extends CI_Controller {
             return;
         }
 
-        if (ka_learner_role_has_manifest_permission($permissions, (string) ($this->auth_user->role ?? ''))) {
+        if (ka_learner_role_has_manifest_permission($permissions, ka_user_permission_manifest_role($this->auth_user->role ?? ''))) {
             return;
         }
 
@@ -308,7 +326,7 @@ class KA_Controller extends CI_Controller {
             return true;
         }
 
-        return ka_learner_role_has_manifest_permission($permission_name, (string) ($this->auth_user->role ?? ''));
+        return ka_learner_role_has_manifest_permission($permission_name, ka_user_permission_manifest_role($this->auth_user->role ?? ''));
     }
 
     private function _load_user_permissions()

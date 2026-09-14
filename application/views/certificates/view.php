@@ -3,6 +3,8 @@
 $cert      = $cert      ?? null;
 $logs      = $logs      ?? [];
 $user_role = strtolower($user->role ?? 'employee');
+$is_manager = ! ka_viewer_is_learner_experience($user)
+    && in_array($user_role, ['admin', 'teacher', 'instructor'], true);
 if ( ! $cert) return;
 
 $this->load->helper(['certificate_pdf', 'registration']);
@@ -96,7 +98,7 @@ if ($preview_cache_bust === '') {
      style="display:inline-flex;align-items:center;gap:5px;font-size:.8125rem;font-weight:600;text-decoration:none;color:var(--ka-text-muted,#64748b);">
     ← Back to Certificates
   </a>
-  <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
+  <?php if ($is_manager): ?>
   <button type="button"
           class="certv-revoke-btn"
           data-revoke-form="revokeFormTop"
@@ -140,7 +142,7 @@ if ($preview_cache_bust === '') {
          class="certv-btn certv-btn-verify" target="_blank" rel="noopener">
         🔗 Verify Certificate
       </a>
-      <?php if (in_array($user_role, ['admin', 'teacher'])): ?>
+      <?php if ($is_manager): ?>
       <form method="post" action="<?= base_url('index.php/certificates/regenerate/'.$cert->id) ?>" style="margin:0;">
         <input type="hidden" name="<?= html_escape($csrf_field_name ?? '') ?>" value="<?= html_escape($csrf_hash ?? '') ?>">
         <button type="submit" class="certv-btn certv-btn-regen" style="width:100%;">
@@ -236,7 +238,7 @@ if ($preview_cache_bust === '') {
   </div>
 </div>
 
-<?php if (in_array($user_role, ['admin', 'teacher'])): ?>
+<?php if ($is_manager): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   var btns = document.querySelectorAll('.certv-revoke-btn');

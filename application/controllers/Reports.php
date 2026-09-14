@@ -16,6 +16,7 @@ class Reports extends KA_Controller {
         $this->load->helper(['url', 'form', 'ka_layout', 'report_export']);
 
         $this->require_permission('reports.view');
+        $this->require_staff_mode('dashboard');
     }
 
     public function index()

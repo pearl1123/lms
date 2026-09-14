@@ -18,7 +18,9 @@ class Profile extends KA_Controller {
         $this->load->model('Profile_model', 'profile_model');
         $this->load->helper(['url', 'form']);
 
-        $this->require_permission('profile.view');
+        if ($this->router->fetch_method() !== 'switch_learner_mode') {
+            $this->require_permission('profile.view');
+        }
     }
 
     /**

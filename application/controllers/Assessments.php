@@ -154,14 +154,15 @@ class Assessments extends CI_Controller {
     public function index()
     {
         $user = $this->user;
+        $effective = ka_user_effective_experience_role($user->role ?? '');
 
-        if ($user->role === 'admin') {
+        if ($effective === 'admin') {
             $assessments = $this->assessment_model->get_assessments(0, '', true);
-        } elseif ($user->role === 'teacher') {
+        } elseif (in_array($effective, ['teacher', 'instructor'], true)) {
             $assessments = $this->assessment_model
                 ->get_assessments_by_instructor($user->id, true);
         } else {
-            // Employee — show assessments for enrolled courses only
+            // Employee / learning mode — assessments for enrolled courses only
             $enrolled_ids = $this->course_model->get_enrolled_ids($user->id);
             $assessments  = [];
 
@@ -197,7 +198,8 @@ class Assessments extends CI_Controller {
             }
         }
 
-        $is_manager = in_array($user->role, ['admin', 'teacher'], true);
+        $is_manager = ! ka_viewer_is_learner_experience($user)
+            && in_array(strtolower((string) ($user->role ?? '')), ['admin', 'teacher', 'instructor'], true);
 
         $assessment_stats = [
             'total'             => count($assessments),
@@ -530,7 +532,10 @@ class Assessments extends CI_Controller {
                 'score'         => round((float) ($agg['score'] ?? 0), 1),
                 'passed'        => $passed,
                 'pending_count' => (int) ($agg['pending'] ?? 0),
-                'threshold'     => $this->assessment_service->pass_threshold(),
+                'threshold'     => $this->assessment_service->pass_threshold(
+                    (int) ($assessment->course_id ?? 0) ?: null,
+                    $id
+                ),
                 'success_note' => $msg,
             ]);
             redirect('courses/module/' . (int) $assessment->module_id);
@@ -550,7 +555,10 @@ class Assessments extends CI_Controller {
                 'score'              => round((float) ($agg['score'] ?? 0), 1),
                 'passed'             => $passed,
                 'pending_count'      => (int) ($agg['pending'] ?? 0),
-                'threshold'          => $this->assessment_service->pass_threshold(),
+                'threshold'          => $this->assessment_service->pass_threshold(
+                    (int) ($assessment->course_id ?? 0) ?: null,
+                    $id
+                ),
                 'can_mark_complete'  => ! empty($mcs['can_mark_complete']),
                 'can_retake'         => $can_retake,
                 'success_note'       => $msg,
@@ -572,7 +580,8 @@ class Assessments extends CI_Controller {
             show_404();
         }
 
-        if ( ! in_array((string) ($this->user->role ?? ''), ['admin', 'teacher'], true)) {
+        if ( ! in_array((string) ($this->user->role ?? ''), ['admin', 'teacher', 'instructor'], true)
+            || ka_user_acting_as_learner($this->user->role ?? '')) {
             show_error('Forbidden', 403);
         }
 
@@ -1854,7 +1863,7 @@ class Assessments extends CI_Controller {
      */
     public function migrate_video_checkpoints()
     {
-        if ($this->user->role !== 'admin') {
+        if ($this->user->role !== 'admin' || ka_user_acting_as_learner($this->user->role ?? '')) {
             show_404();
         }
 
@@ -2166,9 +2175,21 @@ class Assessments extends CI_Controller {
         }
     }
 
-    /** Redirect non-managers (admin/teacher) away. */
+    /** Redirect non-managers (admin/teacher) away — also blocks learning mode. */
     private function _require_manager()
     {
+        if (ka_user_acting_as_learner($this->user->role ?? '')) {
+            $label = ka_staff_mode_label_for_role($this->user->role ?? '');
+            if ($this->_is_ajax()) {
+                $this->_json_error(403, 'Switch to ' . $label . ' mode to access management tools.');
+            }
+            $this->session->set_flashdata(
+                'info',
+                'You are in learning mode. Switch back to ' . $label . ' mode to access management tools.'
+            );
+            redirect('dashboard');
+        }
+
         if ( ! in_array($this->user->role, ['admin', 'teacher', 'instructor'], true)) {
             if ($this->_is_ajax()) {
                 $this->_json_error(403, 'You do not have permission to do that.');

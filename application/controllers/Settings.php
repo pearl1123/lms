@@ -15,6 +15,7 @@ class Settings extends KA_Controller {
         $this->load->helper(['url', 'form']);
 
         $this->require_permission('settings.view');
+        $this->require_staff_mode('dashboard');
     }
 
     public function index()

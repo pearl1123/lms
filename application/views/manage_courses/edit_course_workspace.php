@@ -125,10 +125,17 @@ $lms_return_target     = $lms_return_target ?? ka_lms_default_return_target_for_
           <div class="ef-row" style="margin-top:.75rem;">
             <div class="ef-group">
               <label class="ef-label" for="pass_threshold_pct">Pass threshold (%)</label>
+              <?php if ($this->db->field_exists('pass_threshold_pct', 'courses')): ?>
               <input type="number" id="pass_threshold_pct" name="pass_threshold_pct" class="ef-input" min="1" max="100" step="0.1"
                      placeholder="75 (platform default)"
                      value="<?= htmlspecialchars(set_value('pass_threshold_pct', $course->pass_threshold_pct ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+              <?php if (form_error('pass_threshold_pct')): ?><div class="ef-error"><?= form_error('pass_threshold_pct') ?></div><?php endif; ?>
               <p class="ef-help" style="font-size:.72rem;color:var(--ka-text-muted,#64748b);margin-top:.25rem;">Leave blank to use platform default (75%).</p>
+              <?php else: ?>
+              <p class="ef-help" style="font-size:.72rem;color:#b45309;margin-top:.35rem;">
+                Run <code>application/sql/migration_course_overview_fields.sql</code> to enable this field.
+              </p>
+              <?php endif; ?>
             </div>
             <div class="ef-group">
               <label class="ef-label" for="training_hours">Training duration (hours)</label>
@@ -147,12 +154,18 @@ $lms_return_target     = $lms_return_target ?? ka_lms_default_return_target_for_
           </div>
           <div class="ef-group" style="margin-top:.75rem;">
               <label class="ef-label">Sequential modules</label>
+              <?php if ($this->db->field_exists('enforce_sequential_modules', 'courses')): ?>
               <label class="ef-toggle" style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem;">
                 <input type="hidden" name="enforce_sequential_modules" value="0">
                 <input type="checkbox" name="enforce_sequential_modules" value="1"
                        <?= ! isset($course->enforce_sequential_modules) || (int) $course->enforce_sequential_modules === 1 ? 'checked' : '' ?>>
                 <span>Learners must complete modules in order</span>
               </label>
+              <?php else: ?>
+              <p class="ef-help" style="font-size:.72rem;color:#b45309;margin-top:.35rem;">
+                Run <code>application/sql/migration_course_overview_fields.sql</code> to enable this setting.
+              </p>
+              <?php endif; ?>
             </div>
           <?php
           $modality_label = function_exists('etd_modality_display_label')
@@ -194,11 +207,14 @@ $lms_return_target     = $lms_return_target ?? ka_lms_default_return_target_for_
           <div class="ef-row" style="margin-top:.75rem;">
             <div class="ef-group">
               <label class="ef-label" for="enrollment_deadline">Enrollment deadline</label>
+              <?php if ($this->db->field_exists('enrollment_deadline', 'courses')): ?>
               <input type="datetime-local" id="enrollment_deadline" name="enrollment_deadline" class="ef-input"
-                     value="<?php
-                       $dl = $course->enrollment_deadline ?? '';
-                       echo $dl ? htmlspecialchars(date('Y-m-d\TH:i', strtotime((string) $dl)), ENT_QUOTES, 'UTF-8') : '';
-                     ?>">
+                     value="<?= htmlspecialchars(set_value('enrollment_deadline', ! empty($course->enrollment_deadline) ? date('Y-m-d\TH:i', strtotime((string) $course->enrollment_deadline)) : ''), ENT_QUOTES, 'UTF-8') ?>">
+              <?php else: ?>
+              <p class="ef-help" style="font-size:.72rem;color:#b45309;margin-top:.35rem;">
+                Run <code>application/sql/migration_course_overview_fields.sql</code> to enable this field.
+              </p>
+              <?php endif; ?>
             </div>
           </div>
         </div>
@@ -430,10 +446,6 @@ $lms_return_target     = $lms_return_target ?? ka_lms_default_return_target_for_
   <?php $this->load->view('manage_courses/phase2_scripts', get_defined_vars()); ?>
   <?php endif; ?>
 
-  <div class="crs-edit-sticky-save">
-    <p>Save applies to every section (except <strong>Send invitations</strong>, which sends immediately).</p>
-    <button type="submit" class="ef-save-btn">Save changes</button>
-  </div>
 </form>
 
 <script>

@@ -16,6 +16,7 @@ class Users extends KA_Controller {
     {
         parent::__construct();
         $this->require_permission(['users.view', 'users.manage'], 'dashboard');
+        $this->require_staff_mode('dashboard');
         $this->load->model('User_access_model', 'user_access_model');
         $this->load->model('User_model', 'user_model');
         $this->load->library('User_access_service', null, 'user_access_service');
@@ -82,6 +83,10 @@ class Users extends KA_Controller {
 
             return;
         }
+
+        // Repair stale LMS role when opening access (group may already be assigned).
+        $this->user_access_model->sync_legacy_role_from_groups((int) $user->id);
+        $user = $this->user_access_model->get_user_row((int) $user->id);
 
         $payload = $this->user_access_service->build_access_payload((int) $user->id);
 
@@ -298,6 +303,7 @@ class Users extends KA_Controller {
 
         return array_merge([
             'message'      => $message,
+            'user'         => $users[0] ?? $user,
             'groups'       => $payload['groups'],
             'all_groups'   => $this->user_access_model->get_all_groups(),
             'matrix'       => $payload['matrix'],

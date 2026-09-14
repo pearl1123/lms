@@ -220,3 +220,49 @@ if ( ! function_exists('course_phase3_course_is_expired')) {
         return $exp < date('Y-m-d');
     }
 }
+
+if ( ! function_exists('course_phase3_module_types_coming_soon')) {
+    /**
+     * Module content types visible in the picker but not yet available for new modules.
+     *
+     * @return string[]
+     */
+    function course_phase3_module_types_coming_soon()
+    {
+        return ['meeting_link'];
+    }
+}
+
+if ( ! function_exists('course_phase3_module_type_available_for_create')) {
+    /**
+     * Whether instructors may create a new module of this content type.
+     *
+     * @param string $type
+     * @return bool
+     */
+    function course_phase3_module_type_available_for_create($type)
+    {
+        $normalized = course_phase3_normalize_module_type($type);
+        if ($normalized === '') {
+            return false;
+        }
+
+        return ! in_array($normalized, course_phase3_module_types_coming_soon(), true);
+    }
+}
+
+if ( ! function_exists('course_phase3_module_type_coming_soon_label')) {
+    /**
+     * @param string $type
+     * @return string|null
+     */
+    function course_phase3_module_type_coming_soon_label($type)
+    {
+        $normalized = course_phase3_normalize_module_type($type);
+        if ($normalized === '' || ! in_array($normalized, course_phase3_module_types_coming_soon(), true)) {
+            return null;
+        }
+
+        return course_phase3_module_type_label($normalized) . ' is coming soon.';
+    }
+}

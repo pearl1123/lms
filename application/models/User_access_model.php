@@ -156,14 +156,19 @@ class User_access_model extends CI_Model {
 
     public function add_user_to_group($user_id, $group_id)
     {
-        if ($this->user_in_group($user_id, $group_id)) {
-            return true;
+        if ( ! $this->user_in_group($user_id, $group_id)) {
+            $ok = (bool) $this->db->insert('aauth_user_to_group', [
+                'user_id'  => (int) $user_id,
+                'group_id' => (int) $group_id,
+            ]);
+            if ( ! $ok) {
+                return false;
+            }
         }
 
-        return (bool) $this->db->insert('aauth_user_to_group', [
-            'user_id'  => (int) $user_id,
-            'group_id' => (int) $group_id,
-        ]);
+        $this->sync_legacy_role_from_groups($user_id);
+
+        return true;
     }
 
     public function remove_user_from_group($user_id, $group_id)
@@ -173,7 +178,80 @@ class User_access_model extends CI_Model {
             ->where('group_id', (int) $group_id)
             ->delete('aauth_user_to_group');
 
-        return $this->db->affected_rows() > 0;
+        $this->sync_legacy_role_from_groups($user_id);
+
+        return true;
+    }
+
+    /**
+     * Keep aauth_users.role aligned with assigned Aauth groups.
+     * Learning mode, dashboards, and many gates still use the legacy role column.
+     *
+     * Priority: admin > teacher > employee
+     *
+     * @param int $user_id
+     * @return string Resolved role
+     */
+    public function sync_legacy_role_from_groups($user_id)
+    {
+        $user_id = (int) $user_id;
+        if ($user_id < 1) {
+            return 'employee';
+        }
+
+        $groups = $this->get_user_groups($user_id);
+        $role   = $this->resolve_legacy_role_from_group_names(array_map(static function ($g) {
+            return (string) ($g->name ?? '');
+        }, $groups));
+
+        $this->db
+            ->where('id', $user_id)
+            ->where('DELETED', 0)
+            ->update($this->users_table, ['role' => $role]);
+
+        return $role;
+    }
+
+    /**
+     * @param string[] $group_names
+     * @return string admin|teacher|employee
+     */
+    public function resolve_legacy_role_from_group_names(array $group_names)
+    {
+        $names = [];
+        foreach ($group_names as $name) {
+            $n = strtolower(trim((string) $name));
+            if ($n !== '') {
+                $names[$n] = true;
+            }
+        }
+
+        $admin_names = [
+            'super administrator',
+            'super admin',
+            'lms administrator',
+            'admin',
+            'user admin',
+        ];
+        foreach ($admin_names as $n) {
+            if (isset($names[$n])) {
+                return 'admin';
+            }
+        }
+
+        $teacher_names = [
+            'instructor',
+            'teacher',
+            'etd manager',
+            'etd staff',
+        ];
+        foreach ($teacher_names as $n) {
+            if (isset($names[$n])) {
+                return 'teacher';
+            }
+        }
+
+        return 'employee';
     }
 
     /**

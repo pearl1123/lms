@@ -66,7 +66,9 @@ $content_type_standalone_keys = array_values(array_filter(
     }
 ));
 /** Content types shown but not selectable until feature ships */
-$coming_soon_types = [];
+$coming_soon_types = function_exists('course_phase3_module_types_coming_soon')
+    ? course_phase3_module_types_coming_soon()
+    : ['meeting_link'];
 ?>
 <?php echo $alerts_partial_html ?? ''; ?>
 <style>
@@ -214,10 +216,10 @@ $coming_soon_types = [];
 .crs-edit-tab-panels { min-height:200px; }
 .crs-edit-panel { display:none;margin-bottom:1rem; }
 .crs-edit-panel.is-active { display:block; }
-.crs-edit-sticky-save { position:sticky;bottom:0;z-index:50;margin:1rem -0.25rem 0;padding:.875rem 1rem;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border:1px solid var(--ka-border,#e2e8f0);border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;box-shadow:0 -4px 24px rgba(15,23,42,.06); }
-.crs-edit-sticky-save p { margin:0;font-size:.75rem;color:var(--ka-text-muted,#64748b);flex:1;min-width:140px; }
 .crs-edit-workspace-title { font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ka-text-muted,#64748b);margin:0 0 .5rem; }
 </style>
+
+<link rel="stylesheet" href="<?= base_url('assets/css/manage_courses.css'); ?>">
 
 <!-- Page header -->
 <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;" class="animate__animated animate__fadeIn animate__fast">
@@ -235,7 +237,8 @@ $coming_soon_types = [];
       </span>
     </p>
   </div>
-  <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
+    <button type="submit" form="course-edit-form" class="crs-header-save-btn">Save changes</button>
     <a href="<?= base_url('courses/view/'.$course->id.'?'.ka_lms_return_q('manage_courses')) ?>" target="_blank"
        style="display:inline-flex;align-items:center;gap:5px;padding:.5rem .875rem;border-radius:8px;font-size:.8125rem;font-weight:600;text-decoration:none;border:1.5px solid var(--ka-border,#e2e8f0);background:#fff;color:var(--ka-text,#1e293b);">
       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -250,7 +253,7 @@ $coming_soon_types = [];
 
 <?php $this->load->view('manage_courses/enrollment_guard_alert', get_defined_vars()); ?>
 
-<div class="edit-crs-layout ka-form-flow animate__animated animate__fadeInUp animate__fast">
+<div class="edit-crs-layout edit-crs-layout--floating-save ka-form-flow animate__animated animate__fadeInUp animate__fast">
 
   <!-- ── LEFT COLUMN ── -->
   <div>
@@ -364,6 +367,11 @@ $coming_soon_types = [];
   </div>
 </div>
 
+<div class="crs-floating-save crs-floating-save--course-edit" role="region" aria-label="Save course changes">
+  <p class="crs-floating-save-hint">Save applies to every section (except <strong>Send invitations</strong>, which sends immediately).</p>
+  <button type="submit" form="course-edit-form" class="ef-save-btn">Save changes</button>
+</div>
+
 <!-- ══ Module Modal ══════════════════════════════════════════ -->
 <div class="mod-modal-overlay" id="modModalOverlay" onclick="closeModModalOutside(event)">
   <div class="mod-modal">
@@ -428,6 +436,9 @@ $coming_soon_types = [];
               <input type="radio" name="mod_content_type" value="<?= $key ?>"
                      <?= $is_coming_soon ? 'disabled' : '' ?>
                      onchange="selectContentType('<?= $key ?>')">
+              <?php if ($is_coming_soon): ?>
+              <span class="ct-soon-badge">Coming Soon</span>
+              <?php endif; ?>
               <div class="ct-card-body">
                 <div class="ct-icon"><?= $ct['icon'] ?></div>
                 <div class="ct-label"><?= htmlspecialchars($ct['label'], ENT_QUOTES) ?></div>
@@ -499,11 +510,6 @@ var CT_DATA    = <?= json_encode($content_types) ?>;
 var CHECKPOINT_SCHEMA_READY = <?= $checkpoint_schema_ready ? 'true' : 'false' ?>;
 var ASMT_RETURN_Q = <?= json_encode(! empty($lms_return_q) ? '&' . $lms_return_q : '') ?>;
 /** Shown in picker but not selectable for new modules */
-var COMING_SOON_TYPES = ['slides', 'audio'];
-
-function isComingSoonType(key) {
-  return COMING_SOON_TYPES.indexOf(String(key || '').toLowerCase()) !== -1;
-}
 var COMING_SOON_TYPES = <?= json_encode($coming_soon_types) ?>;
 
 function isComingSoonType(key) {
@@ -767,6 +773,9 @@ document.getElementById('modContentTypeGrid')?.addEventListener('click', functio
   if (card.getAttribute('aria-disabled') === 'true') {
     e.preventDefault();
     e.stopPropagation();
+    if (typeof KA !== 'undefined' && KA.toast) {
+      KA.toast('info', 'Meeting Link modules are coming soon.');
+    }
   }
 });
 

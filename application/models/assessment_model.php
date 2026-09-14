@@ -872,7 +872,7 @@ class assessment_model extends CI_Model {
     {
         $this->load->helper('ka_format');
         $result = $this->get_result((int) $user_id, (int) $assessment_id);
-        $thr    = (float) ka_assessment_pass_threshold();
+        $thr    = (float) ka_assessment_pass_threshold(null, (int) $assessment_id);
         $pending = (int) ($result['pending'] ?? 0);
         $score   = (float) ($result['score'] ?? 0);
 

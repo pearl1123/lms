@@ -39,6 +39,7 @@ class Manage_courses extends KA_Controller {
         $this->load->helper(['url', 'form', 'course_phase3']);
 
         $this->require_permission('manage_courses.view', 'my_courses');
+        $this->require_staff_mode('dashboard');
     }
 
     // =========================================================
@@ -78,7 +79,7 @@ class Manage_courses extends KA_Controller {
             $this->form_validation
                 ->set_rules('title',       'Course Title', 'required|max_length[255]')
                 ->set_rules('category_id', 'Category',     'callback_quick_create_category')
-                ->set_rules('modality_id', 'Modality',     'required|integer')
+                ->set_rules('modality_id', 'Modality',     'required|integer|callback_valid_create_modality')
                 ->set_rules('certificate_prefix', 'Certificate Prefix', 'trim|alpha_numeric|max_length[12]');
 
             if ($this->form_validation->run()) {
@@ -173,16 +174,27 @@ class Manage_courses extends KA_Controller {
                 ->set_rules('title',       'Course Title', 'required|max_length[255]')
                 ->set_rules('category_id', 'Category',     'required|integer')
                 ->set_rules('modality_id', 'Modality',     'required|integer')
-                ->set_rules('certificate_prefix', 'Certificate Prefix', 'required|alpha_numeric|max_length[12]')
-                ->set_rules('training_hours', 'Training duration (hours)', 'trim|numeric|greater_than[0]|less_than_equal_to[9999]');
+                ->set_rules('certificate_prefix', 'Certificate Prefix', 'required|alpha_numeric|max_length[12]');
+
+            $hours_raw = trim((string) $this->input->post('training_hours'));
+            if ($hours_raw !== '') {
+                $this->form_validation->set_rules(
+                    'training_hours',
+                    'Training duration (hours)',
+                    'trim|numeric|greater_than[0]|less_than_equal_to[9999]'
+                );
+            }
+
+            $pt_raw = trim((string) $this->input->post('pass_threshold_pct'));
+            if ($pt_raw !== '') {
+                $this->form_validation->set_rules(
+                    'pass_threshold_pct',
+                    'Pass threshold (%)',
+                    'trim|numeric|greater_than[0]|less_than_equal_to[100]'
+                );
+            }
 
             if ($this->form_validation->run()) {
-                $total_weight = round((float) $this->course_model->sum_module_weights($id), 2);
-                if (abs($total_weight - 100.0) > 0.01) {
-                    $this->session->set_flashdata('error', 'Module weights must total exactly 100% before saving course details. Current total: ' . number_format($total_weight, 2) . '%.');
-                    $edit_redirect();
-                }
-
                 $update = [
                     'title'          => $this->input->post('title'),
                     'description'    => $this->input->post('description'),
@@ -200,7 +212,11 @@ class Manage_courses extends KA_Controller {
                     $update['pass_threshold_pct'] = ($pt !== '' && $pt !== null) ? (float) $pt : null;
                 }
                 if ($this->db->field_exists('enforce_sequential_modules', 'courses')) {
-                    $update['enforce_sequential_modules'] = $this->input->post('enforce_sequential_modules') ? 1 : 0;
+                    $seq = $this->input->post('enforce_sequential_modules');
+                    if (is_array($seq)) {
+                        $seq = end($seq);
+                    }
+                    $update['enforce_sequential_modules'] = ((string) $seq === '1') ? 1 : 0;
                 }
                 if ($this->db->field_exists('max_capacity', 'courses')) {
                     $cap = (int) $this->input->post('max_capacity');
@@ -335,6 +351,15 @@ class Manage_courses extends KA_Controller {
             echo json_encode(['success' => false, 'message' => 'Module title is required.']);
             return;
         }
+
+        $raw_type = course_phase3_normalize_module_type($content_type);
+        if ($module_id < 1 && ! course_phase3_module_type_available_for_create($raw_type)) {
+            $soon_msg = course_phase3_module_type_coming_soon_label($raw_type)
+                ?: 'This module type is coming soon and cannot be created yet.';
+            echo json_encode(['success' => false, 'message' => $soon_msg]);
+            return;
+        }
+
         $content_type = course_phase3_effective_module_type(
             $content_type,
             'save_module course_id=' . $course_id,
@@ -846,6 +871,19 @@ class Manage_courses extends KA_Controller {
         }
         $this->_check_ownership($course);
 
+        if ($status === 'published' && $this->course_model->count_modules($cid) > 0) {
+            $total_weight = round((float) $this->course_model->sum_module_weights($cid), 2);
+            if (abs($total_weight - 100.0) > 0.01) {
+                $this->session->set_flashdata(
+                    'error',
+                    'Module weights must total exactly 100% before publishing. Current total: '
+                    . number_format($total_weight, 2) . '%. Adjust weights on the Modules tab.'
+                );
+                redirect('manage_courses/edit/' . $cid . '#modules');
+                return;
+            }
+        }
+
         $ok = $status === 'published'
             ? $this->course_model->publish_course($cid, (int) $this->auth_user->id)
             : $this->course_model->unpublish_course($cid, (int) $this->auth_user->id);
@@ -927,6 +965,38 @@ class Manage_courses extends KA_Controller {
             $msg .= ' ' . $skipped . ' skipped or already invited.';
         }
         $this->session->set_flashdata($sent > 0 ? 'success' : 'info', $msg);
+    }
+
+    /**
+     * Create form: only Asynchronous modality may be selected.
+     *
+     * @param string $modality_id
+     * @return bool
+     */
+    public function valid_create_modality($modality_id)
+    {
+        $modality_id = (int) $modality_id;
+        if ($modality_id < 1) {
+            return false;
+        }
+
+        $this->load->helper('etd_phase4');
+        foreach ($this->course_model->get_modalities() as $m) {
+            if ((int) ($m->modality_id ?? 0) !== $modality_id) {
+                continue;
+            }
+            if (etd_modality_is_available_for_course_create($m->modality_desc ?? '')) {
+                return true;
+            }
+            break;
+        }
+
+        $this->form_validation->set_message(
+            'valid_create_modality',
+            'Only Asynchronous courses can be created right now. Other modalities are coming soon.'
+        );
+
+        return false;
     }
 
     /**

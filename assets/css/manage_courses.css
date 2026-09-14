@@ -284,6 +284,20 @@
   border-radius: 12px;
 }
 
+/* Create course — modality options coming soon */
+.crs-select-modality option.crs-option-soon,
+.crs-select-modality option:disabled {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.crs-modality-soon-note {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--ka-text-muted, #64748b);
+  line-height: 1.45;
+}
+
 /* Module modal — coming-soon content types (edit course) */
 .ct-card.is-coming-soon {
   padding: 0;
@@ -355,4 +369,69 @@
 .mod-upload-btn:hover:not(:disabled) {
   background: #254d75;
   transform: translateY(-1px);
+}
+
+/* Sticky save bar — follows page flow so it sits above the site footer */
+.crs-floating-save {
+  position: sticky;
+  bottom: 0;
+  z-index: 1025;
+  margin-top: 1rem;
+  padding: 0.75rem clamp(1rem, 3vw, 1.75rem);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--ka-border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.crs-floating-save-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ka-text-muted, #64748b);
+  flex: 1;
+  min-width: 140px;
+  line-height: 1.45;
+}
+
+.crs-floating-save-spacer {
+  height: 4.5rem;
+}
+
+/* Course edit: keep sidebar (Danger Zone, etc.) clear while the bar is stuck */
+.edit-crs-layout--floating-save {
+  padding-bottom: 1.5rem;
+}
+
+@media (min-width: 1100px) {
+  .crs-floating-save--course-edit {
+    width: calc(100% - 300px - 1.5rem);
+    max-width: calc(100% - 300px - 1.5rem);
+  }
+}
+
+.crs-header-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.5rem 0.875rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  background: var(--ka-navy, #1a3a5c);
+  color: #fff;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.crs-header-save-btn:hover {
+  background: #254d75;
 }

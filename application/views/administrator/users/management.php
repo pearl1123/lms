@@ -65,6 +65,7 @@ $access_base = rtrim($access_base ?? site_url('users'), '/');
             <th>Office</th>
             <th>Email</th>
             <th>Status</th>
+            <th>LMS Role</th>
             <th>Login</th>
             <th>Assigned Roles</th>
             <th>Last Login</th>
@@ -73,7 +74,7 @@ $access_base = rtrim($access_base ?? site_url('users'), '/');
         </thead>
         <tbody>
           <?php if (empty($users)): ?>
-          <tr><td colspan="9" class="libx-empty">No users found.</td></tr>
+          <tr><td colspan="10" class="libx-empty">No users found.</td></tr>
           <?php else: ?>
           <?php foreach ($users as $u):
             $is_login_locked = ! empty($u->is_login_locked);
@@ -86,6 +87,15 @@ $access_base = rtrim($access_base ?? site_url('users'), '/');
             <td><?= htmlspecialchars($u->office ?? '—', ENT_QUOTES); ?></td>
             <td><?= htmlspecialchars($u->email ?? '—', ENT_QUOTES); ?></td>
             <td><span class="umgmt-badge umgmt-badge-<?= htmlspecialchars(strtolower($u->status ?? 'inactive'), ENT_QUOTES); ?>"><?= htmlspecialchars(ucfirst($u->status ?? '—'), ENT_QUOTES); ?></span></td>
+            <td class="umgmt-role-cell" data-user-id="<?= (int) $u->id; ?>">
+              <?php
+              $lms_role = strtolower((string) ($u->role ?? 'employee'));
+              $lms_role_label = ($lms_role === 'teacher' || $lms_role === 'instructor')
+                  ? 'Teacher / Instructor'
+                  : ucfirst($lms_role);
+              ?>
+              <span class="umgmt-badge umgmt-badge-role"><?= htmlspecialchars($lms_role_label, ENT_QUOTES); ?></span>
+            </td>
             <td class="umgmt-login-cell" data-user-id="<?= (int) $u->id; ?>">
               <?php if ($is_login_locked): ?>
                 <span class="umgmt-badge umgmt-badge-locked" title="Locked until <?= htmlspecialchars($u->locked_until_display ?? '', ENT_QUOTES); ?>">Locked</span>

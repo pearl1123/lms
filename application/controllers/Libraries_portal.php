@@ -13,6 +13,7 @@ class Libraries_portal extends KA_Controller {
         parent::__construct();
         $this->load->helper('library_nav');
         $this->require_permission('libraries.view', 'dashboard');
+        $this->require_staff_mode('dashboard');
     }
 
     public function index()
