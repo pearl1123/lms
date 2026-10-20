@@ -15,15 +15,14 @@ $publish_label = $publish_label ?? 'Draft';
     </div>
   </header>
   <div class="crs-p2-card-body">
-    <input type="hidden" name="access_type" id="crs_p2_access_type" value="<?= htmlspecialchars($access_type) ?>">
-
     <div class="crs-p2-field">
       <label class="crs-p2-label">Enrollment access</label>
       <div class="crs-p2-access-grid" role="radiogroup" aria-label="Enrollment access">
         <?php foreach (course_phase2_access_types() as $at): ?>
         <?php $meta = $access_options[$at] ?? ['dot' => 'hidden', 'title' => course_phase2_access_label($at), 'desc' => '']; ?>
         <label class="crs-p2-access-opt">
-          <input type="radio" name="crs_p2_access_radio" value="<?= htmlspecialchars($at) ?>"
+          <input type="radio" name="access_type" id="crs_p2_access_<?= htmlspecialchars($at, ENT_QUOTES, 'UTF-8') ?>"
+                 value="<?= htmlspecialchars($at) ?>"
                  data-label="<?= htmlspecialchars($meta['title']) ?>"
                  <?= $access_type === $at ? 'checked' : '' ?>>
           <div class="crs-p2-access-card">
@@ -36,6 +35,10 @@ $publish_label = $publish_label ?? 'Draft';
         </label>
         <?php endforeach; ?>
       </div>
+      <p class="crs-p2-help" style="margin-top:.75rem;">
+        <strong>Open Enrollment</strong> lets learners enroll immediately (Enroll now).
+        The course must also be <strong>Published</strong> (sidebar) before it appears in the catalog.
+      </p>
     </div>
 
     <div class="crs-p2-field">

@@ -132,15 +132,16 @@
   }
 
   function bindAccessCards() {
-    var hidden = document.getElementById('crs_p2_access_type');
-    var cards = document.querySelectorAll('.crs-p2-access-opt input[type="radio"]');
-    if (!hidden || !cards.length) {
+    var cards = document.querySelectorAll('.crs-p2-access-opt input[name="access_type"]');
+    if (!cards.length) {
+      cards = document.querySelectorAll('.crs-p2-access-opt input[type="radio"]');
+    }
+    if (!cards.length) {
       return;
     }
     cards.forEach(function (radio) {
       radio.addEventListener('change', function () {
         if (radio.checked) {
-          hidden.value = radio.value;
           updateVisibilitySummary();
         }
       });
@@ -190,7 +191,6 @@
     var root = document.querySelector('.crs-p2-stack');
     if (!root) return;
 
-    var accessHidden = document.getElementById('crs_p2_access_type');
     var accessLabel = root.querySelector('[data-summary-access]');
     var deptSelect = root.querySelector('select[name="department_ids[]"]');
     var profSelect = root.querySelector('select[name="profession_ids[]"]');
@@ -199,11 +199,12 @@
     var profChip = root.querySelector('[data-summary-prof]');
     var catChip = root.querySelector('[data-summary-cat]');
 
-    if (accessLabel && accessHidden) {
-      var checked = root.querySelector('.crs-p2-access-opt input[type="radio"]:checked');
-      accessLabel.textContent = checked
-        ? checked.getAttribute('data-label') || accessHidden.value
-        : accessHidden.value;
+    if (accessLabel) {
+      var checked = root.querySelector('.crs-p2-access-opt input[name="access_type"]:checked')
+        || root.querySelector('.crs-p2-access-opt input[type="radio"]:checked');
+      if (checked) {
+        accessLabel.textContent = checked.getAttribute('data-label') || checked.value;
+      }
     }
 
     function setChip(el, items, emptyText, allDeptMode) {
@@ -265,23 +266,29 @@
     updateVisibilitySummary();
   }
 
-  function init() {
+  function initCore() {
+    // Access cards must bind even when Select2 is unavailable.
+    bindAccessCards();
+    syncPrimaryCategory();
+  }
+
+  function initSelect2Ui() {
     if (!window.jQuery || !jQuery.fn.select2) {
       return false;
     }
     initSelect2();
-    syncPrimaryCategory();
-    bindAccessCards();
     bindInstructorPreview();
     bindSummaryUpdates();
     return true;
   }
 
   function bootSelect2(attempt) {
-    if (init()) {
+    if (initSelect2Ui()) {
       return;
     }
     if ((attempt || 0) >= 30) {
+      // Still refresh summary with native selects.
+      bindSummaryUpdates();
       return;
     }
     setTimeout(function () {
@@ -289,10 +296,15 @@
     }, 100);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { bootSelect2(0); });
-  } else {
+  function boot() {
+    initCore();
     bootSelect2(0);
   }
-  window.addEventListener('pageshow', function () { bootSelect2(0); });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+  window.addEventListener('pageshow', boot);
 })();

@@ -400,6 +400,9 @@ $thumb_gradients = [
 
       // CTA (enrolled learners use authoritative course_cta from controller)
       $course_cta = is_array($course->course_cta ?? null) ? $course->course_cta : null;
+      $access_key = strtolower(trim((string) ($course->access_type ?? 'approval_required')));
+      $is_open_enroll = ($access_key === 'open');
+      $cta_enroll_js = '';
       if ($is_learner_role) {
         if ($is_enr && $course_cta !== null) {
           $cta_text  = (string) $course_cta['label'];
@@ -413,8 +416,13 @@ $thumb_gradients = [
           $cta_text = 'Waiting for approval'; $cta_class = 'cat-cta-view'; $cta_href = base_url('courses/view/'.$course->id);
         } elseif ($est === 'rejected') {
           $cta_text = 'Request again'; $cta_class = 'cat-cta-enroll'; $cta_href = base_url('index.php/courses/enroll/'.$course->id);
+          $cta_enroll_js = 'js-ka-enroll-retry';
+        } elseif ($is_open_enroll) {
+          $cta_text = 'Enroll now'; $cta_class = 'cat-cta-enroll'; $cta_href = base_url('index.php/courses/enroll/'.$course->id);
+          $cta_enroll_js = 'js-ka-enroll-open';
         } else {
           $cta_text = 'Request enrollment'; $cta_class = 'cat-cta-enroll'; $cta_href = base_url('index.php/courses/enroll/'.$course->id);
+          $cta_enroll_js = 'js-ka-enroll-request';
         }
       } else {
         $cta_text  = 'View Details';
@@ -508,9 +516,8 @@ $thumb_gradients = [
               <?= htmlspecialchars($cta_text) ?>
             </a>
           <?php elseif ($is_learner_role && ! $is_enr): ?>
-            <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
-               class="cat-cta <?= $cta_class ?>"
-               onclick="event.preventDefault(); KA.enrollConfirm(this.href, '<?= htmlspecialchars(addslashes($course->title), ENT_QUOTES) ?>')">
+            <a href="<?= htmlspecialchars($cta_href, ENT_QUOTES, 'UTF-8') ?>"
+               class="cat-cta <?= $cta_class ?><?= $cta_enroll_js !== '' ? ' ' . htmlspecialchars($cta_enroll_js, ENT_QUOTES, 'UTF-8') : '' ?>">
               <?= htmlspecialchars($cta_text) ?>
             </a>
           <?php else: ?>
@@ -565,6 +572,18 @@ $thumb_gradients = [
       else $status_tag = 'available';
 
       $list_cta = is_array($course->course_cta ?? null) ? $course->course_cta : null;
+      $list_access = strtolower(trim((string) ($course->access_type ?? 'approval_required')));
+      $list_is_open = ($list_access === 'open');
+      if ($est === 'rejected') {
+        $list_enroll_label = 'Request again';
+        $list_enroll_js = 'js-ka-enroll-retry';
+      } elseif ($list_is_open) {
+        $list_enroll_label = 'Enroll now';
+        $list_enroll_js = 'js-ka-enroll-open';
+      } else {
+        $list_enroll_label = 'Request enrollment';
+        $list_enroll_js = 'js-ka-enroll-request';
+      }
     ?>
     <div class="cat-list-item"
          data-title="<?= htmlspecialchars(strtolower($course->title)) ?>"
@@ -615,10 +634,9 @@ $thumb_gradients = [
           </a>
         <?php elseif ($is_learner_role && ! $is_enr): ?>
           <a href="<?= base_url('index.php/courses/enroll/'.$course->id) ?>"
-             class="cat-list-btn"
-             style="background:var(--ka-navy,#1a3a5c);color:#fff;"
-             onclick="event.preventDefault(); KA.enrollConfirm(this.href, '<?= htmlspecialchars(addslashes($course->title ?? 'this course'), ENT_QUOTES) ?>')">
-            <?= $est === 'rejected' ? 'Request again' : 'Request enrollment' ?>
+             class="cat-list-btn <?= htmlspecialchars($list_enroll_js, ENT_QUOTES, 'UTF-8') ?>"
+             style="background:var(--ka-navy,#1a3a5c);color:#fff;">
+            <?= htmlspecialchars($list_enroll_label, ENT_QUOTES, 'UTF-8') ?>
           </a>
         <?php elseif ($is_enr): ?>
           <a href="<?= htmlspecialchars($list_cta !== null ? (string) $list_cta['url'] : base_url('courses/view/'.$course->id), ENT_QUOTES, 'UTF-8') ?>"

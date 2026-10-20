@@ -82,10 +82,10 @@ $access_base = rtrim($access_base ?? site_url('users'), '/');
             $show_unlock = $is_login_locked || $failed_attempts > 0;
           ?>
           <tr data-user-id="<?= (int) $u->id; ?>">
-            <td><?= htmlspecialchars($u->employee_id ?? '—', ENT_QUOTES); ?></td>
-            <td><?= htmlspecialchars($u->fullname ?? '—', ENT_QUOTES); ?></td>
-            <td><?= htmlspecialchars($u->office ?? '—', ENT_QUOTES); ?></td>
-            <td><?= htmlspecialchars($u->email ?? '—', ENT_QUOTES); ?></td>
+            <td title="<?= htmlspecialchars($u->employee_id ?? '', ENT_QUOTES); ?>"><?= htmlspecialchars($u->employee_id ?? '—', ENT_QUOTES); ?></td>
+            <td title="<?= htmlspecialchars($u->fullname ?? '', ENT_QUOTES); ?>"><?= htmlspecialchars($u->fullname ?? '—', ENT_QUOTES); ?></td>
+            <td title="<?= htmlspecialchars($u->office ?? '', ENT_QUOTES); ?>"><?= htmlspecialchars($u->office ?? '—', ENT_QUOTES); ?></td>
+            <td title="<?= htmlspecialchars($u->email ?? '', ENT_QUOTES); ?>"><?= htmlspecialchars($u->email ?? '—', ENT_QUOTES); ?></td>
             <td><span class="umgmt-badge umgmt-badge-<?= htmlspecialchars(strtolower($u->status ?? 'inactive'), ENT_QUOTES); ?>"><?= htmlspecialchars(ucfirst($u->status ?? '—'), ENT_QUOTES); ?></span></td>
             <td class="umgmt-role-cell" data-user-id="<?= (int) $u->id; ?>">
               <?php
@@ -116,11 +116,11 @@ $access_base = rtrim($access_base ?? site_url('users'), '/');
               </button>
               <?php endif; ?>
             </td>
-            <td class="umgmt-groups-cell" data-user-id="<?= (int) $u->id; ?>"><?= htmlspecialchars($u->group_labels ?? '—', ENT_QUOTES); ?></td>
+            <td class="umgmt-groups-cell" data-user-id="<?= (int) $u->id; ?>" title="<?= htmlspecialchars($u->group_labels ?? '', ENT_QUOTES); ?>"><?= htmlspecialchars($u->group_labels ?? '—', ENT_QUOTES); ?></td>
             <td><?= ! empty($u->last_login) ? htmlspecialchars(date('Y-m-d H:i', strtotime($u->last_login)), ENT_QUOTES) : 'Never'; ?></td>
             <td class="libx-actions">
-              <button type="button" class="libx-action libx-action-view umgmt-btn-view-access" data-user-id="<?= (int) $u->id; ?>">View Permissions</button>
-              <button type="button" class="libx-action libx-action-edit umgmt-btn-access" data-user-id="<?= (int) $u->id; ?>">Manage Permissions</button>
+              <button type="button" class="libx-action libx-action-view umgmt-btn-view-access" data-user-id="<?= (int) $u->id; ?>" title="View Permissions">View</button>
+              <button type="button" class="libx-action libx-action-edit umgmt-btn-access" data-user-id="<?= (int) $u->id; ?>" title="Manage Permissions">Manage</button>
             </td>
           </tr>
           <?php endforeach; ?>

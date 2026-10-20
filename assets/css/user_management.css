@@ -21,9 +21,52 @@
 .umgmt-badge-inactive { background: #64748b; }
 .umgmt-badge-locked { background: #dc2626; }
 
+.umgmt-workspace .libx-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.umgmt-workspace .libx-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 720px;
+}
+
+.umgmt-workspace .libx-table th,
+.umgmt-workspace .libx-table td {
+  padding: 0.55rem 0.65rem;
+  vertical-align: middle;
+}
+
+.umgmt-workspace .libx-table th:nth-child(1),
+.umgmt-workspace .libx-table td:nth-child(1) { width: 8%; }
+.umgmt-workspace .libx-table th:nth-child(2),
+.umgmt-workspace .libx-table td:nth-child(2) { width: 14%; }
+.umgmt-workspace .libx-table th:nth-child(3),
+.umgmt-workspace .libx-table td:nth-child(3) { width: 10%; }
+.umgmt-workspace .libx-table th:nth-child(4),
+.umgmt-workspace .libx-table td:nth-child(4) { width: 14%; }
+.umgmt-workspace .libx-table th:nth-child(5),
+.umgmt-workspace .libx-table td:nth-child(5) { width: 7%; }
+.umgmt-workspace .libx-table th:nth-child(6),
+.umgmt-workspace .libx-table td:nth-child(6) { width: 10%; }
+.umgmt-workspace .libx-table th:nth-child(7),
+.umgmt-workspace .libx-table td:nth-child(7) { width: 8%; }
+.umgmt-workspace .libx-table th:nth-child(8),
+.umgmt-workspace .libx-table td:nth-child(8) { width: 11%; }
+.umgmt-workspace .libx-table th:nth-child(9),
+.umgmt-workspace .libx-table td:nth-child(9) { width: 8%; }
+
+.umgmt-workspace .libx-table td:not(.libx-actions):not(.umgmt-login-cell) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .umgmt-login-cell {
-  min-width: 8.5rem;
+  min-width: 0;
   vertical-align: top;
+  white-space: normal;
 }
 
 .umgmt-login-meta {
@@ -62,7 +105,26 @@
 
 .umgmt-workspace .libx-th-actions,
 .umgmt-workspace td.libx-actions {
-  min-width: 12.5rem;
+  width: 9.5rem;
+  min-width: 9.5rem;
+  max-width: 9.5rem;
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  box-shadow: -6px 0 10px -6px rgba(15, 23, 42, 0.18);
+}
+
+.umgmt-workspace .libx-th-actions {
+  background: #f8fafc;
+  z-index: 3;
+}
+
+.umgmt-workspace td.libx-actions {
+  background: #fff;
+}
+
+.umgmt-workspace .libx-table tbody tr:hover td.libx-actions {
+  background: #fafbfc;
 }
 
 .umgmt-workspace .libx-actions {
@@ -70,14 +132,15 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .umgmt-workspace .libx-actions .libx-action {
   margin-right: 0;
   width: 100%;
   text-align: center;
-  padding: 0.35rem 0.5rem;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.65rem;
 }
 
 .umgmt-pagination {
