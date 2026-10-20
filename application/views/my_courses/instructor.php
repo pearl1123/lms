@@ -27,7 +27,7 @@ $thumb_gradients = [
 ];
 ?>
 
-<?php $this->load->view('layouts/alerts'); ?>
+<?php echo $alerts_partial_html ?? ''; ?>
 
 <!-- ============================================================
      kaBAGA Academy — My Courses (Instructor / Teacher)
@@ -230,6 +230,7 @@ $thumb_gradients = [
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
     </div>
+    <a href="<?= base_url('enrollments/requests') ?>" class="ic-btn ic-btn-outline">Enrollment Requests</a>
     <a href="<?= base_url('manage_courses/create') ?>" class="ic-btn ic-btn-primary">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New Course

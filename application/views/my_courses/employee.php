@@ -1,11 +1,14 @@
 <?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
 <?php
-$enrolled_courses  = $enrolled_courses ?? [];
-$invited_courses   = $invited_courses ?? [];
-$pending_enrollments = $pending_enrollments ?? [];
+$enrolled_courses     = $enrolled_courses ?? [];
+$invited_courses      = $invited_courses ?? [];
+$pending_enrollments  = $pending_enrollments ?? [];
 $rejected_enrollments = $rejected_enrollments ?? [];
-$available_courses = $available_courses ?? [];
-$categories        = $categories ?? [];
+$available_courses    = $available_courses ?? [];
+$categories           = $categories ?? [];
+$keyword              = $keyword ?? '';
+$filter_cat           = $filter_cat ?? '';
+$filter_status        = $filter_status ?? '';
 
 $full_name  = isset($user) && is_object($user) ? ($user->fullname ?? 'Learner') : 'Learner';
 $first_name = explode(' ', trim($full_name))[0];
@@ -94,19 +97,19 @@ $thumb_gradients = [
 <div class="ec-filters animate__animated animate__fadeInUp animate__fast ec-animate-delay-1">
   <div class="ec-search-wrap">
     <svg class="ec-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <input type="text" class="ec-search-input" id="ecSearch" placeholder="Search courses…">
+    <input type="text" class="ec-search-input" id="ecSearch" placeholder="Search courses…" value="<?= htmlspecialchars($keyword) ?>">
   </div>
   <select class="ec-select" id="ecFilterCat">
     <option value="">All Categories</option>
     <?php foreach ($categories as $cat): ?>
-    <option value="<?= (int) $cat->id ?>"><?= htmlspecialchars($cat->name) ?></option>
+    <option value="<?= (int) $cat->id ?>" <?= (string)$filter_cat === (string)$cat->id ? 'selected' : '' ?>><?= htmlspecialchars($cat->name) ?></option>
     <?php endforeach; ?>
   </select>
   <select class="ec-select" id="ecFilterProgress">
     <option value="">All Progress</option>
-    <option value="notstarted">Not Started</option>
-    <option value="inprogress">In Progress</option>
-    <option value="completed">Completed</option>
+    <option value="notstarted" <?= $filter_status === 'notstarted' ? 'selected' : '' ?>>Not Started</option>
+    <option value="inprogress" <?= $filter_status === 'inprogress' ? 'selected' : '' ?>>In Progress</option>
+    <option value="completed" <?= $filter_status === 'completed' ? 'selected' : '' ?>>Completed</option>
   </select>
 </div>
 
