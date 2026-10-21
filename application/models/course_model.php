@@ -830,7 +830,7 @@ class Course_model extends CI_Model {
     }
 
     /**
-     * Reset module progress for full-course retake (non-managerial post-assessment failure).
+     * Reset module progress for full-course retake (Management-category post-assessment failure).
      *
      * @param int $user_id
      * @param int $module_id

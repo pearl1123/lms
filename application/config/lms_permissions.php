@@ -62,6 +62,7 @@ return [
             'permissions' => [
                 'dashboard.view', 'courses.view', 'my_courses.view',
                 'reports.view', 'progress.view',
+                'announcements.view',
             ],
         ],
         'Employee' => [
@@ -70,6 +71,7 @@ return [
                 'dashboard.view', 'courses.view', 'my_courses.view',
                 'assessments.view', 'assessments.take',
                 'certificates.view', 'progress.view',
+                'announcements.view',
                 'profile.view', 'profile.edit',
                 'learning_notes.view',
             ],

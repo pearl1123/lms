@@ -28,7 +28,9 @@ if ($post_assessment_passed) {
 } elseif ($video_completed) {
     $progress_meta = 'Video finished. Post-assessment unlocked.';
 } elseif ($checkpoints_total > 0) {
-    $progress_meta = 'Checkpoint progress: ' . $checkpoints_completed . '/' . $checkpoints_total . ' required completed.';
+    $progress_meta = 'Checkpoint progress: ' . $checkpoints_completed . '/' . $checkpoints_total . ' — finish the video to continue.';
+} elseif (($content_type ?? '') === 'video') {
+    $progress_meta = 'Progress updates after you finish watching the video.';
 } else {
     $progress_meta = 'Progress updates as you complete module steps.';
 }

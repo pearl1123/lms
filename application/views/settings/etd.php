@@ -33,7 +33,7 @@ $etd = is_array($settings['etd'] ?? null) ? $settings['etd'] : [];
       <input type="hidden" name="settings[etd][retake_full_course_enabled]" value="0">
       <input type="checkbox" name="settings[etd][retake_full_course_enabled]" value="1"
         <?= ! isset($etd['retake_full_course_enabled']) || (string) $etd['retake_full_course_enabled'] === '1' ? 'checked' : '' ?>>
-      <span>Non-managerial courses require full course retake after failed post-assessment</span>
+      <span>Management-category courses require full course retake after failed post-assessment (other categories retake the test only)</span>
     </label>
   </div>
 </section>

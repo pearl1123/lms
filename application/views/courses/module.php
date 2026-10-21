@@ -76,7 +76,9 @@ $content_path = $module->content_path ?? '';
 $is_external  = (strpos($content_path, 'http://') === 0 || strpos($content_path, 'https://') === 0);
 $content_url  = $is_external ? $content_path : base_url($content_path);
 
-$module_progress_summary = is_array($module_progress_summary ?? null) ? $module_progress_summary : [];
+$module_progress_summary = (isset($module_progress_summary) && is_array($module_progress_summary))
+    ? $module_progress_summary
+    : [];
 $module_progress_pct = (int) ($module_progress_summary['progress_percent'] ?? 0);
 if ($is_completed) {
     $module_progress_pct = 100;
@@ -467,6 +469,7 @@ $_ctx_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON
         'size'               => 'md',
         'label'              => 'Module Progress',
         'variant'            => 'module_sidebar',
+        'content_type'          => $eff_type ?? '',
         'checkpoints_total'     => (int) ($module_progress_summary['checkpoints_total'] ?? 0),
         'checkpoints_completed' => (int) ($module_progress_summary['checkpoints_completed'] ?? 0),
         'video_completed'       => ! empty($module_progress_summary['video_completed']),

@@ -129,7 +129,8 @@ if ( ! function_exists('etd_managerial_category_slugs')) {
 
 if ( ! function_exists('etd_course_is_managerial')) {
     /**
-     * True when any mapped category name matches managerial slugs.
+     * True when any mapped category name matches managerial slugs
+     * (e.g. "Management", "Leadership").
      *
      * @param object|null $course  expects category_name and/or categories[]
      * @param CI_Controller|null $CI optional for DB lookup by course id
@@ -138,6 +139,10 @@ if ( ! function_exists('etd_course_is_managerial')) {
     {
         if ( ! $course) {
             return false;
+        }
+
+        if ($CI === null && function_exists('get_instance')) {
+            $CI =& get_instance();
         }
 
         $slugs = etd_managerial_category_slugs();
@@ -155,7 +160,8 @@ if ( ! function_exists('etd_course_is_managerial')) {
         }
 
         $cid = (int) ($course->id ?? $course->course_id ?? 0);
-        if (empty($names) && $cid > 0 && $CI) {
+        // Always merge mapped categories so multi-category courses are covered.
+        if ($cid > 0 && $CI) {
             $CI->load->model('Course_phase2_model', 'course_phase2');
             $CI->load->model('Course_model', 'course_model');
             $ids = $CI->course_phase2->get_course_category_ids($cid);
@@ -167,6 +173,8 @@ if ( ! function_exists('etd_course_is_managerial')) {
                 }
             }
         }
+
+        $names = array_values(array_unique($names));
 
         foreach ($names as $name) {
             foreach ($slugs as $slug) {
@@ -182,7 +190,8 @@ if ( ! function_exists('etd_course_is_managerial')) {
 
 if ( ! function_exists('etd_retake_requires_full_course')) {
     /**
-     * Non-managerial post-assessment failures require full course retake.
+     * Management-category courses require a full course/module restart after a failed
+     * post-assessment. All other categories retake the assessment only (keep video progress).
      *
      * @param object|null $course
      */
@@ -192,7 +201,7 @@ if ( ! function_exists('etd_retake_requires_full_course')) {
             return false;
         }
 
-        return ! etd_course_is_managerial($course);
+        return etd_course_is_managerial($course);
     }
 }
 

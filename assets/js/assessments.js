@@ -72,8 +72,10 @@
     var typeEl = document.getElementById('asxFilterType');
     var countEl = document.getElementById('asxCount');
     if (!search || !typeEl || !countEl) return;
-    var cards = document.querySelectorAll('.asx-card');
-    if (!cards.length) return;
+
+    var courseCards = document.querySelectorAll('.asx-course-card');
+    var rows = document.querySelectorAll('.asx-assessment-row');
+    if (!courseCards.length) return;
 
     var params = new URLSearchParams(window.location.search || '');
     var urlModuleId = parseInt(params.get('module_id') || '0', 10) || 0;
@@ -82,11 +84,33 @@
       typeEl.value = urlType;
     }
 
+    function setCourseOpen(card, open) {
+      var btn = card.querySelector('.asx-course-card-btn');
+      var panel = btn && btn.getAttribute('aria-controls')
+        ? document.getElementById(btn.getAttribute('aria-controls'))
+        : card.querySelector('.asx-course-panel');
+      card.classList.toggle('is-open', !!open);
+      if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (panel) {
+        if (open) panel.removeAttribute('hidden');
+        else panel.setAttribute('hidden', 'hidden');
+      }
+    }
+
+    courseCards.forEach(function(card) {
+      var btn = card.querySelector('.asx-course-card-btn');
+      if (!btn) return;
+      btn.addEventListener('click', function() {
+        setCourseOpen(card, !card.classList.contains('is-open'));
+      });
+    });
+
     function filter() {
       var kw = search.value.toLowerCase().trim();
       var type = typeEl.value;
       var vis = 0;
-      cards.forEach(function(c) {
+
+      rows.forEach(function(c) {
         var title = c.dataset.title || '';
         var ctype = c.dataset.type || '';
         var mid = parseInt(c.dataset.moduleId || '0', 10) || 0;
@@ -96,12 +120,41 @@
         c.style.display = show ? '' : 'none';
         if (show) vis++;
       });
+
+      courseCards.forEach(function(group) {
+        var courseTitle = group.dataset.courseTitle || '';
+        var anyVisible = false;
+        group.querySelectorAll('.asx-assessment-row').forEach(function(row) {
+          if (row.style.display !== 'none') anyVisible = true;
+        });
+        var courseMatch = !kw || courseTitle.indexOf(kw) !== -1 || anyVisible;
+        var showGroup = courseMatch && (anyVisible || (!type && !urlModuleId && !kw));
+        if (kw || type || urlModuleId) {
+          showGroup = anyVisible;
+        }
+        group.classList.toggle('is-empty-filter', !showGroup);
+        if (showGroup && (kw || type || urlModuleId)) {
+          setCourseOpen(group, true);
+        }
+      });
+
       countEl.textContent = vis + ' assessment' + (vis !== 1 ? 's' : '');
     }
 
     search.addEventListener('input', filter);
     typeEl.addEventListener('change', filter);
     filter();
+
+    // Deep-link: open the course that contains the filtered module.
+    if (urlModuleId > 0) {
+      courseCards.forEach(function(card) {
+        var hit = false;
+        card.querySelectorAll('.asx-assessment-row').forEach(function(row) {
+          if (parseInt(row.dataset.moduleId || '0', 10) === urlModuleId) hit = true;
+        });
+        if (hit) setCourseOpen(card, true);
+      });
+    }
   }
 
   function initTake() {

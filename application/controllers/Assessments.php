@@ -226,17 +226,42 @@ class Assessments extends CI_Controller {
             if ( ! $is_manager && ! empty($a->already_answered) && ! empty($a->result)) {
                 $chip = ka_assessment_score_chip(
                     (float) ($a->result['score'] ?? 0),
-                    (int) ($a->result['pending'] ?? 0)
+                    (int) ($a->result['pending'] ?? 0),
+                    ka_assessment_pass_threshold(
+                        (int) ($a->course_id ?? 0) ?: null,
+                        (int) ($a->id ?? 0) ?: null
+                    )
                 );
                 $a->score_chip_class = $chip['class'];
                 $a->score_chip_text  = $chip['text'];
             }
         }
 
+        // Group by course so the list reads Course → assessments (not a flat mix).
+        $assessment_groups = [];
+        foreach ($assessments as $a) {
+            $cid = (int) ($a->course_id ?? 0);
+            $key = $cid > 0 ? (string) $cid : '0';
+            if ( ! isset($assessment_groups[$key])) {
+                $assessment_groups[$key] = [
+                    'course_id'    => $cid,
+                    'course_title' => trim((string) ($a->course_title ?? '')) !== ''
+                        ? (string) $a->course_title
+                        : 'Unassigned course',
+                    'assessments'  => [],
+                ];
+            }
+            $assessment_groups[$key]['assessments'][] = $a;
+        }
+        uasort($assessment_groups, static function ($x, $y) {
+            return strcasecmp((string) ($x['course_title'] ?? ''), (string) ($y['course_title'] ?? ''));
+        });
+
         $data = [
             'user'               => $user,
             'page_title'         => 'Assessments',
             'assessments'        => $assessments,
+            'assessment_groups'  => array_values($assessment_groups),
             'is_manager'         => $is_manager,
             'assessment_stats'   => $assessment_stats,
             'breadcrumbs'        => [
@@ -512,7 +537,11 @@ class Assessments extends CI_Controller {
         }
 
         $agg = $this->assessment_model->get_result($this->user->id, $id);
-        $passed = $this->assessment_service->is_passing_assessment_result($agg);
+        $passed = $this->assessment_service->is_passing_assessment_result(
+            $agg,
+            (int) ($assessment->course_id ?? 0) ?: null,
+            $id
+        );
 
         if ((int) ($agg['pending'] ?? 0) === 0 && $passed) {
             $this->load->library('event_dispatcher');

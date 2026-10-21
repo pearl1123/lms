@@ -656,46 +656,48 @@ class certificate_model extends CI_Model {
         $prefix     = $norm !== '' ? substr($norm, 0, 12) : 'AUTO';
         $year       = date('Y');
 
-        do {
-            $like_new  = $prefix . '-' . $year . '-';
-            $like_old  = 'KABAGA-' . $prefix . '-' . $year . '-';
+        // Include archived rows when choosing the next sequence so we never collide
+        // with a revoked/archived code (that used to infinite-loop the do/while).
+        $like_new = $prefix . '-' . $year . '-';
+        $like_old = 'KABAGA-' . $prefix . '-' . $year . '-';
+        $next     = 1;
 
-            $row_new = $this->db
+        foreach ([$like_new, $like_old] as $like) {
+            $rows = $this->db
                 ->select('certificate_code')
                 ->from('lib_certificates')
-                ->like('certificate_code', $like_new, 'after')
-                ->where('archived', 0)
-                ->order_by('id', 'DESC')
-                ->limit(1)
+                ->like('certificate_code', $like, 'after')
                 ->get()
-                ->row();
-
-            $row_old = $this->db
-                ->select('certificate_code')
-                ->from('lib_certificates')
-                ->like('certificate_code', $like_old, 'after')
-                ->where('archived', 0)
-                ->order_by('id', 'DESC')
-                ->limit(1)
-                ->get()
-                ->row();
-
-            $next = 1;
-            foreach ([$row_new, $row_old] as $row) {
-                if ($row && ! empty($row->certificate_code)) {
-                    $parts = explode('-', (string) $row->certificate_code);
-                    $last  = (int) end($parts);
-                    if ($last >= $next) {
-                        $next = $last + 1;
-                    }
+                ->result();
+            foreach ($rows as $row) {
+                if (empty($row->certificate_code)) {
+                    continue;
+                }
+                $parts = explode('-', (string) $row->certificate_code);
+                $last  = (int) end($parts);
+                if ($last >= $next) {
+                    $next = $last + 1;
                 }
             }
+        }
 
+        $guard = 0;
+        do {
             $code   = $like_new . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
-            $exists = $this->db
+            $exists = (int) $this->db
                 ->where('certificate_code', $code)
                 ->count_all_results('lib_certificates');
-        } while ($exists > 0);
+            if ($exists > 0) {
+                $next++;
+            }
+            $guard++;
+        } while ($exists > 0 && $guard < 500);
+
+        if ($exists > 0) {
+            // Last-resort unique suffix if sequence is exhausted / corrupted.
+            $code = $like_new . str_pad((string) $next, 4, '0', STR_PAD_LEFT)
+                . '-' . substr(md5(uniqid((string) mt_rand(), true)), 0, 6);
+        }
 
         return $code;
     }

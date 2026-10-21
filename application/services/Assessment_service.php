@@ -149,6 +149,7 @@ class Assessment_service {
 
         $pre_list = $this->CI->course_model->get_assessments($mid, 'pre');
         $post_raw = $this->CI->course_model->get_assessments($mid, 'post');
+        $course_id = (int) ($module->course_id ?? 0) ?: null;
 
         $pre_assessment = ! empty($pre_list) ? $pre_list[0] : null;
         $pre_blocked    = false;
@@ -161,10 +162,11 @@ class Assessment_service {
         $is_video = ($module && $eff_type === 'video');
         $pre_required = ! $is_video || ! empty($pre_assessment->is_required);
         if ($pre_assessment && ka_user_is_learner_experience($role) && $pre_required) {
-            $pre_attempted = $this->CI->assessment_model->has_answered($uid, (int) $pre_assessment->id);
+            $pre_aid = (int) $pre_assessment->id;
+            $pre_attempted = $this->CI->assessment_model->has_answered($uid, $pre_aid);
             if ($pre_attempted) {
-                $pre_result = $this->CI->assessment_model->get_result($uid, (int) $pre_assessment->id);
-                $pre_blocked = ! $this->is_passing_assessment_result((array) $pre_result);
+                $pre_result = $this->CI->assessment_model->get_result($uid, $pre_aid);
+                $pre_blocked = ! $this->is_passing_assessment_result((array) $pre_result, $course_id, $pre_aid);
             } else {
                 $pre_blocked = true;
             }
@@ -179,7 +181,7 @@ class Assessment_service {
                 : ['score' => 0, 'scored' => 0, 'total' => 0, 'pending' => 0];
             $pa->has_done = $has_done;
             $pa->result   = $result;
-            $pa->passed   = $has_done && $this->is_passing_assessment_result($result);
+            $pa->passed   = $has_done && $this->is_passing_assessment_result($result, $course_id, $aid);
             $post_assessments[] = $pa;
         }
 
@@ -411,12 +413,16 @@ class Assessment_service {
         $video_completed       = ! empty($flow['video']['completed']);
         $post_passed           = ! empty($flow['post_assessment']['passed']);
 
+        // Progress bands (video modules):
+        // - Checkpoints alone: up to 40% (must finish the video for more)
+        // - Video finished: 80%
+        // - Post-assessment passed: 100%
         if ($post_passed) {
             $progress_percent = 100;
         } elseif ($video_completed) {
             $progress_percent = 80;
         } elseif ($checkpoints_total > 0) {
-            $progress_percent = (int) round(($checkpoints_completed / $checkpoints_total) * 80);
+            $progress_percent = (int) round(($checkpoints_completed / $checkpoints_total) * 40);
         } else {
             $progress_percent = 0;
         }
@@ -451,17 +457,15 @@ class Assessment_service {
         $flow = $this->get_module_flow_state($uid, $mid);
         $summary = $this->module_progress_summary_from_flow($flow);
 
+        // Do not invent progress from module_progress.status alone.
+        // Opening / starting a module marks it in_progress, but the bar should stay at 0
+        // until checkpoints / video completion / post-assessment drive real progress.
         $row = $this->CI->course_model->get_module_progress($uid, $mid);
         if ($row) {
             $status = strtolower(trim((string) ($row->status ?? '')));
             if ($status === 'completed') {
                 $summary['progress_percent'] = 100;
                 $summary['post_assessment_passed'] = true;
-            } elseif ($status === 'in_progress') {
-                $summary['progress_percent'] = max(
-                    (int) ($summary['progress_percent'] ?? 0),
-                    50
-                );
             }
         }
 
@@ -636,6 +640,7 @@ class Assessment_service {
             'Assessment_service flow_state mid=' . (int) $mid
         );
         $content_video = ($eff_type === 'video');
+        $course_id     = (int) ($module->course_id ?? 0) ?: null;
 
         // --- Phase 1: Pre-assessment (attempt gates video on video modules; pass optional) ---
         $pre_list = $this->CI->course_model->get_assessments($mid, 'pre');
@@ -651,7 +656,7 @@ class Assessment_service {
             $pre_res       = $pre_attempted
                 ? $this->CI->assessment_model->get_result($uid, $pre_aid)
                 : ['score' => 0, 'scored' => 0, 'total' => 0, 'pending' => 0];
-            $pre_passed   = $pre_attempted && $this->is_passing_assessment_result($pre_res);
+            $pre_passed   = $pre_attempted && $this->is_passing_assessment_result($pre_res, $course_id, $pre_aid);
             $pre_can_take = true;
         } else {
             $pre_attempted = true;
@@ -715,7 +720,7 @@ class Assessment_service {
                 }
                 $res = $this->CI->assessment_model->get_result($uid, $aid);
                 $last_scores[] = (float) ($res['score'] ?? 0);
-                if ( ! $this->is_passing_assessment_result($res)) {
+                if ( ! $this->is_passing_assessment_result($res, $course_id, $aid)) {
                     $post_passed = false;
                 }
             }

@@ -61,6 +61,12 @@ class Certificate_service {
 
         $issued = $m->issue($user_id, $course_id, 0);
         if ( ! $issued['success']) {
+            log_message(
+                'error',
+                'Certificate issue failed user=' . $user_id
+                . ' course=' . $course_id
+                . ' reason=' . (string) ($issued['reason'] ?? 'unknown')
+            );
             if (($issued['reason'] ?? '') === 'already_issued') {
                 $row = $m->get_by_user_course($user_id, $course_id);
                 if ($row) {

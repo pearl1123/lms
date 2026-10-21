@@ -372,10 +372,15 @@ class Certificates extends KA_Controller {
     // =========================================================
     public function verify($code = null)
     {
+        // Form posts/gets ?code=…; deep links may use /verify/{code}
+        if ($code === null || $code === '') {
+            $code = $this->input->get('code');
+        }
+        $code = strtoupper(trim((string) ($code ?? '')));
+
         $cert = null;
-        if ($code) {
-            $cert = $this->certificate_model
-                ->get_by_code(strtoupper(trim($code)));
+        if ($code !== '') {
+            $cert = $this->certificate_model->get_by_code($code);
         }
 
         $this->render('certificates/verify', [

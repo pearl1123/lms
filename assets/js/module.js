@@ -78,6 +78,8 @@ function parseJsonResponse(r) {
 var vcActiveCheckpoint = null;
 var ytPlaybackActive = false;
 var ytPlayerReady = false;
+/** Suppress completion overlay when ENDED is caused by resume-seek-to-end. */
+var mvSuppressEndedUx = false;
 
 (C.vcPassedIds || []).forEach(function(id) {
   vcPassed[parseInt(id, 10)] = true;
@@ -272,7 +274,9 @@ function updateProgressBarUI(state) {
   } else if (state.video_completed) {
     meta.textContent = 'Video finished. Post-assessment unlocked.';
   } else if (t > 0) {
-    meta.textContent = 'Checkpoint progress: ' + c + '/' + t + ' required completed.';
+    meta.textContent = 'Checkpoint progress: ' + c + '/' + t + ' — finish the video to continue.';
+  } else if (CONTENT_TYPE === 'video') {
+    meta.textContent = 'Progress updates after you finish watching the video.';
   } else {
     meta.textContent = 'Progress updates as you complete module steps.';
   }
@@ -306,12 +310,40 @@ function applyModuleFlowState(state) {
   }
 }
 
+/**
+ * Resume must not land on/after the last seconds — that leaves YouTube in ENDED
+ * (black frame) and can open the completion overlay over the controls.
+ */
+function mvClampYoutubeResumeSec(sec, duration) {
+  sec = Math.max(0, parseFloat(sec) || 0);
+  if (sec < 1) return 0;
+  if (!(duration > 1) || !isFinite(duration)) return sec;
+  var endPad = 3;
+  if (sec >= duration - endPad) {
+    return 0;
+  }
+  return sec;
+}
+
+/** If the player is stuck on ENDED (black), rewind to start so controls work again. */
+function mvUnstickYoutubeEndedFrame() {
+  if (!ytPlayer || !ytPlayerReady) return;
+  if (typeof YT === 'undefined' || !YT.PlayerState) return;
+  try {
+    if (ytPlayer.getPlayerState && ytPlayer.getPlayerState() === YT.PlayerState.ENDED) {
+      if (ytPlayer.seekTo) ytPlayer.seekTo(0, true);
+      if (ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+    }
+  } catch (e) { /* ignore */ }
+}
+
 function mvCloseVideoCompleteOverlay() {
   var el = document.getElementById('mvVideoCompleteOverlay');
   if (!el || !el.classList.contains('is-open')) return;
   el.classList.remove('is-open');
   el.setAttribute('aria-hidden', 'true');
   document.body.style.overflow = '';
+  mvUnstickYoutubeEndedFrame();
 }
 
 function mvOpenVideoCompleteOverlay() {
@@ -549,6 +581,99 @@ function vcSortedCheckpointsByTrigger(durationSec) {
   return (VIDEO_CHECKPOINTS || []).slice().sort(function(a, b) {
     return ytTriggerProgress01(a, durationSec) - ytTriggerProgress01(b, durationSec);
   });
+}
+
+/** Absolute trigger time (seconds) for a checkpoint. */
+function vcCheckpointTriggerSeconds(cp, durationSec) {
+  if (!cp) return 0;
+  var ts = parseInt(cp.trigger_seconds, 10) || 0;
+  if (ts > 0) return ts;
+  var p = parseFloat(cp.trigger_percent);
+  if (!isNaN(p) && durationSec > 0) {
+    return Math.floor((Math.min(100, Math.max(0, p)) / 100) * durationSec);
+  }
+  return 0;
+}
+
+/**
+ * After an incorrect answer:
+ * - 1 checkpoint (or first in sequence): rewind 20s before this checkpoint
+ * - 2+ checkpoints and not the first: seek back to the previous checkpoint
+ */
+function vcRewindTargetAfterIncorrect(failedCp) {
+  var dur = mvVideoDurationSeconds();
+  var order = vcSortedCheckpointsByTrigger(dur);
+  var failedAt = vcCheckpointTriggerSeconds(failedCp, dur);
+  var idx = -1;
+  var failedId = failedCp && failedCp.id;
+  for (var i = 0; i < order.length; i++) {
+    if (String(order[i].id) === String(failedId)) {
+      idx = i;
+      break;
+    }
+  }
+  if (order.length <= 1 || idx <= 0) {
+    return Math.max(0, failedAt - 20);
+  }
+  return Math.max(0, vcCheckpointTriggerSeconds(order[idx - 1], dur));
+}
+
+/** Seek active player (YouTube or HTML5) then resume playback. */
+function mvSeekVideoToSeconds(sec, andPlay) {
+  var s = Math.max(0, parseFloat(sec) || 0);
+  var play = andPlay !== false;
+  if (IS_YOUTUBE_IFRAME && ytPlayer) {
+    if (ytPlayer.seekTo) {
+      try { ytPlayer.seekTo(s, true); } catch (e) { /* ignore */ }
+    }
+    if (play && ytPlayer.playVideo) {
+      try { ytPlayer.playVideo(); } catch (e2) { /* ignore */ }
+    }
+    return;
+  }
+  var v = document.getElementById('mvVideo');
+  if (v) {
+    try { v.currentTime = s; } catch (e3) { /* ignore */ }
+    if (play && v.play) {
+      v.play().catch(function() {});
+    }
+  }
+}
+
+/** Close checkpoint modal without auto-resuming (caller seeks/plays). */
+function vcCloseCheckpointModalQuiet() {
+  vcActiveCheckpoint = null;
+  var overlay = document.getElementById('mvVcCheckpointOverlay');
+  if (overlay) {
+    overlay.classList.remove('is-open');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+}
+
+/**
+ * Incorrect answer: close modal, clear choice, rewind, resume so learner must re-reach the checkpoint.
+ */
+function vcHandleIncorrectCheckpoint(failedCp, message) {
+  var target = vcRewindTargetAfterIncorrect(failedCp);
+  var dur = mvVideoDurationSeconds();
+  var order = vcSortedCheckpointsByTrigger(dur);
+  var hasPrev = order.length > 1;
+  var idx = -1;
+  for (var i = 0; i < order.length; i++) {
+    if (failedCp && String(order[i].id) === String(failedCp.id)) {
+      idx = i;
+      break;
+    }
+  }
+  var usedPrev = hasPrev && idx > 0;
+
+  vcCloseCheckpointModalQuiet();
+  mvSeekVideoToSeconds(target, true);
+
+  var hint = usedPrev
+    ? ' Incorrect — reviewing from the previous checkpoint.'
+    : ' Incorrect — rewinding 20 seconds so you can review.';
+  showToast((message || 'Incorrect. Review the material and try again.') + hint);
 }
 
 function vcAllRequiredPassed() {
@@ -840,11 +965,17 @@ function onYouTubeIframeAPIReady() {
       events: {
         onReady: function() {
           ytPlayerReady = true;
-          if (window.mvPendingYoutubeResumeSec > 0 && ytPlayer.seekTo) {
-            try {
-              ytPlayer.seekTo(window.mvPendingYoutubeResumeSec, true);
-            } catch (e) { /* ignore */ }
-            window.mvPendingYoutubeResumeSec = 0;
+          var pending = window.mvPendingYoutubeResumeSec || 0;
+          window.mvPendingYoutubeResumeSec = 0;
+          if (pending > 0 && ytPlayer.seekTo) {
+            var dur = 0;
+            try { dur = ytPlayer.getDuration() || 0; } catch (e0) { dur = 0; }
+            var sec = mvClampYoutubeResumeSec(pending, dur);
+            if (sec > 0) {
+              mvSuppressEndedUx = true;
+              try { ytPlayer.seekTo(sec, true); } catch (e) { /* ignore */ }
+              setTimeout(function() { mvSuppressEndedUx = false; }, 2000);
+            }
           }
         },
         onStateChange: function(ev) {
@@ -860,6 +991,14 @@ function onYouTubeIframeAPIReady() {
           } else if (ev.data === YS.ENDED) {
             ytPlaybackActive = false;
             ytStopProgressCheck();
+            if (mvSuppressEndedUx) {
+              // Resume landed at/near the end — keep progress marked, don't trap UI.
+              mvMarkVideoPlaybackComplete().then(function() {
+                emitModuleFlowUpdated();
+              });
+              mvUnstickYoutubeEndedFrame();
+              return;
+            }
             mvOnVideoPlaybackEnded();
             if (VIDEO_CHECKPOINT_GATE) {
               if (vcAllRequiredPassed() && POST_ASSESSMENT_PASSED) {
@@ -955,6 +1094,14 @@ document.addEventListener('DOMContentLoaded', function() {
   if (vLater) {
     vLater.addEventListener('click', function() { mvCloseVideoCompleteOverlay(); });
   }
+  // If resume URL landed past the end (e.g. ?t=401), unstick any leftover ENDED frame.
+  setTimeout(function() {
+    var overlay = document.getElementById('mvVideoCompleteOverlay');
+    var overlayOpen = overlay && overlay.classList.contains('is-open');
+    if (!overlayOpen) {
+      mvUnstickYoutubeEndedFrame();
+    }
+  }, 2500);
   var vTake = document.getElementById('mvVideoCompleteTakePost');
   if (vTake) {
     vTake.addEventListener('click', function(ev) {
@@ -1069,13 +1216,13 @@ document.addEventListener('DOMContentLoaded', function() {
               mbSync.disabled = false;
             }
           } else {
-            var msg = data.message || 'Incorrect answer. Please try again.';
-            showToast(msg);
+            var msg = data.message || 'Incorrect. Review the material and try again.';
+            var failedCp = vcActiveCheckpoint;
             if (err) {
               err.textContent = msg;
               err.classList.add('is-visible');
             }
-            if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+            vcHandleIncorrectCheckpoint(failedCp, msg);
           }
         })
         .catch(function() {
@@ -1306,7 +1453,20 @@ window.mvResumeSeekYoutube = function(sec) {
   var s = Math.max(0, parseFloat(sec) || 0);
   if (s < 1) return;
   if (ytPlayer && ytPlayerReady && ytPlayer.seekTo) {
+    var dur = 0;
+    try { dur = ytPlayer.getDuration() || 0; } catch (e0) { dur = 0; }
+    s = mvClampYoutubeResumeSec(s, dur);
+    if (s < 1) {
+      // Near end / already finished — leave at start so play/pause work.
+      try {
+        ytPlayer.seekTo(0, true);
+        if (ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+      } catch (e1) { /* ignore */ }
+      return;
+    }
+    mvSuppressEndedUx = true;
     try { ytPlayer.seekTo(s, true); } catch (e) { /* ignore */ }
+    setTimeout(function() { mvSuppressEndedUx = false; }, 2000);
   } else {
     window.mvPendingYoutubeResumeSec = s;
   }

@@ -193,15 +193,15 @@ $type_colors = ['multiple_choice'=>'#3b82f6','essay'=>'#f59f00','likert'=>'#22c5
       <div class="res-panel-body">
         <p class="res-retake-lead">
           <?php if ( ! empty($retake_full_course)): ?>
-            This course requires revisiting all module content before you can retake the post-assessment.
+            Management courses require revisiting all module content before you can retake the post-assessment.
           <?php else: ?>
-            You may retake this assessment without repeating the full module.
+            You may retake this assessment only — your module/video progress is kept.
           <?php endif; ?>
         </p>
         <a href="<?= htmlspecialchars($retake_url ?? '', ENT_QUOTES) ?>"
            class="res-back-btn res-back-btn--primary js-ka-retake-confirm"
            data-ka-confirm-title="<?= ! empty($retake_full_course) ? 'Restart module and retake?' : 'Retake assessment now?' ?>"
-           data-ka-confirm-text="<?= ! empty($retake_full_course) ? 'This will reset module progress and start over.' : 'This will clear your previous attempt.' ?>">
+           data-ka-confirm-text="<?= ! empty($retake_full_course) ? 'This will reset module progress and start over (Management courses).' : 'This will clear your previous attempt only. Video/module progress stays.' ?>">
           <?= ! empty($retake_full_course) ? 'Restart module &amp; retake' : 'Retake assessment' ?>
         </a>
       </div>
